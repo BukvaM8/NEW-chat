@@ -1,0 +1,42 @@
+
+body {
+    font-family: Times New Roman, sans-serif;
+    background-color: #e6e6ff;  /* light purple */
+    color: #4d004d;  /* dark purple */
+    margin: 40px;
+}
+
+h1 {
+    color: #800080;  /* purple */
+}
+
+h3 {
+    color: #9932CC;  /* another shade of purple */
+}
+
+img {
+    display: block;
+    max-width: 200px;  /* setting a max-width for the profile picture */
+    border-radius: 50%;  /* making the profile picture circular */
+    margin: 20px auto;  /* centering the image and providing some spacing */
+}
+
+form {
+    background-color: #f0e6ff;  /* very light purple */
+    padding: 20px;
+    border-radius: 10px;
+    margin: 20px 0;
+}
+
+input[type="submit"] {
+    background-color: #800080;  /* purple */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+input[type="submit"]:hover {
+    background-color: #9932CC;  /* another shade of purple */
+}

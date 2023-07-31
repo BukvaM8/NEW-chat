@@ -1,0 +1,107 @@
+body {
+    background-color: #E6E6FA;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+h1 {
+    color: #800080;
+    text-align: center;
+}
+
+button {
+    background-color: #800080;
+    color: #FFFFFF;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+button:hover {
+    background-color: #9932CC;
+}
+
+form {
+    background-color: #F5F5DC;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+label {
+    color: #800080;
+    font-weight: bold;
+}
+
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #800080;
+    border-radius: 4px;
+}
+
+input[type="submit"] {
+    background-color: #800080;
+    color: #FFFFFF;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+input[type="submit"]:hover {
+    background-color: #9932CC;
+}
+
+.search-results {
+    margin-top: 20px;
+}
+
+.chat-item,
+.channel-item,
+.dialog-item {
+    background-color: #FFFFFF;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.chat-item h3,
+.channel-item h3 {
+    color: #800080;
+    margin-top: 0;
+}
+
+.chat-item p,
+.channel-item p,
+.dialog-item p {
+    color: #800080;
+    margin-bottom: 5px;
+}
+
+.chat-item a,
+.channel-item a,
+.dialog-item a {
+    color: #800080;
+    text-decoration: none;
+}
+
+.chat-item a:hover,
+.channel-item a:hover,
+.dialog-item a:hover {
+    text-decoration: underline;
+}
+
+.error {
+    color: red;
+    text-align: center;
+}

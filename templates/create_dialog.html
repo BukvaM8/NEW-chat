@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Create Dialog</title>
+<link rel="stylesheet" href="/static/create_dialogStyle.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Создание нового диалога {{ current_user.nickname }}</h1>
+
+        <!-- Поисковая строка -->
+        <form action="/create_dialog" method="post">
+            <input type="text" id="search_query" name="search_query">
+            <input type="submit" value="Поиск">
+        </form>
+
+        <!-- Результаты поиска -->
+        {% if search_results %}
+            <h2>Результаты поиска</h2>
+            <div class="user-list">
+                {% for user in search_results %}
+                    <div class="user-item">
+                        <h3>{{ user['first_name'] }} {{ user['last_name'] }}</h3>
+                        <p>Телефон: {{ user['phone_number'] }}</p>
+                        <!-- Кнопка начала диалога -->
+                        <a href="/create_dialog/{{ user['id'] }}">Начать диалог</a>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Список пользователей -->
+        <h2>Список пользователей</h2>
+        <div class="user-list">
+            {% for user in users %}
+            <div class="user-item">
+                <h3>{{ user['first_name'] }} {{ user['last_name'] }}</h3>
+                <p>Телефон: {{ user['phone_number'] }}</p>
+                <!-- Форма для начала диалога -->
+                <form action="/create_dialog/{{ user['id'] }}" method="post">
+                    <input type="submit" value="Начать диалог">
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+
+        <button onclick="location.href='/home'">Вернуться на главную</button>
+    </div>
+</body>
+</html>

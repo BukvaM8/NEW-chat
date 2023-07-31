@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <link rel="stylesheet" type="text/css" href="/static/LoginStyle.css">
+</head>
+<body>
+    <h1>Login</h1>
+    <form action="/login" method="post">
+        <label for="phone_number">Phone Number:</label><br>
+        <input type="text" id="phone_number" name="phone_number"><br>
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" name="password"><br>
+        <input type="submit" value="Login">
+    </form>
+    {% if error %}
+        <p class="error">{{error}}</p>
+    {% endif %}
+    <p>If you don't have an account, <a href="/register">register here</a>.</p>
+</body>
+</html>

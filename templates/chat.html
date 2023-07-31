@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ chat.chat_name }}</title>
+    <link rel="stylesheet" type="text/css" href="/static/GroupStyle.css">
+</head>
+<body>
+    <div id="container">
+        <h1>{{ chat.chat_name }}</h1>
+        <a href="/home">Вернуться назад</a>
+        <a href="/chat/{{ chat.id }}/members">{{ members|length }} участников</a>
+        {% if chat.owner_phone_number == current_user.phone_number %}
+            <a href="/chat/{{ chat.id }}/members/add">Пригласить</a>
+            <form action="/chats/{{chat.id}}/delete" method="post">
+                <button type="submit">Удалить чат</button>
+            </form>
+        {% else %}
+            <form action="/chats/{{chat.id}}/leave" method="post">
+                <button type="submit">Покинуть чат</button>
+            </form>
+        {% endif %}
+        <div id="messages-container">
+            <ul id="chat-history">
+            {% for message in messages %}
+                <div>
+                    {% if message.sender_phone_number == "deleted" %}
+                        <h4>Deleted message</h4>
+                    {% else %}
+                        <h4>{{ message.sender_phone_number }}</h4>
+                    {% endif %}
+                    {% if '[[FILE]]' in message.message %}
+                        {% set text, file_info = message.message.split('[[FILE]]') %}
+                        {% set file_parts = file_info.replace('[[/FILE]]','').split(', ') %}
+                        {% if file_parts|length == 2 %}
+                            {% set file_id, file_name = file_parts %}
+                            <p>{{ text }} <small>Sent at: {{ message.timestamp }}</small></p>
+                            <p>
+                                <a href="/files/{{ file_id.split(': ')[1].strip() }}">
+                                {{ file_name.split(': ')[1].strip() }}
+                                </a>
+                            </p>
+                        {% else %}
+                            <p>Error displaying file. <small>Sent at: {{ message.timestamp }}</small></p>
+                        {% endif %}
+                    {% elif message.message.startswith('Опрос: ') %}
+                        <!-- Отображение опроса -->
+                        {% set poll_id = message.message.split(' ')[1]|int %}
+                        {% set poll = polls|selectattr("id", "equalto", poll_id)|first %}
+                        {% if poll %}
+                            {% if poll.is_ended %}
+                                <h4>{{ poll.question }} (Опрос завершен)</h4>
+                                {% for option_id, option in poll.options.items() %}
+                                    {{ option }}
+                                    <!-- Displaying the vote count next to the options -->
+                                    {% set votes, percentage = poll_results[poll_id].get(option_id, (0, 0)) %}
+                                    ({{ votes }} голоса, {{ percentage|round(1) }}%)
+                                    <br>
+                                {% endfor %}
+                                {% if current_user.phone_number == poll.creator_phone_number or current_user.phone_number == chat.owner_phone_number %}
+                                    <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/delete" method="post">
+                                        <button type="submit">Delete Poll</button>
+                                    </form>
+                                {% endif %}
+                            {% else %}
+                                <h4>{{ poll.question }}</h4>
+                                <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/vote" method="post">
+                                    {% for option_id, option in poll.options.items() %}
+                                        <input type="radio" name="option_id" value="{{ option_id }}"> {{ option }}
+                                        <!-- Displaying the vote count next to the options -->
+                                        {% set votes, percentage = poll_results[poll_id].get(option_id, (0, 0)) %}
+                                        ({{ votes }} votes, {{ percentage|round(1) }}%)
+                                        <br>
+                                    {% endfor %}
+                                    <input type="hidden" name="voter_phone_number" value="{{ current_user.phone_number }}">
+                                    <button type="submit">Vote</button>
+                                </form>
+                                {% if current_user.phone_number == poll.creator_phone_number or current_user.phone_number == chat.owner_phone_number %}
+                                    <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/end?current_user_phone_number={{ current_user.phone_number }}" method="post">
+                                        <button type="submit">End Poll</button>
+                                    </form>
+
+
+                                {% endif %}
+                            {% endif %}
+                        {% else %}
+                            <p>The poll was deleted. <small>Sent at: {{ message.timestamp }}</small></p>
+                        {% endif %}
+                    {% elif message.message == "сообщение удалено" %}
+                        <p><small>{{ message.message }} at {{ message.delete_timestamp }}</small></p>
+                    {% else %}
+                        <p>{{ message.message }} <small>Sent at: {{ message.timestamp }}</small></p>
+                    {% endif %}
+                    <!-- Если текущий пользователь - автор сообщения или админ, показать кнопку удаления -->
+                    {% if message.sender_phone_number != "deleted" and (message.sender_phone_number == current_user.phone_number or chat.owner_phone_number == current_user.phone_number) %}
+                        <form action="/chats/{{ chat.id }}/messages/{{ message.id }}/delete" method="post">
+                            <button type="submit">Delete message</button>
+                        </form>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            </ul>
+        </div>
+        <div id="message-form-container">
+            {% if chat.id in left_chats %}
+                <form action="/chats/{{ chat.id }}/return" method="post">
+                    <button type="submit">Return to chat</button>
+                </form>
+            {% else %}
+                <form action="/chats/{{ chat.id }}/send_message" method="post" enctype="multipart/form-data">
+                    <label for="message-input">Сообщение:</label>
+                    <input type="text" id="message-input" name="message_text"><br>
+                    <label for="file-input">Файл:</label>
+                    <input type="file" id="file-input" name="file"><br>
+                    <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
+                    <button type="submit">Отправить</button>
+                </form>
+                <!-- Форма создания опроса -->
+                <button onclick="document.getElementById('poll-form').style.display='block'">Создать опрос</button>
+                <div id="poll-form" style="display: none;">
+                    <form action="/chats/{{ chat.id }}/create_poll" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="creator_phone_number" value="{{ current_user.phone_number }}">
+                        <label for="poll-question">Вопрос:</label>
+                        <input type="text" id="poll-question" name="question"><br>
+                        <label>Варианты ответа:</label>
+                        <div id="poll-options">
+                            <input type="text" name="options"><br>
+                        </div>
+                        <button type="button" onclick="addOption()">Добавить вариант ответа</button>
+                        <button type="submit">Создать</button>
+                        <label for="poll-file">Прикрепить файл:</label>
+                        <input type="file" id="poll-file" name="file"><br>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <script>
+        var optionCount = 1;
+        function addOption() {
+            if (optionCount < 7) {
+                var input = document.createElement("input");
+                input.type = "text";
+                input.name = "options";
+                document.getElementById("poll-options").appendChild(input);
+                document.getElementById("poll-options").appendChild(document.createElement("br"));
+                optionCount += 1;
+            } else {
+                alert("Можно добавить не более 7 вариантов ответа");
+            }
+        }
+    </script>
+</body>
+</html>

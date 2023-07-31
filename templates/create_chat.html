@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Create Chat</title>
+    <link rel="stylesheet" href="/static/Create_ChatStyle.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Создание нового чата</h1>
+
+        <!-- Форма создания чата -->
+        <form action="/create_chat" method="post">
+            <label for="chat_name">Имя чата:</label>
+            <input type="text" id="chat_name" name="chat_name" required>
+
+            <!-- Выпадающий список для выбора участника чата -->
+            <label for="user_phone">Выберите участника:</label>
+            <select id="user_phone" name="user_phone" required>
+                {% for user in users %}
+                    <option value="{{ user.phone_number }}">{{ user.nickname }} ({{ user.phone_number }})</option>
+                {% endfor %}
+            </select>
+
+            <input type="submit" value="Создать">
+        </form>
+
+        <!-- Кнопка "Вернуться на главную страницу" -->
+        <button onclick="location.href='/chats'">Вернуться назад</button>
+    </div>
+</body>
+</html>
