@@ -15,7 +15,7 @@ import aiomysql
 import cur as cur
 from fastapi.params import Path, Body
 from sqlalchemy import create_engine, MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
-    Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float
+    Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON
 from sqlalchemy.exc import SQLAlchemyError, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -112,8 +112,9 @@ Polls = Table(
     Column("chat_id", Integer, ForeignKey('Userchats.id')),
     Column("creator_phone_number", String, ForeignKey('Users.phone_number')),
     Column("question", String),
-    Column("options", String),  # Можете использовать другой тип данных, если хотите хранить варианты ответов как список
-    Column("is_ended", Boolean, default=False)
+    Column("options", String),
+    Column("is_ended", Boolean, default=False),
+    Column("voted_users", JSON)
 )
 
 
@@ -648,7 +649,14 @@ async def get_poll_results_endpoint(poll_id: int):
     return results
 
 @app.post("/chats/{chat_id}/polls/{poll_id}/delete")
-async def delete_poll(chat_id: int, poll_id: int, current_user_phone_number: str):
+async def delete_poll(request: Request, chat_id: int, poll_id: int):
+    form_data = await request.form()
+    current_user_phone_number = form_data.get("current_user_phone_number")
+
+    # Проверка на наличие номера телефона текущего пользователя
+    if not current_user_phone_number:
+        raise HTTPException(status_code=400, detail="Phone number is missing")
+
     # Получить опрос из базы данных
     poll = await get_poll(current_user_phone_number, poll_id)
     if not poll:
@@ -668,7 +676,6 @@ async def delete_poll(chat_id: int, poll_id: int, current_user_phone_number: str
 
     # Вернуться обратно в чат
     return RedirectResponse(url=f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
-
 
 async def delete_poll_data(poll_id: int):
     # Удаляем все голоса для данного опроса
@@ -746,8 +753,6 @@ async def get_file(file_id: int):
     headers = {
         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(original_filename)}"
     }
-
-    print(query)
 
     return StreamingResponse(
         io.BytesIO(result.file),

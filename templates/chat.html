@@ -44,48 +44,53 @@
                             <p>Error displaying file. <small>Sent at: {{ message.timestamp }}</small></p>
                         {% endif %}
                     {% elif message.message.startswith('Опрос: ') %}
-                        <!-- Отображение опроса -->
-                        {% set poll_id = message.message.split(' ')[1]|int %}
-                        {% set poll = polls|selectattr("id", "equalto", poll_id)|first %}
-                        {% if poll %}
-                            {% if poll.is_ended %}
-                                <h4>{{ poll.question }} (Опрос завершен)</h4>
-                                {% for option_id, option in poll.options.items() %}
-                                    {{ option }}
-                                    <!-- Displaying the vote count next to the options -->
-                                    {% set votes, percentage = poll_results[poll_id].get(option_id, (0, 0)) %}
-                                    ({{ votes }} голоса, {{ percentage|round(1) }}%)
-                                    <br>
-                                {% endfor %}
-                                {% if current_user.phone_number == poll.creator_phone_number or current_user.phone_number == chat.owner_phone_number %}
-                                    <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/delete" method="post">
-                                        <button type="submit">Delete Poll</button>
-                                    </form>
-                                {% endif %}
-                            {% else %}
-                                <h4>{{ poll.question }}</h4>
-                                <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/vote" method="post">
-                                    {% for option_id, option in poll.options.items() %}
-                                        <input type="radio" name="option_id" value="{{ option_id }}"> {{ option }}
-                                        <!-- Displaying the vote count next to the options -->
-                                        {% set votes, percentage = poll_results[poll_id].get(option_id, (0, 0)) %}
-                                        ({{ votes }} votes, {{ percentage|round(1) }}%)
-                                        <br>
-                                    {% endfor %}
-                                    <input type="hidden" name="voter_phone_number" value="{{ current_user.phone_number }}">
-                                    <button type="submit">Vote</button>
-                                </form>
-                                {% if current_user.phone_number == poll.creator_phone_number or current_user.phone_number == chat.owner_phone_number %}
-                                    <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/end?current_user_phone_number={{ current_user.phone_number }}" method="post">
-                                        <button type="submit">End Poll</button>
-                                    </form>
+    <!-- Отображение опроса -->
+    {% set poll_id = message.message.split(' ')[1]|int %}
+    {% set poll = polls|selectattr("id", "equalto", poll_id)|first %}
+    {% if poll %}
+        {% if poll.is_ended %}
+            <h4>{{ poll.question }} (Опрос завершен)</h4>
+            {% for option_id, option in poll.options.items() %}
+                {{ option }}
+                <!-- Displaying the vote count next to the options -->
+                {% set votes, percentage = poll_results[poll_id].get(option_id, (0, 0)) %}
+                ({{ votes }} голоса, {{ percentage|round(1) }}%)
+                <br>
+            {% endfor %}
+        {% else %}
+            <h4>{{ poll.question }}</h4>
+            <!-- Проверим, голосовал ли пользователь за этот опрос -->
+            {% if not poll.voted_users or current_user.phone_number not in poll.voted_users %}
+                <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/vote" method="post">
+                    {% for option_id, option in poll.options.items() %}
+                        <input type="radio" name="option_id" value="{{ option_id }}"> {{ option }}
+                        <!-- Displaying the vote count next to the options -->
+                        {% set votes, percentage = poll_results[poll_id].get(option_id, (0, 0)) %}
+                        ({{ votes }} votes, {{ percentage|round(1) }}%)
+                        <br>
+                    {% endfor %}
+                    <input type="hidden" name="voter_phone_number" value="{{ current_user.phone_number }}">
+                    <button type="submit">Vote</button>
+                </form>
+            {% else %}
+                <p>Вы уже проголосовали.</p>
+            {% endif %}
+            {% if current_user.phone_number == poll.creator_phone_number or current_user.phone_number == chat.owner_phone_number %}
+                <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/end?current_user_phone_number={{ current_user.phone_number }}" method="post">
+                    <button type="submit">End Poll</button>
+                </form>
+            {% endif %}
+        {% endif %}
+        {% if current_user.phone_number == poll.creator_phone_number or current_user.phone_number == chat.owner_phone_number %}
+            <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/delete" method="post">
+                <input type="hidden" name="current_user_phone_number" value="{{ current_user.phone_number }}">
+                <button type="submit">Удалить опрос</button>
+            </form>
+        {% endif %}
+    {% else %}
+        <p>The poll was deleted. <small>Sent at: {{ message.timestamp }}</small></p>
+    {% endif %}
 
-
-                                {% endif %}
-                            {% endif %}
-                        {% else %}
-                            <p>The poll was deleted. <small>Sent at: {{ message.timestamp }}</small></p>
-                        {% endif %}
                     {% elif message.message == "сообщение удалено" %}
                         <p><small>{{ message.message }} at {{ message.delete_timestamp }}</small></p>
                     {% else %}
