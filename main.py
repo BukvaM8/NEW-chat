@@ -733,7 +733,7 @@ async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: s
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error creating new chat")
 
-#Возвращает файл по его идентификатору.
+# Возвращает файл по его идентификатору.
 @app.get("/files/{file_id}")
 async def get_file(file_id: int):
     query = files.select().where(files.c.id == file_id)
@@ -746,6 +746,8 @@ async def get_file(file_id: int):
     headers = {
         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(original_filename)}"
     }
+
+    print(query)
 
     return StreamingResponse(
         io.BytesIO(result.file),
