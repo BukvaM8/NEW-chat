@@ -533,6 +533,14 @@ async def create_poll(chat_id: int, creator_phone_number: str, question: str, op
 
     return last_poll_id
 
+def is_poll(message):
+    # Если формат сообщения соответствует "Опрос: {id}", то это опрос
+    if message.startswith("Опрос: "):
+        return int(message.split(" ")[1])
+    else:
+        return None
+
+
 async def get_poll(poll_id: int, current_user_phone_number: str):
     query = select([Polls]).where(Polls.c.id == poll_id)
     poll = await database.fetch_one(query)
@@ -791,6 +799,11 @@ async def delete_message(
     chat = await get_chat(chat_id)
     if message is None or message.chat_id != chat_id or (message.sender_phone_number != current_user.phone_number and chat['owner_phone_number'] != current_user.phone_number):
         raise HTTPException(status_code=404, detail="Message not found or user is not the author or the chat admin")
+
+    poll_id = is_poll(message.message)
+    if poll_id is not None:
+        # Если сообщение является опросом, то удаляем связанный опрос
+        await delete_poll_data(poll_id)
 
     await delete_message_from_db(message_id)  # Удаляем сообщение из базы данных
 
