@@ -656,34 +656,6 @@ async def get_poll_results_endpoint(poll_id: int):
     results = await get_poll_results(poll_id)
     return results
 
-@app.post("/chats/{chat_id}/polls/{poll_id}/delete")
-async def delete_poll(request: Request, chat_id: int, poll_id: int):
-    form_data = await request.form()
-    current_user_phone_number = form_data.get("current_user_phone_number")
-
-    # Проверка на наличие номера телефона текущего пользователя
-    if not current_user_phone_number:
-        raise HTTPException(status_code=400, detail="Phone number is missing")
-
-    # Получить опрос из базы данных
-    poll = await get_poll(current_user_phone_number, poll_id)
-    if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
-
-    # Удалить все голоса для данного опроса
-    query = PollVotes.delete().where(PollVotes.c.poll_id == poll_id)
-    await database.execute(query)
-
-    # Удалить все варианты ответа для данного опроса
-    query = PollOptions.delete().where(PollOptions.c.poll_id == poll_id)
-    await database.execute(query)
-
-    # Удалить сам опрос
-    query = Polls.delete().where(Polls.c.id == poll_id)
-    await database.execute(query)
-
-    # Вернуться обратно в чат
-    return RedirectResponse(url=f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 async def delete_poll_data(poll_id: int):
     # Удаляем все голоса для данного опроса
