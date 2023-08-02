@@ -81,16 +81,9 @@
                 </form>
             {% endif %}
         {% endif %}
-        {% if current_user.phone_number == poll.creator_phone_number or current_user.phone_number == chat.owner_phone_number %}
-            <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/delete" method="post">
-                <input type="hidden" name="current_user_phone_number" value="{{ current_user.phone_number }}">
-                <button type="submit">Удалить опрос</button>
-            </form>
-        {% endif %}
     {% else %}
         <p>The poll was deleted. <small>Sent at: {{ message.timestamp }}</small></p>
     {% endif %}
-
                     {% elif message.message == "сообщение удалено" %}
                         <p><small>{{ message.message }} at {{ message.delete_timestamp }}</small></p>
                     {% else %}
@@ -154,6 +147,22 @@
                 alert("Можно добавить не более 7 вариантов ответа");
             }
         }
+    </script>
+<script>
+        let socket = new WebSocket(`ws://${window.location.host}/ws/chats/${chat.id}/`);
+
+        socket.onmessage = function(e) {
+            let data = JSON.parse(e.data);
+            let message = data['message'];
+            // Добавьте код для добавления сообщения в список сообщений
+            let div = document.createElement("div");
+            div.innerHTML = `<h4>${message.sender_phone_number}</h4><p>${message.text} <small>Sent at: ${message.timestamp}</small></p>`;
+            document.querySelector('#chat-history').appendChild(div);
+        };
+
+        socket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
     </script>
 </body>
 </html>

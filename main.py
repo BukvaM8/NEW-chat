@@ -13,7 +13,9 @@ from urllib.parse import quote, unquote
 # Модули для работы с SQL базами данных
 import aiomysql
 import cur as cur
+import jwt
 from fastapi.params import Path, Body
+from jose import JWTError
 from sqlalchemy import create_engine, MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON
 from sqlalchemy.exc import SQLAlchemyError, NoResultFound
@@ -51,6 +53,10 @@ from requests import Session
 
 import mimetypes
 from pydantic.json import Union
+
+logging.basicConfig(level=logging.INFO)
+
+
 # Устанавливаем URL базы данных
 SQLALCHEMY_DATABASE_URL = "mysql://root:root@localhost/Chat"
 
@@ -223,6 +229,28 @@ channel_history = Table(
     Column("file_id", Integer, ForeignKey('Files.id')),
     Column("file_name", String)
 )
+
+SECRET_KEY = "Bondar"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 3
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        phone_number: str = payload.get("sub")
+        if phone_number is None:
+            return None
+        return phone_number
+    except JWTError:
+        return None
+
 # Определяем модель пользователя
 class User(Base):
     __tablename__ = "users"
@@ -533,6 +561,7 @@ async def create_poll(chat_id: int, creator_phone_number: str, question: str, op
 
     return last_poll_id
 
+
 def is_poll(message):
     # Если формат сообщения соответствует "Опрос: {id}", то это опрос
     if message.startswith("Опрос: "):
@@ -557,7 +586,8 @@ async def get_poll(poll_id: int, current_user_phone_number: str):
         poll_data['options'] = {option['id']: option['poll_option'] for option in poll_options}
 
         # Проверяем, голосовал ли текущий пользователь уже в этом опросе
-        query = select([PollVotes]).where(PollVotes.c.poll_id == poll_id, PollVotes.c.voter_phone_number == current_user_phone_number)
+        query = select([PollVotes]).where(PollVotes.c.poll_id == poll_id,
+                                          PollVotes.c.voter_phone_number == current_user_phone_number)
         user_vote = await database.fetch_one(query)
         poll_data['user_voted'] = user_vote is not None
 
@@ -579,6 +609,7 @@ async def create_poll_endpoint(chat_id: int, creator_phone_number: str = Form(..
 
     # Перенаправляем пользователя обратно в чат после создания опроса
     return RedirectResponse(url=f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 async def vote_on_poll(poll_id: int, option_id: int, voter_phone_number: str, chat_id: int):
     # Проверяем, голосовал ли пользователь уже в этом опросе
@@ -605,7 +636,8 @@ async def vote_on_poll(poll_id: int, option_id: int, voter_phone_number: str, ch
     await database.execute(query)
 
     # Получаем результаты голосования
-    query = select([PollVotes.c.option_id, func.count(PollVotes.c.option_id)]).where(PollVotes.c.poll_id == poll_id).group_by(PollVotes.c.option_id)
+    query = select([PollVotes.c.option_id, func.count(PollVotes.c.option_id)]).where(
+        PollVotes.c.poll_id == poll_id).group_by(PollVotes.c.option_id)
     results = await database.fetch_all(query)
 
     total_votes = sum(result[1] for result in results)
@@ -615,7 +647,9 @@ async def vote_on_poll(poll_id: int, option_id: int, voter_phone_number: str, ch
 
     # Сохраняем результаты голосования в базе данных
     for option_id, (votes, percentage) in vote_results.items():
-        query = PollResults.update().where(and_(PollResults.c.poll_id == poll_id, PollResults.c.option_id == option_id)).values(votes=votes, percentage=percentage)
+        query = PollResults.update().where(
+            and_(PollResults.c.poll_id == poll_id, PollResults.c.option_id == option_id)).values(votes=votes,
+                                                                                                 percentage=percentage)
         await database.execute(query)
 
     return vote_results
@@ -646,10 +680,13 @@ async def get_poll_results(poll_id: int) -> Dict[int, Tuple[int, float]]:
 
     return vote_counts
 
+
 @app.post("/chats/{chat_id}/polls/{poll_id}/vote")
-async def vote_on_poll_endpoint(poll_id: int, option_id: int = Form(...), voter_phone_number: str = Form(...), chat_id: int = Path(...)):
+async def vote_on_poll_endpoint(poll_id: int, option_id: int = Form(...), voter_phone_number: str = Form(...),
+                                chat_id: int = Path(...)):
     vote_results = await vote_on_poll(poll_id, option_id, voter_phone_number, chat_id)
     return RedirectResponse(url=f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
+
 
 @app.get("/chats/{chat_id}/polls/{poll_id}/results")
 async def get_poll_results_endpoint(poll_id: int):
@@ -658,15 +695,20 @@ async def get_poll_results_endpoint(poll_id: int):
 
 
 async def delete_poll_data(poll_id: int):
-    # Удаляем все голоса для данного опроса
+    # Удалить сообщение, связанное с опросом
+    message_content = f"Опрос: {poll_id}"
+    message_query = chatmessages.delete().where(chatmessages.c.message == message_content)
+    await database.execute(message_query)
+
+    # Удалить все голоса для данного опроса
     query = PollVotes.delete().where(PollVotes.c.poll_id == poll_id)
     await database.execute(query)
 
-    # Удаляем все варианты ответа для данного опроса
+    # Удалить все варианты ответа для данного опроса
     query = PollOptions.delete().where(PollOptions.c.poll_id == poll_id)
     await database.execute(query)
 
-    # Удаляем сам опрос
+    # Удалить сам опрос
     query = Polls.delete().where(Polls.c.id == poll_id)
     await database.execute(query)
 
@@ -772,10 +814,13 @@ async def delete_message(
     if message is None or message.chat_id != chat_id or (message.sender_phone_number != current_user.phone_number and chat['owner_phone_number'] != current_user.phone_number):
         raise HTTPException(status_code=404, detail="Message not found or user is not the author or the chat admin")
 
-    poll_id = is_poll(message.message)
-    if poll_id is not None:
-        # Если сообщение является опросом, то удаляем связанный опрос
-        await delete_poll_data(poll_id)
+    # Если сообщение начинается с "Опрос: ", то это опрос
+    if message.message.startswith("Опрос: "):
+        poll_id = int(message.message[7:])
+        poll = await get_poll(poll_id, current_user.phone_number)
+        if poll is not None:
+            # Если сообщение является опросом, то удаляем связанный опрос
+            await delete_poll_data(poll_id)
 
     await delete_message_from_db(message_id)  # Удаляем сообщение из базы данных
 
@@ -1170,8 +1215,14 @@ async def delete_chat(request: Request, chat_id: int, current_user: Union[str, R
 
     return RedirectResponse(url="/chats", status_code=303)
 
+async def get_chat_participants(chat_id: int):
+    query = select([ChatMembers.c.user_phone_number]).where(ChatMembers.c.chat_id == chat_id)
+    result = await database.fetch_all(query)
+    return [row[0] for row in result]
+
+
 @app.post("/chats/{chat_id}/send_message")
-async def send_message(
+async def send_message_to_chat(
         chat_id: int,
         message_text: str = Form(None),
         file: UploadFile = File(None),
@@ -1199,6 +1250,9 @@ async def send_message(
             message_text += f' [[FILE]]File ID: {file_id}, File Name: {file_name}[[/FILE]]'
 
         await create_message(chat_id, message_text, current_user.phone_number)
+        participants = await get_chat_participants(chat_id)  # change here
+        await manager.send_message(f"chat_{chat_id}", f"New message in chat {chat_id} from {current_user.phone_number}: {message_text}")
+
     except HTTPException:
         raise HTTPException(status_code=500, detail="Error sending message or uploading file")
 
@@ -1811,6 +1865,8 @@ async def send_message_to_dialog(
         raise HTTPException(status_code=400, detail="No message or file to send")
 
     await send_message(dialog_id, sender_id, message)
+    participants = [sender_id, receiver_id]
+    await manager.send_message(f"dialog_{dialog_id}", f"New message in dialog {dialog_id} from user {sender_id}: {message}")
 
     # Обновляем время последнего онлайна после отправки сообщения
     await update_last_online(sender_id)
@@ -1995,85 +2051,76 @@ async def get_dialog_route(dialog_id: int, request: Request, current_user: Union
         "messages": messages,
     })
 
-from sqlalchemy.orm import Session
 # БЛОК №4 СОКЕТЫ
-# Improved ConnectionManager with chat rooms
-class ConnectionManager:
+import logging
+
+class WebSocketManager:
     def __init__(self):
-        self.active_connections: Dict[str, List[WebSocket]] = defaultdict(list)
+        self.active_connections: Dict[str, WebSocket] = {}
 
     async def connect(self, websocket: WebSocket, room: str):
-        await websocket.accept()
+        logging.info(f"Connecting to room {room}")
+        if room not in self.active_connections:
+            self.active_connections[room] = []
         self.active_connections[room].append(websocket)
+        await websocket.accept()
+        logging.info(f"Connected to room {room}")
 
     async def disconnect(self, websocket: WebSocket, room: str):
-        self.active_connections[room].remove(websocket)
+        logging.info(f"Disconnecting from room {room}")
+        if room in self.active_connections:
+            self.active_connections[room].remove(websocket)
+        logging.info(f"Disconnected from room {room}")
 
-    async def send_message(self, message: str, websocket: WebSocket, room: str):
-        active_room_connections = self.active_connections[room]
-        for connection in active_room_connections:
-            if connection != websocket:
+    async def send_message(self, room: str, message: str):
+        logging.info(f"Sending message to room {room}")
+        if room in self.active_connections:
+            for connection in self.active_connections[room]:
                 await connection.send_text(message)
+                logging.info(f"Sent message to room {room}")
 
-    async def broadcast(self, message: str, room: str):
-        active_room_connections = self.active_connections[room]
-        for connection in active_room_connections:
-            await connection.send_text(message)
-
-manager = ConnectionManager()
-
-@app.websocket("/ws/polls/{poll_id}/votes")
-async def websocket_votes(websocket: WebSocket, poll_id: int):
-    await websocket.accept()
-    while True:
-        votes = await get_poll_results(poll_id)  # get_poll_results - это ваша функция подсчета голосов
-        await websocket.send_json(votes)
-        await asyncio.sleep(1)  # Обновляем подсчет голосов каждую секунду
+manager = WebSocketManager()
 
 
-# This function will be improved with the addition of error handling and authentication/authorization checks
-@app.websocket("/ws/{room}/{user_phone_number}")
-async def websocket_endpoint(websocket: WebSocket, room: str, user_phone_number: str):
+@app.websocket("/ws/chats/{chat_id}/")
+async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int, current_user_phone_number: str):
+    room = f"chat_{chat_id}"
+
+    # Log headers and cookies
+    logging.info(f"Headers: {dict(websocket.headers)}")
+    logging.info(f"Cookies: {dict(websocket.cookies)}")
+
     await manager.connect(websocket, room)
     try:
         while True:
             data = await websocket.receive_text()
-            await create_message(data, room, user_phone_number)
-            await manager.broadcast(f"{user_phone_number}: {data}", room)
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, room)
-        await manager.broadcast(f"{user_phone_number} left the chat", room)
+            logging.info(f"Received data: {data}")
+            await manager.send_message(room, data)
     except Exception as e:
-        print(f"Error: {e}")
-
-#Сокет уведомлений об отправке сообщений
-#async def get_notification_for_user(phone_number: str) -> Optional[str]:
-#    conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
-#    cur = await conn.cursor()
-#    await cur.execute(
- #       "SELECT message FROM Notifications WHERE user_phone = %s AND is_sent = 0 ORDER BY id ASC LIMIT 1",
-#        (phone_number,),
-#    )
-#    notification = None
-#    if cur.rowcount:
-#        notification = (await cur.fetchone())[0]
-#        # Update the is_sent flag
-#        await cur.execute(
- #           "UPDATE Notifications SET is_sent = 1 WHERE user_phone = %s AND is_sent = 0 ORDER BY id ASC LIMIT 1",
-#            (phone_number,),
-#        )
- #   await cur.close()
-#    conn.close()
-#    return notification
+        logging.error(f"Exception: {e}")
+    finally:
+        await manager.disconnect(websocket, room)
 
 
-#@app.websocket("/ws/notifications/{phone_number}")
-#async def websocket_notifications(websocket: WebSocket, phone_number: str):
- #   await manager.connect(websocket)
-#    try:
- #       while True:
-#            notification = await get_notification_for_user(phone_number)  # Функция, которая получает уведомления для пользователя из базы данных
-#            if notification:
-#                await manager.send_message(notification, websocket)
-#    except WebSocketDisconnect:
-#        manager.disconnect(websocket)
+@app.websocket("/ws/dialogs/{dialog_id}/")
+async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: int, current_user_phone_number: str):
+    room = f"dialog_{dialog_id}"
+
+    # Log headers and cookies
+    logging.info(f"Headers: {dict(websocket.headers)}")
+    logging.info(f"Cookies: {dict(websocket.cookies)}")
+
+    await manager.connect(websocket, room)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logging.info(f"Received data: {data}")
+            await manager.send_message(room, data)
+    except Exception as e:
+        logging.error(f"Exception: {e}")
+    finally:
+        await manager.disconnect(websocket, room)
+
+
+
+

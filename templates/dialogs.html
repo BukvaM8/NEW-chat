@@ -55,5 +55,22 @@
 
         <button onclick="location.href='/home'">Вернуться на главную</button>
     </div>
+    <script>
+        let dialogId = "{{ dialog.id }}";
+        let socket = new WebSocket(`ws://${window.location.host}/ws/dialogs/${dialogId}/`);
+
+        socket.onmessage = function(e) {
+            let data = JSON.parse(e.data);
+            let message = data['message'];
+            // Добавьте код для добавления сообщения в список сообщений
+            let li = document.createElement("li");
+            li.innerHTML = `${message.sender_id}: ${message.message}`;
+            document.querySelector('ul').appendChild(li);
+        };
+
+        socket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+    </script>
 </body>
 </html>
