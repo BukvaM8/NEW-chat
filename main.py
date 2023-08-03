@@ -28,13 +28,14 @@ from databases import Database
 from pymysql.err import ProgrammingError
 
 # Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
-from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, Cookie, logger, UploadFile, File
+from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, Cookie, logger, UploadFile, File, security
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPAuthorizationCredentials, HTTPBearer, \
+    OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse, PlainTextResponse, Response
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocketDisconnect
 
@@ -56,6 +57,7 @@ from pydantic.json import Union
 
 logging.basicConfig(level=logging.INFO)
 
+security = HTTPBearer()
 
 # Устанавливаем URL базы данных
 SQLALCHEMY_DATABASE_URL = "mysql://root:root@localhost/Chat"
@@ -110,6 +112,16 @@ userchats = Table(
     Column("chat_name", String),
     Column("owner_phone_number", String, ForeignKey('Users.phone_number')),
 )
+
+tokens = Table(
+    "Tokens",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("token", String),
+    Column("expires_at", DateTime(timezone=True)),
+    Column("user_id", Integer, ForeignKey("Users.id"))
+)
+
 
 Polls = Table(
     "Polls",
@@ -230,16 +242,49 @@ channel_history = Table(
     Column("file_name", String)
 )
 
+# Папка, где будут храниться фотографии профиля
+PROFILE_PICTURES_FOLDER = "C:/Users/Программист/PycharmProjects/fastApiSpiritChat/profile_pictures"
+
+
 SECRET_KEY = "Bondar"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 3
 
-def create_access_token(data: dict):
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+
+# Хранилище для аннулированных токенов
+revoked_tokens = []
+
+# Определяем модель пользователя
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    phone_number = Column(String, unique=True, index=True)
+    password = Column(String)
+
+class MessageContent(BaseModel):
+    message_text: str
+class MyJinja2Templates(Jinja2Templates):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.env.globals["time"] = time
+
+templates = MyJinja2Templates(directory="templates")
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 def verify_token(token: str):
     try:
@@ -251,25 +296,27 @@ def verify_token(token: str):
     except JWTError:
         return None
 
-# Определяем модель пользователя
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    phone_number = Column(String, unique=True, index=True)
-    password = Column(String)
+@app.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
-class MessageContent(BaseModel):
-    message_text: str
 
-# Папка, где будут храниться фотографии профиля
-PROFILE_PICTURES_FOLDER = "C:/Users/Программист/PycharmProjects/fastApiSpiritChat/profile_pictures"
+@app.post("/token/revoke")
+async def revoke_token(token: str = Depends(oauth2_scheme)):
+    revoked_tokens.append(token)
+    return {"msg": "Token has been revoked"}
 
-class MyJinja2Templates(Jinja2Templates):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.env.globals["time"] = time
-
-templates = MyJinja2Templates(directory="templates")
 
 # На старте приложения подключаемся к базе данных
 @app.on_event("startup")
@@ -282,23 +329,50 @@ async def shutdown():
     await database.disconnect()
 
 # Зависимость для получения информации о текущем активном пользователе.
-async def get_current_active_user(request: Request):
-    phone_number = request.session.get("phone_number")
-    if phone_number is None:
-        raise HTTPException(status_code=403, detail="Not authenticated")
-    user = await get_user_by_phone(phone_number)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+# Зависимость для получения информации о текущем активном пользователе.
+async def get_current_active_user(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
+    token = token or request.cookies.get("access_token")
+    if not token:
+        return None
 
-    # обновляем поле last_online в таблице пользователей
-    query = (
-        update(users).
-        where(users.c.phone_number == phone_number).
-        values(last_online=datetime.utcnow())
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
     )
-    await database.execute(query)
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        phone_number: str = payload.get("sub")
+        if phone_number is None:
+            raise credentials_exception
+        token_data = TokenData(phone_number=phone_number)
+    except JWTError:
+        raise credentials_exception
+    user = await get_user_by_phone(token_data.phone_number)
+    if user is None:
+        raise credentials_exception
+
+    # Check if the token is in the database
+    query = tokens.select().where(tokens.c.token == token)
+    row = await database.fetch_one(query)
+    if row is None:
+        raise credentials_exception
 
     return user
+
+
+# Добавим зависимость для аутентификации через веб-сокет
+async def get_current_user_from_websocket(websocket: WebSocket) -> User:
+    try:
+        token = websocket.cookies.get("token")
+        if token:
+            phone_number = verify_token(token)
+            if phone_number:
+                return await get_user(phone_number)
+    except:
+        pass
+    await websocket.close()
+    raise HTTPException(status_code=403, detail="Not authenticated")
 
 # Извлекает информацию о пользователе из базы данных по номеру телефона.
 async def get_user(phone_number: str):
@@ -352,14 +426,36 @@ async def add_user(gender, last_name, first_name, middle_name, nickname, phone_n
     return result
 
 #Извлекает текущего пользователя из сессии.
-async def get_current_user(request: Request) -> User:
-    if "phone_number" not in request.session:
-        return RedirectResponse(url="/login")
-    phone_number = request.session["phone_number"]
-    print(f"Phone number from session: {phone_number}")  # line for debug
-    user = await get_user(phone_number)
-    print(f"User from database: {user}")  # line for debug
+async def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
+    token = token or request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=403, detail="Not authenticated")
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        phone_number: str = payload.get("sub")
+        if phone_number is None:
+            raise credentials_exception
+        token_data = TokenData(phone_number=phone_number)
+    except JWTError:
+        raise credentials_exception
+    user = await get_user_by_phone(token_data.phone_number)
+    if user is None:
+        raise credentials_exception
+
+    # Check if the token is in the database
+    query = tokens.select().where(tokens.c.token == token)
+    row = await database.fetch_one(query)
+    if row is None:
+        raise credentials_exception
+
     return user
+
 
 #Возвращает всех пользователей из базы данных.
 async def get_all_users(search_query: str = "") -> List[dict]:
@@ -829,11 +925,12 @@ async def delete_message(
 #БЛОК МАРШРУТЫ
 # Маршрут к главной странице
 @app.get("/", response_class=HTMLResponse)
-async def root(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
+async def root(request: Request, current_user: Optional[User] = Depends(get_current_active_user)):
+    if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request})
     else:
         return RedirectResponse(url="/home", status_code=303)
+
 
 # Маршрут к странице входа в систему
 @app.get("/login", response_class=HTMLResponse)
@@ -843,22 +940,33 @@ async def login_form(request: Request):
 
 # Маршрут для аутентификации пользователя
 @app.post("/login")
-async def login_user(request: Request,
-                     phone_number: str = Form(...),
-                     password: str = Form(...)):
-    # Этот маршрут обрабатывает данные формы входа и осуществляет аутентификацию пользователя
+async def login_user(response: Response, phone_number: str = Form(...), password: str = Form(...)):
     user = await authenticate_user(phone_number, password)
     if not user:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password"})
-    response = RedirectResponse(url='/home', status_code=303)
-    request.session["phone_number"] = user.phone_number
-    return response
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.phone_number}, expires_delta=access_token_expires
+    )
+
+    # Сохраняем токен в базе данных
+    query = tokens.insert().values(user_id=user.id, token=access_token)
+    await database.execute(query)
+
+    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
+    return RedirectResponse(url="/home", status_code=303)
+
 
 # Маршрут для выхода из системы
 @app.get("/logout")
-async def logout(request: Request):
-    # Этот маршрут осуществляет выход из системы, очищая данные сессии
+async def logout(request: Request, current_user: User = Depends(get_current_user)):
+    # This route logs the user out, clearing the session data
     request.session.clear()
+
+    # Delete the token from the database
+    query = tokens.delete().where(tokens.c.user_id == current_user.id)
+    await database.execute(query)
+
     return RedirectResponse(url="/login", status_code=303)
 
 # Маршрут к странице регистрации
@@ -869,8 +977,7 @@ async def register_form(request: Request):
 
 # Маршрут для регистрации пользователя
 @app.post("/register")
-async def register_user(request: Request,
-                        gender: str = Form(...),
+async def register_user(gender: str = Form(...),
                         last_name: str = Form(...),
                         first_name: str = Form(...),
                         middle_name: str = Form(...),
@@ -882,14 +989,12 @@ async def register_user(request: Request,
     user_by_nickname = await get_user(nickname)
     user_by_phone = await get_user_by_phone(phone_number)
     if user_by_nickname:
-        return templates.TemplateResponse("register.html", {"request": request, "error": "Username already registered"})
+        raise HTTPException(status_code=400, detail="Username already registered")
     if user_by_phone:
-        return templates.TemplateResponse("register.html", {"request": request, "error": "Phone number already registered"})
+        raise HTTPException(status_code=400, detail="Phone number already registered")
     await add_user(gender, last_name, first_name, middle_name, nickname, phone_number, position, email, password)
-    # перенаправляем пользователя на его профиль после регистрации
-    response = RedirectResponse(url=f'/profile/{phone_number}', status_code=303)
-    request.session["phone_number"] = phone_number
-    return response
+    token = create_access_token(data={"sub": phone_number})
+    return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/profile", response_class=HTMLResponse)
 async def user_profile(request: Request):
@@ -2083,7 +2188,7 @@ manager = WebSocketManager()
 
 
 @app.websocket("/ws/chats/{chat_id}/")
-async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int, current_user_phone_number: str):
+async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int, current_user: User = Depends(get_current_user)):
     room = f"chat_{chat_id}"
 
     # Log headers and cookies
@@ -2103,7 +2208,7 @@ async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int, current_us
 
 
 @app.websocket("/ws/dialogs/{dialog_id}/")
-async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: int, current_user_phone_number: str):
+async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: int, current_user: User = Depends(get_current_user)):
     room = f"dialog_{dialog_id}"
 
     # Log headers and cookies
@@ -2121,6 +2226,11 @@ async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: int, curren
     finally:
         await manager.disconnect(websocket, room)
 
-
+#Обработчик ошибок
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    if exc.status_code == 401:
+        return RedirectResponse(url="/login", status_code=303)
+    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
 
 
