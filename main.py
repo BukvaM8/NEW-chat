@@ -1,9 +1,11 @@
 # Встроенные модули Python
 import asyncio
 import io
+import json
 import os
 import time
 import logging
+from asyncio import IncompleteReadError
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from operator import and_
@@ -14,8 +16,9 @@ from urllib.parse import quote, unquote
 import aiomysql
 import cur as cur
 import jwt
-from fastapi.params import Path, Body
+from fastapi.params import Path, Body, Header
 from jose import JWTError
+from jwt import PyJWTError
 from sqlalchemy import create_engine, MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON
 from sqlalchemy.exc import SQLAlchemyError, NoResultFound
@@ -28,15 +31,18 @@ from databases import Database
 from pymysql.err import ProgrammingError
 
 # Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
-from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, Cookie, logger, UploadFile, File, security
+from fastapi import Request, FastAPI, WebSocket, HTTPException, Depends, status, Form, Cookie, logger, UploadFile, File, \
+    security, websockets
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPAuthorizationCredentials, HTTPBearer, \
     OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from starlette.datastructures import URL
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import StreamingResponse, PlainTextResponse, Response
 from starlette.staticfiles import StaticFiles
+from starlette.status import HTTP_401_UNAUTHORIZED
 from starlette.websockets import WebSocketDisconnect
 
 # Сторонние библиотеки для работы с файлами, датами и временем
@@ -50,12 +56,13 @@ import bcrypt
 
 # Другие сторонние библиотеки
 from pydantic import BaseModel
-from requests import Session
+from requests import Session, request
 
 import mimetypes
 from pydantic.json import Union
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
 
@@ -117,9 +124,18 @@ tokens = Table(
     "Tokens",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("token", String),
+    Column("token", String(length=512)), # Указываем длину 512
     Column("expires_at", DateTime(timezone=True)),
     Column("user_id", Integer, ForeignKey("Users.id"))
+)
+
+refresh_tokens = Table(
+    "refresh_tokens",
+    metadata,
+    Column("id", Integer, primary_key=True, index=True, autoincrement=True),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("token", String(length=255), unique=True, nullable=False),
+    Column("expires_at", DateTime, nullable=False),
 )
 
 
@@ -245,12 +261,22 @@ channel_history = Table(
 # Папка, где будут храниться фотографии профиля
 PROFILE_PICTURES_FOLDER = "C:/Users/Программист/PycharmProjects/fastApiSpiritChat/profile_pictures"
 
+# Определение исключения для проблем с аутентификацией
+credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Could not validate credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
 SECRET_KEY = "Bondar"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 3
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="token",
+    scopes={"me": "Read information about the current user."},
+)
 
 # Хранилище для аннулированных токенов
 revoked_tokens = []
@@ -262,8 +288,27 @@ class User(Base):
     phone_number = Column(String, unique=True, index=True)
     password = Column(String)
 
+class UserInDB(BaseModel):
+    id: int
+    gender: str
+    last_name: str
+    first_name: str
+    middle_name: str
+    nickname: str
+    phone_number: str
+    position: str
+    email: str
+    password: str
+    last_online: Optional[datetime]
+    profile_picture: Optional[bytes]
+    status: Optional[str]
+
+    class Config:
+        orm_mode = True
+
 class MessageContent(BaseModel):
     message_text: str
+
 class MyJinja2Templates(Jinja2Templates):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -275,18 +320,49 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+class TokenData(BaseModel):
+    phone_number: str
+
+# Получает пользователя по номеру телефона.
+async def get_user_by_phone(phone_number: str):
+    logging.info(f'Getting user by phone: {phone_number}')
+    query = users.select().where(users.c.phone_number == phone_number)
+    user = await database.fetch_one(query)
+    if user:
+        logging.info(f'Found user: {user}')
+        return UserInDB(**user)
+    logging.info(f'No user found for phone: {phone_number}')
+    return None
+
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  # Set the expiration using the constant
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    logging.info(f"Access token created: {encoded_jwt}")
     return encoded_jwt
 
+def create_refresh_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)  # Set the expiration using a constant for days
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    logging.info(f"Refresh token created: {encoded_jwt}")
+    return encoded_jwt
 
-def verify_token(token: str):
+async def get_token(token: str = Depends(oauth2_scheme)):
+    logging.info(f'get_token called with token: {token}')
+    return token
+
+async def verify_token(token):
+    logging.info(f"Verifying token: {token}")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         phone_number: str = payload.get("sub")
@@ -296,9 +372,14 @@ def verify_token(token: str):
     except JWTError:
         return None
 
+async def save_refresh_token_to_db(db: Database, user_id: int, refresh_token: str):
+    query = refresh_tokens.insert().values(user_id=user_id, refresh_token=refresh_token)
+    await db.execute(query)
+
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    logging.info("Login endpoint called")
+    user = await authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -309,6 +390,54 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+
+    # Save the access token in the database
+    query = tokens.insert().values(token=access_token, expires_at=datetime.utcnow() + access_token_expires, user_id=user.id)
+    logging.info(f"Inserting access token: {query}")
+    await database.execute(query)
+
+    # Create a refresh token
+    refresh_token_expires = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    refresh_token_data = {"sub": user.username, "type": "refresh"}
+    refresh_token = create_access_token(data=refresh_token_data, expires_delta=refresh_token_expires)
+
+    # Store the refresh token in the database
+    query = refresh_tokens.insert().values(user_id=user.id, token=refresh_token, expires_at=refresh_token_expires)
+    logging.info(f"Inserting refresh token: {query}")
+    await database.execute(query)
+
+    logging.info(f'Generated access and refresh tokens for user: {form_data.username}')
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+
+@app.post("/token/refresh")
+async def refresh_access_token(refresh_token: str):
+    # Verify the refresh token
+    payload = verify_token(refresh_token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Find the user based on the refresh token
+    user_phone_number = payload.get("sub")
+    user = await get_user_by_phone(user_phone_number)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Create a new access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.phone_number}, expires_delta=access_token_expires
+    )
+
+    logging.info(f'Refreshed access token for user: {user_phone_number}')
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -317,6 +446,21 @@ async def revoke_token(token: str = Depends(oauth2_scheme)):
     revoked_tokens.append(token)
     return {"msg": "Token has been revoked"}
 
+
+async def get_token_from_db(token: str) -> str:
+    logging.info(f"Getting token from database: {token}")
+    query = select([tokens.c.token]).where(tokens.c.token == token)
+    result = await database.fetch_one(query)
+    logging.info(f"Token result: {result}")
+    return result.token if result else None
+
+
+async def is_token_in_db(phone_number: str) -> bool:
+    logging.info(f"Checking if token is in database for phone number: {phone_number}")
+    query = select([tokens.c.token]).join(users).where(users.c.phone_number == phone_number)
+    result = await database.fetch_one(query)
+    logging.info(f"Token for phone number {phone_number} found in database: {bool(result)}")
+    return bool(result)
 
 # На старте приложения подключаемся к базе данных
 @app.on_event("startup")
@@ -328,51 +472,48 @@ async def startup():
 async def shutdown():
     await database.disconnect()
 
-# Зависимость для получения информации о текущем активном пользователе.
-# Зависимость для получения информации о текущем активном пользователе.
-async def get_current_active_user(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
-    token = token or request.cookies.get("access_token")
-    if not token:
-        return None
+async def get_current_websocket(websocket: WebSocket):
+    return websocket
 
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+# Добавим зависимость для аутентификации через веб-сокет
+async def get_current_user_from_websocket(websocket: WebSocket) -> Optional[UserInDB]:
+    logging.info(f"Getting user from WebSocket: {websocket}")
+
     try:
+        # Получение токена из строки запроса
+        query_string = websocket.scope['query_string'].decode()
+        token_param = [param.split('=')[1] for param in query_string.split('&') if param.startswith('token=')]
+        token = token_param[0] if token_param else None
+
+        # Проверка токена
+        if token is None:
+            logging.warning("Token is missing from WebSocket connection.")
+            return None
+
+        logging.info(f"Token extracted from WebSocket: {token}")
+
+        # Проверка, сохранен ли токен в базе данных
+        saved_token = await get_token_from_db(token)
+        if not saved_token:
+            logging.warning('Token is not in database for WebSocket.')
+            return None
+
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         phone_number: str = payload.get("sub")
         if phone_number is None:
-            raise credentials_exception
-        token_data = TokenData(phone_number=phone_number)
-    except JWTError:
-        raise credentials_exception
-    user = await get_user_by_phone(token_data.phone_number)
-    if user is None:
-        raise credentials_exception
+            logging.warning("Token is missing phone number.")
+            return None
 
-    # Check if the token is in the database
-    query = tokens.select().where(tokens.c.token == token)
-    row = await database.fetch_one(query)
-    if row is None:
-        raise credentials_exception
+        user = get_user_by_phone(phone_number)
+        if user is None:
+            logging.warning("User not found by phone number.")
+            return None
 
-    return user
-
-
-# Добавим зависимость для аутентификации через веб-сокет
-async def get_current_user_from_websocket(websocket: WebSocket) -> User:
-    try:
-        token = websocket.cookies.get("token")
-        if token:
-            phone_number = verify_token(token)
-            if phone_number:
-                return await get_user(phone_number)
-    except:
-        pass
-    await websocket.close()
-    raise HTTPException(status_code=403, detail="Not authenticated")
+        logging.info(f"User found: {user}")
+        return user
+    except JWTError as e:
+        logging.error(f"JWT error during WebSocket authentication: {e}")
+        return None
 
 # Извлекает информацию о пользователе из базы данных по номеру телефона.
 async def get_user(phone_number: str):
@@ -382,13 +523,6 @@ async def get_user(phone_number: str):
     logging.info(f"User from database in get_user function: {user}")  # Debug info
     return user
 
-# Получает пользователя по номеру телефона.
-async def get_user_by_phone(phone_number):
-    query = users.select().where(users.c.phone_number == phone_number)
-    logging.info(f"Executing query: {query}")  # Debug info
-    result = await database.fetch_one(query)
-    logging.info(f"Result: {result}")  # Debug info
-    return result
 
 #Проверяет, является ли хеш пароля действительным (соответствует формату bcrypt).
 def is_password_hash_valid(password_hash: str):
@@ -426,36 +560,29 @@ async def add_user(gender, last_name, first_name, middle_name, nickname, phone_n
     return result
 
 #Извлекает текущего пользователя из сессии.
-async def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
-    token = token or request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=403, detail="Not authenticated")
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    logging.info(f'Token from URL: {token}')
+    if token is None:
+        logging.warning('No token provided in get_current_user')
+        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         phone_number: str = payload.get("sub")
         if phone_number is None:
+            logging.error("Phone number not found in payload")
             raise credentials_exception
-        token_data = TokenData(phone_number=phone_number)
-    except JWTError:
-        raise credentials_exception
-    user = await get_user_by_phone(token_data.phone_number)
-    if user is None:
-        raise credentials_exception
 
-    # Check if the token is in the database
-    query = tokens.select().where(tokens.c.token == token)
-    row = await database.fetch_one(query)
-    if row is None:
+        user = await get_user_by_phone(token_data.phone_number)
+        if user is None:
+            logging.error("User not found by phone number")
+            raise credentials_exception
+
+        logging.info(f"User found: {user}")
+        return user
+    except PyJWTError as e:
+        logging.error(f"JWT error: {e}")
         raise credentials_exception
-
-    return user
-
 
 #Возвращает всех пользователей из базы данных.
 async def get_all_users(search_query: str = "") -> List[dict]:
@@ -489,6 +616,7 @@ async def get_chat_messages(chat_id: int):
 
 
 async def get_user_chats(phone_number: str):
+
     try:
         # Выбираем идентификаторы чатов, в которых участвует пользователь
         query = ChatMembers.select().where(ChatMembers.c.user_phone_number == phone_number)
@@ -923,14 +1051,47 @@ async def delete_message(
     return RedirectResponse(url=f"/chats/{chat_id}", status_code=303)
 
 #БЛОК МАРШРУТЫ
+async def get_current_user_from_header(authorization: Optional[str] = Header(None)) -> Optional[UserInDB]:
+    if authorization is None:
+        logging.warning("Authorization header is missing.")
+        return None
+
+    prefix, token = authorization.split()
+    if prefix != "Bearer":
+        logging.warning("Invalid header format")
+        return None
+
+    logging.info(f"Token extracted: {token}")
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        phone_number: str = payload.get("sub")
+        if phone_number is None:
+            logging.error("Phone number not found in payload")
+            raise credentials_exception
+
+        user = await get_user_by_phone(phone_number)
+        if user is None:
+            logging.error("User not found by phone number")
+            raise credentials_exception
+
+        logging.info(f"User found: {user}")
+        return user
+    except PyJWTError as e:
+        logging.error(f"JWT error: {e}")
+        raise credentials_exception
+
+
 # Маршрут к главной странице
 @app.get("/", response_class=HTMLResponse)
-async def root(request: Request, current_user: Optional[User] = Depends(get_current_active_user)):
+async def root(request: Request, current_user: Optional[User] = Depends(get_current_user_from_header)):  # Используем функцию для получения текущего пользователя из заголовка
+    logging.info('Root route called')
     if current_user is None:
+        logging.info('No current user, redirecting to login')
         return templates.TemplateResponse("login.html", {"request": request})
     else:
+        logging.info(f'Current user: {current_user}, redirecting to home')
         return RedirectResponse(url="/home", status_code=303)
-
 
 # Маршрут к странице входа в систему
 @app.get("/login", response_class=HTMLResponse)
@@ -940,34 +1101,56 @@ async def login_form(request: Request):
 
 # Маршрут для аутентификации пользователя
 @app.post("/login")
-async def login_user(response: Response, phone_number: str = Form(...), password: str = Form(...)):
+async def login_user(request: Request, phone_number: str = Form(...), password: str = Form(...)):
+    logging.info(f'Attempting to login user: {phone_number}')
     user = await authenticate_user(phone_number, password)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.phone_number}, expires_delta=access_token_expires
-    )
+        logging.info(f'Failed to login user: {phone_number}')
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid login details"})
+    else:
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.phone_number}, expires_delta=access_token_expires
+        )
 
-    # Сохраняем токен в базе данных
-    query = tokens.insert().values(user_id=user.id, token=access_token)
-    await database.execute(query)
+        # Save the access token in the database
+        query = tokens.insert().values(token=access_token, expires_at=datetime.utcnow() + access_token_expires,
+                                       user_id=user.id)
+        logging.info(f"Inserting access token: {query}")
+        await database.execute(query)
 
-    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
-    return RedirectResponse(url="/home", status_code=303)
+        # Create a refresh token
+        refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        refresh_token_data = {"sub": user.phone_number, "type": "refresh"}
+        refresh_token = create_access_token(data=refresh_token_data, expires_delta=refresh_token_expires)
+
+        # Store the refresh token in the database
+        query = refresh_tokens.insert().values(user_id=user.id, token=refresh_token,
+                                               expires_at=datetime.utcnow() + refresh_token_expires)
+        logging.info(f"Inserting refresh token: {query}")
+        await database.execute(query)
+
+        logging.info(f'Generated access and refresh tokens for user: {phone_number}')
+
+        # Redirect to the home page after successful login
+        response_redirect = RedirectResponse(url="/home", status_code=303)
+        response_redirect.headers["Authorization"] = f"Bearer {access_token}"
+        return response_redirect
 
 
 # Маршрут для выхода из системы
 @app.get("/logout")
 async def logout(request: Request, current_user: User = Depends(get_current_user)):
-    # This route logs the user out, clearing the session data
-    request.session.clear()
-
-    # Delete the token from the database
+    # Delete the tokens from the database
     query = tokens.delete().where(tokens.c.user_id == current_user.id)
     await database.execute(query)
 
+    query_refresh = refresh_tokens.delete().where(refresh_tokens.c.user_id == current_user.id)
+    await database.execute(query_refresh)
+
+    logging.info(f'User with ID {current_user.id} logged out. Redirecting to login page.')
     return RedirectResponse(url="/login", status_code=303)
+
 
 # Маршрут к странице регистрации
 @app.get("/register", response_class=HTMLResponse)
@@ -1182,10 +1365,13 @@ async def get_subscribed_channels(user_phone_number: str):
     return subscribed_channels
 
 @app.get("/home", response_class=HTMLResponse)
-async def main_page(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user),
-                    search_query: str = None):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
+async def main_page(request: Request, current_user: User = Depends(get_current_user_from_header), search_query: str = None): # Используем функцию для получения текущего пользователя из заголовка
+    logging.info('Main page route called')
+    if current_user is None:
+        logging.info('No current user, redirecting to login from main page')
+        return RedirectResponse(url="/login", status_code=303)
+
+    logging.info(f"Current user in main_page: {current_user}")
 
     search_results_chats = []
     search_results_channels = []
@@ -1908,7 +2094,7 @@ async def dialog_route(dialog_id: int, request: Request, current_user: Union[str
         return current_user
 
     # Получаем информацию о диалоге
-    dialog = await get_dialog_by_id(dialog_id, current_user['id'])
+    dialog = await get_dialog_by_id(dialog_id, current_user.id)
 
     # Получаем все сообщения из данного диалога
     messages = await get_messages_from_dialog(dialog_id)
@@ -1938,7 +2124,7 @@ async def send_message_to_dialog(
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    sender_id = current_user['id']
+    sender_id = current_user.id
     dialog = await get_dialog_by_id(dialog_id, sender_id, check_user_deleted=False)
 
     if sender_id not in [dialog['user1_id'], dialog['user2_id']]:
@@ -1971,7 +2157,7 @@ async def send_message_to_dialog(
 
     await send_message(dialog_id, sender_id, message)
     participants = [sender_id, receiver_id]
-    await manager.send_message(f"dialog_{dialog_id}", f"New message in dialog {dialog_id} from user {sender_id}: {message}")
+    await manager.broadcast(f"New message in dialog {dialog_id} from user {sender_id}: {message}")
 
     # Обновляем время последнего онлайна после отправки сообщения
     await update_last_online(sender_id)
@@ -2000,22 +2186,22 @@ async def create_dialog_handler(user_id: int, current_user: Union[str, RedirectR
 async def delete_message(
         dialog_id: int,
         message_id: int,
-        current_user: Union[str, RedirectResponse] = Depends(get_current_user)
+        current_user: User = Depends(get_current_user)
 ):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-
     messages = await get_messages_from_dialog(dialog_id, message_id)
     if not messages:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    message = messages[0]  # Поскольку мы запрашиваем только одно сообщение, оно будет первым (и единственным) в списке
+    message = messages[0]
 
     # Проверяем, есть ли у пользователя права на удаление этого сообщения
-    if message["sender_id"] != current_user["id"]:
+    if message["sender_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="You do not have permission to delete this message")
 
     await delete_message_by_id(message_id)
+
+    return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=303)
+
 
     return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=303)
 
@@ -2157,74 +2343,171 @@ async def get_dialog_route(dialog_id: int, request: Request, current_user: Union
     })
 
 # БЛОК №4 СОКЕТЫ
-import logging
-
-class WebSocketManager:
+class ConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
+        self.active_connections: Dict[int, WebSocket] = {}
 
-    async def connect(self, websocket: WebSocket, room: str):
-        logging.info(f"Connecting to room {room}")
-        if room not in self.active_connections:
-            self.active_connections[room] = []
-        self.active_connections[room].append(websocket)
+    async def connect(self, websocket: WebSocket, user_id: int):
         await websocket.accept()
-        logging.info(f"Connected to room {room}")
+        self.active_connections[user_id] = websocket
 
     async def disconnect(self, websocket: WebSocket, room: str):
-        logging.info(f"Disconnecting from room {room}")
-        if room in self.active_connections:
+        if room in self.active_connections and websocket in self.active_connections[room]:
             self.active_connections[room].remove(websocket)
-        logging.info(f"Disconnected from room {room}")
 
-    async def send_message(self, room: str, message: str):
-        logging.info(f"Sending message to room {room}")
-        if room in self.active_connections:
-            for connection in self.active_connections[room]:
-                await connection.send_text(message)
-                logging.info(f"Sent message to room {room}")
+    async def send_personal_message(self, user_id: int, message: str):
+        if user_id in self.active_connections:
+            await self.active_connections[user_id].send_text(message)
 
-manager = WebSocketManager()
+    async def broadcast(self, message: str):
+        for websocket in self.active_connections.values():
+            await websocket.send_text(message)
+
+manager = ConnectionManager()
+_sockets = []  # Глобальный список для управления веб-сокетами
+
+async def get_websocket_token(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+    if token is None:
+        logging.warning(f"Token is missing from WebSocket connection: {websocket.url.path}")
+        await websocket.close(code=4000)  # 4000 is a custom close code indicating "missing token"
+        return None
+    return token
+
+async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User):
+    # Сохраняем сообщение в базе данных
+    query = dialog_messages.insert().values(
+        dialog_id=dialog_id,
+        sender_id=current_user.id,
+        message=message_content
+    )
+    await database.execute(query)
+
+    # Отправляем сообщение другому участнику диалога
+    # Получаем ID другого участника диалога
+    dialog_query = dialogs.select().where(dialogs.c.id == dialog_id)
+    dialog_data = await database.fetch_one(dialog_query)
+    if dialog_data:
+        recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data["user2_id"]
+        if recipient_id in manager.active_connections:
+            for websocket in manager.active_connections[recipient_id]:
+                await websocket.send_text(message_content)
+
+
+async def handle_chat_message(chat_id: int, message_content: str, current_user: User):
+    # Сохраняем сообщение в базе данных
+    query = chatmessages.insert().values(
+        chat_id=chat_id,
+        sender_phone_number=current_user.phone_number,
+        message=message_content
+    )
+    await database.execute(query)
+
+    # Отправляем сообщение всем участникам чата
+    chat_members_query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
+    chat_members = await database.fetch_all(chat_members_query)
+    for member in chat_members:
+        member_id = member["user_id"]
+        if member_id in manager.active_connections:
+            for websocket in manager.active_connections[member_id]:
+                await websocket.send_text(message_content)
+
+async def handle_channel_message(channel_id: int, message_content: str, current_user: User):
+    # Сохраняем сообщение в базе данных
+    query = channel_history.insert().values(
+        channel_id=channel_id,
+        sender_phone_number=current_user.phone_number,
+        message=message_content
+    )
+    await database.execute(query)
+
+    # Отправляем сообщение всем подписчикам канала
+    channel_subscribers_query = channel_members.select().where(channel_members.c.channel_id == channel_id)
+    subscribers = await database.fetch_all(channel_subscribers_query)
+    for subscriber in subscribers:
+        subscriber_id = subscriber["user_id"]
+        if subscriber_id in manager.active_connections:
+            for websocket in manager.active_connections[subscriber_id]:
+                await websocket.send_text(message_content)
+
+
+@app.websocket("/ws/messages/")
+async def messages_endpoint(websocket: WebSocket, current_user: User = Depends(get_current_user_from_websocket)):
+    await manager.connect(websocket, current_user.id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+
+            message_type = message_data["type"]
+            target_id = message_data["id"]
+            message_content = message_data["message"]
+
+            # Обработка сообщений в зависимости от их типа
+            if message_type == "dialog":
+                await handle_dialog_message(target_id, message_content, current_user)
+            elif message_type == "chat":
+                await handle_chat_message(target_id, message_content, current_user)
+            elif message_type == "channel":
+                await handle_channel_message(target_id, message_content, current_user)
+            else:
+                logging.warning(f"Unknown message type: {message_type}")
+
+    except WebSocketDisconnect:
+        manager.disconnect(current_user.id)
+    except Exception as e:
+        logging.error(f"Error in messages_endpoint: {e}")
+        manager.disconnect(current_user.id)
 
 
 @app.websocket("/ws/chats/{chat_id}/")
-async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int, current_user: User = Depends(get_current_user)):
+async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int, current_user: User = Depends(get_current_user_from_websocket)):
+    logger.info("WebSocket connection for chat started.")
+    await get_current_websocket(websocket)
     room = f"chat_{chat_id}"
-
-    # Log headers and cookies
-    logging.info(f"Headers: {dict(websocket.headers)}")
-    logging.info(f"Cookies: {dict(websocket.cookies)}")
-
+    logger.info(f"Headers: {dict(websocket.headers)}")
+    logger.info(f"Cookies: {dict(websocket.cookies)}")
     await manager.connect(websocket, room)
     try:
         while True:
             data = await websocket.receive_text()
-            logging.info(f"Received data: {data}")
+            logger.info(f"Received data: {data}")
             await manager.send_message(room, data)
     except Exception as e:
-        logging.error(f"Exception: {e}")
+        logger.error(f"Exception in chat_websocket_endpoint: {e}")
     finally:
-        await manager.disconnect(websocket, room)
-
+        await manager.disconnect(websocket)
 
 @app.websocket("/ws/dialogs/{dialog_id}/")
-async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: int, current_user: User = Depends(get_current_user)):
-    room = f"dialog_{dialog_id}"
-
-    # Log headers and cookies
-    logging.info(f"Headers: {dict(websocket.headers)}")
-    logging.info(f"Cookies: {dict(websocket.cookies)}")
-
-    await manager.connect(websocket, room)
+async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: int):
+    room = f"dialog_{dialog_id}"  # Определяем room здесь
     try:
+        logger.info("WebSocket connection for dialog started.")
+        current_user = await get_current_user_from_websocket(websocket)
+
+        # Проверка аутентификации
+        if current_user is None:
+            logger.warning("WebSocket authentication failed. Closing connection.")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        await get_current_websocket(websocket)
+        logger.info(f"Headers: {dict(websocket.headers)}")
+        logger.info(f"Cookies: {dict(websocket.cookies)}")
+
+        await manager.connect(websocket, room)
+
         while True:
             data = await websocket.receive_text()
-            logging.info(f"Received data: {data}")
+            logger.info(f"Received data: {data}")
             await manager.send_message(room, data)
+    except WebSocketDisconnect:
+        logger.info("WebSocket connection closed.")
     except Exception as e:
-        logging.error(f"Exception: {e}")
+        logger.error(f"Exception in dialog_websocket_endpoint: {e}")
     finally:
         await manager.disconnect(websocket, room)
+
 
 #Обработчик ошибок
 @app.exception_handler(HTTPException)
@@ -2232,5 +2515,4 @@ async def http_exception_handler(request, exc):
     if exc.status_code == 401:
         return RedirectResponse(url="/login", status_code=303)
     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
-
 
