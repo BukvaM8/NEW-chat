@@ -11,7 +11,7 @@
         <h2>Был(а) онлайн: {{ dialog.last_online }}</h2>
 
         <h3>Сообщения:</h3>
-        <ul>
+        <ul class="messages-list">
             {% for message in messages %}
                 {% if not message.delete_timestamp %}
                     <li>
@@ -30,7 +30,7 @@
                             {{ message.message }}
                         {% endif %}
                         <br>
-                        Отправлено: {{ message.timestamp.strftime('%Y-%m-%d %H:%M:%S') if message.timestamp else 'нет данных' }}
+                        Отправлено: {{ message.timestamp }}
                         {% if message.sender_id == current_user.id %}
                             <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post">
                                 <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
@@ -56,21 +56,33 @@
         <button onclick="location.href='/home'">Вернуться на главную</button>
     </div>
     <script>
-        let dialogId = "{{ dialog.id }}";
-        let socket = new WebSocket(`ws://${window.location.host}/ws/dialogs/${dialogId}/`);
+        const dialogId = "{{ dialog.id }}";
+        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
-        socket.onmessage = function(e) {
-            let data = JSON.parse(e.data);
-            let message = data['message'];
-            // Добавьте код для добавления сообщения в список сообщений
-            let li = document.createElement("li");
-            li.innerHTML = `${message.sender_id}: ${message.message}`;
-            document.querySelector('ul').appendChild(li);
-        };
+        ws.onmessage = function(event) {
+            const messageData = JSON.parse(event.data);
+            console.log(messageData);
+            const messagesList = document.querySelector('.messages-list');
+            const newMessage = document.createElement('li');
 
-        socket.onclose = function(e) {
-            console.error('Chat socket closed unexpectedly');
+            const senderId = messageData.message.sender_id;
+            const rawMessage = messageData.message.message;
+
+            if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
+                const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
+                const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
+                const fileId = fileIdInfo.split(': ')[1];
+                const fileName = fileNameInfo.split(': ')[1];
+
+                newMessage.innerHTML = `${senderId}: ${messageText} <a href="/files/${fileId}">${fileName}</a>`;
+            } else {
+                newMessage.textContent = `${senderId}: ${rawMessage}`;
+            }
+
+            messagesList.appendChild(newMessage);
         };
     </script>
 </body>
 </html>
+

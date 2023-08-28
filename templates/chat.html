@@ -21,7 +21,7 @@
             </form>
         {% endif %}
         <div id="messages-container">
-            <ul id="chat-history">
+        <ul class="messages-list" id="chat-history">
             {% for message in messages %}
                 <div>
                     {% if message.sender_phone_number == "deleted" %}
@@ -97,7 +97,7 @@
                     {% endif %}
                 </div>
             {% endfor %}
-            </ul>
+        </ul>
         </div>
         <div id="message-form-container">
             {% if chat.id in left_chats %}
@@ -148,15 +148,31 @@
             }
         }
     </script>
-<script>
+ <script>
         let socket = new WebSocket(`ws://${window.location.host}/ws/chats/${chat.id}/`);
 
         socket.onmessage = function(e) {
             let data = JSON.parse(e.data);
             let message = data['message'];
-            // Добавьте код для добавления сообщения в список сообщений
             let div = document.createElement("div");
-            div.innerHTML = `<h4>${message.sender_phone_number}</h4><p>${message.text} <small>Sent at: ${message.timestamp}</small></p>`;
+
+            let messageText = message.message;
+            let senderPhoneNumber = message.sender_phone_number;
+            let timestamp = message.timestamp;
+
+            // Обработка файлов
+            if (messageText.includes('[[FILE]]') && messageText.includes('[[/FILE]]')) {
+                const [text, fileInfo] = messageText.split('[[FILE]]');
+                const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
+                const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
+                const fileId = fileIdInfo.split(': ')[1];
+                const fileName = fileNameInfo.split(': ')[1];
+                div.innerHTML = `<h4>${senderPhoneNumber}</h4><p>${text} <a href="/files/${fileId}">${fileName}</a> <small>Sent at: ${timestamp}</small></p>`;
+            } else {
+                div.innerHTML = `<h4>${senderPhoneNumber}</h4><p>${messageText} <small>Sent at: ${timestamp}</small></p>`;
+            }
+
+            // Добавление нового сообщения в историю чата
             document.querySelector('#chat-history').appendChild(div);
         };
 
@@ -164,5 +180,32 @@
             console.error('Chat socket closed unexpectedly');
         };
     </script>
+
+<script>
+    let socket = new WebSocket(`ws://${window.location.host}/ws/chats/${chat.id}/`);
+
+    socket.onopen = function(e) {
+        console.log("WebSocket connection established");
+    };
+
+    socket.onerror = function(error) {
+        console.log(`WebSocket Error: ${error}`);
+    };
+
+    socket.onmessage = function(e) {
+        // Ваш текущий код для обработки входящих сообщений
+    };
+
+    socket.onclose = function(e) {
+        console.error('Chat socket closed unexpectedly');
+    };
+</script>
 </body>
 </html>
+</body>
+</html>
+
+
+
+
+
