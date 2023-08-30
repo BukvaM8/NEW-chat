@@ -42,7 +42,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPAuthorizationC
 from starlette.datastructures import URL
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import StreamingResponse, PlainTextResponse, Response
+from starlette.responses import StreamingResponse, PlainTextResponse, Response, JSONResponse
 from starlette.staticfiles import StaticFiles
 from starlette.status import HTTP_401_UNAUTHORIZED
 from starlette.websockets import WebSocketDisconnect, WebSocketState
@@ -54,7 +54,6 @@ import pytz as pytz
 
 # Сторонние библиотеки для безопасности и хеширования паролей
 import bcrypt
-
 
 # Другие сторонние библиотеки
 from pydantic import BaseModel
@@ -126,7 +125,7 @@ tokens = Table(
     "Tokens",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("token", String(length=512)), # Указываем длину 512
+    Column("token", String(length=512)),  # Указываем длину 512
     Column("expires_at", DateTime(timezone=True)),
     Column("user_id", Integer, ForeignKey("Users.id"))
 )
@@ -140,7 +139,6 @@ refresh_tokens = Table(
     Column("expires_at", DateTime, nullable=False),
 )
 
-
 Polls = Table(
     "Polls",
     metadata,
@@ -152,7 +150,6 @@ Polls = Table(
     Column("is_ended", Boolean, default=False),
     Column("voted_users", JSON)
 )
-
 
 PollOptions = Table(
     "PollOptions",
@@ -180,7 +177,6 @@ PollResults = Table(
     Column("votes", Integer, default=0),
     Column("percentage", Float, default=0.0)
 )
-
 
 dialogs = Table(
     "Dialogs",
@@ -224,11 +220,11 @@ ChatMembers = Table(
 )
 
 channels = Table(
-   'channels', metadata,
-   Column('id', Integer, primary_key=True),
-   Column('name', String),
-   Column('owner_phone_number', String, ForeignKey('Users.phone_number')),
-   Column('creation_date', DateTime, default=func.now())
+    'channels', metadata,
+    Column('id', Integer, primary_key=True),
+    Column('name', String),
+    Column('owner_phone_number', String, ForeignKey('Users.phone_number')),
+    Column('creation_date', DateTime, default=func.now())
 )
 
 channel_members = Table(
@@ -283,12 +279,14 @@ oauth2_scheme = OAuth2PasswordBearer(
 # Хранилище для аннулированных токенов
 revoked_tokens = []
 
+
 # Определяем модель пользователя
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     phone_number = Column(String, unique=True, index=True)
     password = Column(String)
+
 
 class UserInDB(BaseModel):
     id: int
@@ -308,27 +306,34 @@ class UserInDB(BaseModel):
     class Config:
         orm_mode = True
 
+
 class MessageContent(BaseModel):
     message_text: str
+
 
 class MessageType(str, Enum):
     CHAT = "chat"
     DIALOG = "dialog"
     CHANNEL = "channel"
 
+
 class MyJinja2Templates(Jinja2Templates):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.env.globals["time"] = time
 
+
 templates = MyJinja2Templates(directory="templates")
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class TokenData(BaseModel):
     phone_number: str
+
 
 # Получает пользователя по номеру телефона.
 async def get_user_by_phone(phone_number: str):
@@ -341,109 +346,124 @@ async def get_user_by_phone(phone_number: str):
     logging.info(f'No user found for phone: {phone_number}')
     return None
 
+
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  # Set the expiration using the constant
+        expire = datetime.utcnow() + timedelta(
+            minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  # Set the expiration using the constant
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     logging.info(f"Access token created: {encoded_jwt}")
     return encoded_jwt
+
 
 def create_refresh_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)  # Set the expiration using a constant for days
+        expire = datetime.utcnow() + timedelta(
+            days=REFRESH_TOKEN_EXPIRE_DAYS)  # Set the expiration using a constant for days
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     logging.info(f"Refresh token created: {encoded_jwt}")
     return encoded_jwt
 
-async def get_token(token: str = Depends(oauth2_scheme)):
-    logging.info(f'get_token called with token: {token}')
+
+async def get_token(request: Request):
+    logging.info('get_token called.')
+    token = request.cookies.get("token")
     return token
 
+
 async def verify_and_validate_token(token: str):
-    logging.info(f"Verifying and validating token: {token}")
+    logging.info("Initiating process to verify and validate the token.")
+    logging.info(f"Token to verify: {token}")
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        phone_number: str = payload.get("sub")
-        if phone_number is None:
+        logging.info(f"Successfully decoded JWT payload: {payload}")
+
+        phone_number = payload.get("sub")
+
+        if phone_number:
+            logging.info(f"Successfully retrieved phone_number from payload: {phone_number}")
+            return phone_number, True
+        else:
+            logging.warning("Phone_number is missing from the payload.")
             return None, False
-        return phone_number, True
-    except JWTError:
+
+    except JWTError as e:
+        logging.error(f"JWT Error while verifying the token: {e}")
         return None, False
+
 
 
 async def save_refresh_token_to_db(db: Database, user_id: int, refresh_token: str):
     query = refresh_tokens.insert().values(user_id=user_id, refresh_token=refresh_token)
     await db.execute(query)
 
+
 @app.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(response: Response, form_data: OAuth2PasswordRequestForm = Depends()):
     logging.info("Login endpoint called")
     user = await authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Incorrect username or password"
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        secure=True,
+        samesite='Strict'
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
-    refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    refresh_token_data = {"sub": user.username, "type": "refresh"}
-    refresh_token = create_refresh_token(data=refresh_token_data, expires_delta=refresh_token_expires)
 
-    # Store the refresh token in the database
-    query = refresh_tokens.insert().values(user_id=user.id, token=refresh_token, expires_at=refresh_token_expires)
-    logging.info(f"Inserting refresh token: {query}")
-    await database.execute(query)
-
-    logging.info(f'Generated access and refresh tokens for user: {form_data.username}')
-    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
 @app.post("/token/refresh")
-async def refresh_access_token(refresh_token: str):
-    # Verify the refresh token
+async def refresh_access_token(response: Response, refresh_token: str):
     payload = verify_and_validate_token(refresh_token)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid refresh token"
         )
-
-    # Find the user based on the refresh token
     user_phone_number = payload.get("sub")
     user = await get_user_by_phone(user_phone_number)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="User not found"
         )
-
-    # Create a new access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.phone_number}, expires_delta=access_token_expires
     )
-
-    logging.info(f'Refreshed access token for user: {user_phone_number}')
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        secure=True,
+        samesite='Strict'
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/token/revoke")
 async def revoke_token(token: str = Depends(oauth2_scheme)):
     revoked_tokens.append(token)
     return {"msg": "Token has been revoked"}
+
 
 async def get_token_from_db(token: str) -> str:
     logging.info(f"Getting token from database: {token}")
@@ -468,29 +488,37 @@ async def is_token_in_db(phone_number: str) -> bool:
 async def validate_and_refresh_token(websocket: WebSocket, user_id: int):
     logging.info(f"Validating and possibly refreshing token for user ID {user_id}")
 
-    token = await get_websocket_token(websocket)  # Ваша функция для получения токена из вебсокета
-    user = await verify_and_validate_token(token)  # Ваша функция для верификации токена
+    token = await get_websocket_token(websocket)
+    phone_number, is_valid = await verify_and_validate_token(token)
 
-    if user is None:
+    # Убрана проверка согласованности токена с базой данных
+    # if token != await get_token_from_db_by_phone_number(phone_number):
+    #     logging.warning("Token mismatch. Closing WebSocket.")
+    #     await websocket.close(code=4003)
+    #     return None
+
+    if not is_valid:
         logging.warning("Invalid token. Closing WebSocket.")
-        await websocket.close(code=4001)  # Custom close code for invalid token
+        await websocket.send_text(json.dumps({"action": "reauthenticate"}))  # Добавлено уведомление о необходимости реаутентификации
+        await websocket.close(code=4001)
         return None
 
-    if user_id != user:
+    if user_id != int(phone_number):
         logging.warning("User ID mismatch. Closing WebSocket.")
-        await websocket.close(code=4002)  # Custom close code for user mismatch
+        await websocket.close(code=4002)
         return None
 
-    # Если все проверки пройдены, возможно, обновить токен
-    new_token = create_access_token({"sub": user_id})  # Ваша функция для создания нового токена
+    new_token = create_access_token({"sub": user_id})
     return new_token
+
+
 
 async def send_heartbeat(websocket: WebSocket, interval: int = 30):
     logging.info(f"Starting heartbeat for WebSocket: {websocket}")
-
     while True:
         await asyncio.sleep(interval)
         await websocket.send_text("ping")
+        logging.info(f"Sent heartbeat to WebSocket: {websocket}")
 
 
 # На старте приложения подключаемся к базе данных
@@ -498,21 +526,26 @@ async def send_heartbeat(websocket: WebSocket, interval: int = 30):
 async def startup():
     await database.connect()
 
+
 # При остановке приложения отключаемся от базы данных
 @app.on_event("shutdown")
 async def shutdown():
     await database.disconnect()
 
+
 async def get_current_websocket(websocket: WebSocket):
     logging.info(f"Getting current WebSocket: {websocket}")
     return websocket
 
+
 async def get_user_from_websocket(websocket: WebSocket) -> Optional[UserInDB]:
     logging.info(f"Attempting to get user from WebSocket: {websocket}")
-
     phone_number = websocket.url.path.split('/')[-1]
-    user = await get_user_by_phone(phone_number)  # Функция для получения пользователя по номеру телефона
+    user = await get_user_by_phone(phone_number)
+    if user is None:
+        logging.warning(f"User not found for phone number: {phone_number}")
     return user
+
 
 async def get_token_from_db_by_phone_number(phone_number: str) -> Optional[str]:
     logging.info(f"Getting token from database by phone number: {phone_number}")
@@ -531,12 +564,15 @@ async def get_current_user_from_websocket(websocket: WebSocket) -> Optional[User
 
     try:
         token = websocket.cookies.get("token")
+        logging.info(f"Token from WebSocket cookies: {token}")  # Добавлено логирование токена
+
         if token is None:
             logging.warning("Token not found in cookies. Attempting to retrieve from database.")
             phone_number = websocket.url.path.split('/')[-1]
             user = await get_user_by_phone(phone_number)
             if user is not None:
                 token = await get_token_from_db_by_phone_number(user.phone_number)
+            logging.info(f"Retrieved token from database: {token}")
 
         if token is None:
             logging.warning("Token not found in cookies or database.")
@@ -544,18 +580,24 @@ async def get_current_user_from_websocket(websocket: WebSocket) -> Optional[User
 
         # Валидация токена
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logging.info(f"Decoded payload: {payload}")
+
         phone_number: str = payload.get("sub")
         if phone_number is None:
             logging.warning("Token is missing phone number.")
             return None
 
         user = await get_user_by_phone(phone_number)
+        logging.info(f"Retrieved user by phone: {user}")
+
         if user is None:
             logging.warning("User not found by phone number.")
             return None
 
         logging.info(f"User found: {user}")
+        logging.info("WebSocket authentication successful.")
         return user
+
     except JWTError as e:
         logging.error(f"JWT error during WebSocket authentication: {e}")
         return None
@@ -573,15 +615,17 @@ async def get_user(phone_number: str):
     return user
 
 
-#Проверяет, является ли хеш пароля действительным (соответствует формату bcrypt).
+# Проверяет, является ли хеш пароля действительным (соответствует формату bcrypt).
 def is_password_hash_valid(password_hash: str):
     return password_hash.startswith(b'$2a$') or password_hash.startswith(b'$2b$') or password_hash.startswith(b'$2y$')
 
-#Проверяет, соответствует ли введенный пароль хешу пароля пользователя.
+
+# Проверяет, соответствует ли введенный пароль хешу пароля пользователя.
 def is_password_correct(password: str, password_hash: str):
     return bcrypt.checkpw(password.encode('utf-8'), password_hash)
 
-#Аутентифицирует пользователя, сравнивая введенный пароль с хешем пароля в базе данных.
+
+# Аутентифицирует пользователя, сравнивая введенный пароль с хешем пароля в базе данных.
 async def authenticate_user(phone_number: str, password: str):
     user = await get_user_by_phone(phone_number)
     if user is None:
@@ -598,19 +642,22 @@ async def authenticate_user(phone_number: str, password: str):
 
     return user
 
-#Добавляет нового пользователя в базу данных.
+
+# Добавляет нового пользователя в базу данных.
 async def add_user(gender, last_name, first_name, middle_name, nickname, phone_number, position, email, password):
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    query = users.insert().values(gender=gender, last_name=last_name, first_name=first_name, middle_name=middle_name, nickname=nickname,
+    query = users.insert().values(gender=gender, last_name=last_name, first_name=first_name, middle_name=middle_name,
+                                  nickname=nickname,
                                   phone_number=phone_number, position=position, email=email, password=hashed_password)
     logging.info(f"Executing query: {query}")  # Debug info
     result = await database.execute(query)
     logging.info(f"Result: {result}")  # Debug info
     return result
 
-#Извлекает текущего пользователя из сессии.
-async def get_current_user(request: Request): # Убираем Depends
-    token = request.cookies.get("access_token") # Извлечение токена из куки
+
+# Извлекает текущего пользователя из сессии.
+async def get_current_user(request: Request):  # Убираем Depends
+    token = request.cookies.get("access_token")  # Извлечение токена из куки
     if token is None:
         logging.warning("Token is missing.")
         return RedirectResponse(url="/login", status_code=303)
@@ -622,7 +669,7 @@ async def get_current_user(request: Request): # Убираем Depends
             logging.error("Phone number not found in payload")
             raise credentials_exception
 
-        user = await get_user_by_phone(phone_number) # Используем переменную phone_number
+        user = await get_user_by_phone(phone_number)  # Используем переменную phone_number
         if user is None:
             logging.error("User not found by phone number")
             raise credentials_exception
@@ -634,7 +681,7 @@ async def get_current_user(request: Request): # Убираем Depends
         raise credentials_exception
 
 
-#Возвращает всех пользователей из базы данных.
+# Возвращает всех пользователей из базы данных.
 async def get_all_users(search_query: str = "") -> List[dict]:
     conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
     cur = await conn.cursor()
@@ -655,7 +702,8 @@ async def get_all_users(search_query: str = "") -> List[dict]:
     conn.close()
     return result
 
-#Получает все сообщения из указанного чата.
+
+# Получает все сообщения из указанного чата.
 async def get_chat_messages(chat_id: int):
     try:
         query = chatmessages.select().where(chatmessages.c.chat_id == chat_id).order_by(chatmessages.c.timestamp)
@@ -666,7 +714,6 @@ async def get_chat_messages(chat_id: int):
 
 
 async def get_user_chats(phone_number: str):
-
     try:
         # Выбираем идентификаторы чатов, в которых участвует пользователь
         query = ChatMembers.select().where(ChatMembers.c.user_phone_number == phone_number)
@@ -687,7 +734,8 @@ async def get_user_chats(phone_number: str):
             updated_chat = dict(chat)  # Создаем новый словарь из данных chat
             if last_message:
                 updated_chat['last_message'] = last_message['message']
-                updated_chat['last_message_sender_phone'] = last_message['sender_phone_number']  # добавляем номер отправителя последнего сообщения
+                updated_chat['last_message_sender_phone'] = last_message[
+                    'sender_phone_number']  # добавляем номер отправителя последнего сообщения
                 updated_chat['last_message_timestamp'] = last_message['timestamp']
 
             updated_user_chats.append(updated_chat)  # Добавляем обновленный чат в список
@@ -697,7 +745,7 @@ async def get_user_chats(phone_number: str):
         raise HTTPException(status_code=500, detail="Error getting user chats")
 
 
-#Получает чат по идентификатору.
+# Получает чат по идентификатору.
 async def get_chat(chat_id: int):
     query = userchats.select().where(userchats.c.id == chat_id)
     chat = await database.fetch_one(query)
@@ -717,9 +765,11 @@ async def get_chat_members(chat_id: int):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error getting chat members")
 
+
 # Маршрут к странице участников чата
 @app.get("/chat/{chat_id}/members", response_class=HTMLResponse)
-async def read_chat_members(request: Request, chat_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def read_chat_members(request: Request, chat_id: int,
+                            current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     # Этот маршрут отображает всех участников конкретного чата
     if isinstance(current_user, RedirectResponse):
         return current_user
@@ -728,7 +778,9 @@ async def read_chat_members(request: Request, chat_id: int, current_user: Union[
     members_info = [await get_user(member['user_phone_number']) for member in members]
     # Отсортировать список участников так, чтобы владелец был первым
     members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
-    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info, "current_user": current_user})
+    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info,
+                                                           "current_user": current_user})
+
 
 # Исправленная функция, обращающаяся к БД
 async def add_chat_member_db(chat_id: int, phone_number: str):
@@ -747,7 +799,8 @@ async def add_chat_member_db(chat_id: int, phone_number: str):
 
 
 @app.get("/chat/{chat_id}/members/add", response_class=HTMLResponse)
-async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[str] = None, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[str] = None,
+                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -762,18 +815,25 @@ async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[
     else:
         all_users = await get_all_users()
 
-    inviteable_users = [user for user in all_users if user['phone_number'] not in members_phone_numbers and user['phone_number'] != current_user['phone_number']]
-    return templates.TemplateResponse("addtochat.html", {"request": request, "chat": chat, "users": inviteable_users, "current_user": current_user})
+    inviteable_users = [user for user in all_users if
+                        user['phone_number'] not in members_phone_numbers and user['phone_number'] != current_user[
+                            'phone_number']]
+    return templates.TemplateResponse("addtochat.html", {"request": request, "chat": chat, "users": inviteable_users,
+                                                         "current_user": current_user})
+
 
 @app.post("/chat/{chat_id}/members/{phone_number}/add", response_class=RedirectResponse)
-async def add_chat_member(request: Request, chat_id: int, phone_number: str, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def add_chat_member(request: Request, chat_id: int, phone_number: str,
+                          current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     await add_chat_member_db(chat_id, phone_number)  # Исправленный вызов функции
     return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=303)
 
+
 @app.get("/chat/{chat_id}/members/search", response_class=HTMLResponse)
-async def search_chat_members(request: Request, chat_id: int, search_user: str, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def search_chat_members(request: Request, chat_id: int, search_user: str,
+                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     chat = await get_chat(chat_id)
@@ -783,27 +843,34 @@ async def search_chat_members(request: Request, chat_id: int, search_user: str, 
     search_results = None
     if search_user:  # Проверка, что поисковый запрос не пустой
         # Поиск среди участников чата
-        search_results = list(filter(lambda member: search_user.lower() in member['first_name'].lower() or search_user.lower() in member['last_name'].lower() or search_user.lower() in member['nickname'].lower() or search_user in member['phone_number'], members_info))
+        search_results = list(filter(
+            lambda member: search_user.lower() in member['first_name'].lower() or search_user.lower() in member[
+                'last_name'].lower() or search_user.lower() in member['nickname'].lower() or search_user in member[
+                               'phone_number'], members_info))
 
     # Отсортировать список участников так, чтобы владелец был первым
     members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
 
     # Возвращаем search_results только если поисковый запрос был выполнен
-    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info, "current_user": current_user, "search_results": search_results})
+    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info, "current_user": current_user,"search_results": search_results})
 
-#Удаляет пользователя из чата.
+
+# Удаляет пользователя из чата.
 async def delete_chat_member(chat_id: int, phone_number: str):
     try:
-        query = ChatMembers.delete().where(and_(ChatMembers.c.chat_id == chat_id, ChatMembers.c.user_phone_number == phone_number))
+        query = ChatMembers.delete().where(
+            and_(ChatMembers.c.chat_id == chat_id, ChatMembers.c.user_phone_number == phone_number))
         result = await database.execute(query)
         return result
     except SQLAlchemyError as e:
         print(str(e))  # line for debug
         raise HTTPException(status_code=500, detail="Error deleting chat member")
 
-#Маршрут для удлаения частника из чата
+
+# Маршрут для удлаения частника из чата
 @app.post("/chats/{chat_id}/members/{phone_number}/delete")
-async def remove_chat_member(chat_id: int, phone_number: str, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def remove_chat_member(chat_id: int, phone_number: str,
+                             current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -1007,7 +1074,7 @@ async def end_poll(chat_id: int, poll_id: int, current_user_phone_number: str):
     return RedirectResponse(url=f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
-#Создает новое сообщение в чате.
+# Создает новое сообщение в чате.
 async def create_message(chat_id: int, message_text: str, sender_phone_number: str):
     try:
         query = chatmessages.insert().values(
@@ -1020,7 +1087,8 @@ async def create_message(chat_id: int, message_text: str, sender_phone_number: s
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error creating message")
 
-#Создает новый чат.
+
+# Создает новый чат.
 async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: str):
     try:
         query = userchats.insert().values(chat_name=chat_name, owner_phone_number=owner_phone_number)
@@ -1035,6 +1103,7 @@ async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: s
         return last_record_id
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error creating new chat")
+
 
 # Возвращает файл по его идентификатору.
 @app.get("/files/{file_id}")
@@ -1056,36 +1125,43 @@ async def get_file(file_id: int):
         headers=headers
     )
 
-#Сохраняет файл в базу данных.
+
+# Сохраняет файл в базу данных.
 async def save_file(phone_number: str, file_path: str, file_content: bytes, file_extension: str):
-    query = files.insert().values(phone_number=phone_number, file_path=file_path, file=file_content, file_extension=file_extension)
+    query = files.insert().values(phone_number=phone_number, file_path=file_path, file=file_content,
+                                  file_extension=file_extension)
     file_id = await database.execute(query)
     return file_id
 
-#БЛОК УДАЛЕНИЯ СООБЩЕНИЙ ИЗ ЧАТА
-#Получает сообщение по его идентификатору.
+
+# БЛОК УДАЛЕНИЯ СООБЩЕНИЙ ИЗ ЧАТА
+# Получает сообщение по его идентификатору.
 async def get_message_by_id(message_id: int):
     query = chatmessages.select().where(chatmessages.c.id == message_id)
     result = await database.fetch_one(query)
     return result
 
-#Удаляет сообщение из базы данных.
+
+# Удаляет сообщение из базы данных.
 async def delete_message_from_db(message_id: int):
     query = chatmessages.delete().where(chatmessages.c.id == message_id)
     await database.execute(query)
 
-#Удаляет сообщение из чата, если текущий пользователь является автором этого сообщения.
+
+# Удаляет сообщение из чата, если текущий пользователь является автором этого сообщения.
 @app.post("/chats/{chat_id}/messages/{message_id}/delete")
 async def delete_message(
-    chat_id: int,
-    message_id: int,
-    current_user: Union[str, RedirectResponse] = Depends(get_current_user)
+        chat_id: int,
+        message_id: int,
+        current_user: Union[str, RedirectResponse] = Depends(get_current_user)
 ):
     if isinstance(current_user, RedirectResponse):
         return current_user
     message = await get_message_by_id(message_id)
     chat = await get_chat(chat_id)
-    if message is None or message.chat_id != chat_id or (message.sender_phone_number != current_user.phone_number and chat['owner_phone_number'] != current_user.phone_number):
+    if message is None or message.chat_id != chat_id or (
+            message.sender_phone_number != current_user.phone_number and chat[
+        'owner_phone_number'] != current_user.phone_number):
         raise HTTPException(status_code=404, detail="Message not found or user is not the author or the chat admin")
 
     # Если сообщение начинается с "Опрос: ", то это опрос
@@ -1100,9 +1176,10 @@ async def delete_message(
 
     return RedirectResponse(url=f"/chats/{chat_id}", status_code=303)
 
-#БЛОК МАРШРУТЫ
+
+# БЛОК МАРШРУТЫ
 async def get_current_user_from_request(request: Request) -> Optional[UserInDB]:
-    token = request.cookies.get("access_token") # Извлечение токена из куки
+    token = request.cookies.get("access_token")  # Извлечение токена из куки
     if token is None:
         logging.warning("Token is missing.")
         return None
@@ -1130,7 +1207,8 @@ async def get_current_user_from_request(request: Request) -> Optional[UserInDB]:
 
 # Маршрут к главной странице
 @app.get("/", response_class=HTMLResponse)
-async def root(request: Request, current_user: Optional[User] = Depends(get_current_user_from_request)):  # Используем функцию для получения текущего пользователя из заголовка
+async def root(request: Request, current_user: Optional[User] = Depends(
+    get_current_user_from_request)):  # Используем функцию для получения текущего пользователя из заголовка
     logging.info('Root route called')
     if current_user is None:
         logging.info('No current user, redirecting to login')
@@ -1139,11 +1217,13 @@ async def root(request: Request, current_user: Optional[User] = Depends(get_curr
         logging.info(f'Current user: {current_user}, redirecting to home')
         return RedirectResponse(url="/home", status_code=303)
 
+
 # Маршрут к странице входа в систему
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request):
     # Этот маршрут отображает форму входа
     return templates.TemplateResponse('login.html', {"request": request})
+
 
 # Маршрут для аутентификации пользователя
 @app.post("/login")
@@ -1199,6 +1279,7 @@ async def register_form(request: Request):
     # Этот маршрут отображает форму регистрации
     return templates.TemplateResponse("register.html", {"request": request})
 
+
 # Маршрут для регистрации пользователя
 @app.post("/register")
 async def register_user(gender: str = Form(...),
@@ -1220,6 +1301,7 @@ async def register_user(gender: str = Form(...),
     token = create_access_token(data={"sub": phone_number})
     return {"access_token": token, "token_type": "bearer"}
 
+
 @app.get("/profile", response_class=HTMLResponse)
 async def user_profile(request: Request):
     phone_number = request.session.get("phone_number")
@@ -1233,12 +1315,14 @@ async def user_profile(request: Request):
     # передаем информацию о пользователе в шаблон
     return templates.TemplateResponse("profile.html", {"request": request, "user": user})
 
+
 @app.get("/profile/{phone_number}", response_class=HTMLResponse)
 async def profile(request: Request, phone_number: str):
     user = await get_user_by_phone(phone_number)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+
 
 async def update_user_profile(phone_number, nickname, profile_picture, status):
     query = (
@@ -1247,12 +1331,14 @@ async def update_user_profile(phone_number, nickname, profile_picture, status):
         values(nickname=nickname, profile_picture=profile_picture, status=status))
     await database.execute(query)
 
+
 async def update_user_nickname(phone_number: str, new_nickname: str):
     query = users.update().where(users.c.phone_number == phone_number).values(nickname=new_nickname)
     logging.info(f"Updating field nickname for user with phone number: {phone_number} to {new_nickname}")
     result = await database.execute(query)
     logging.info(f"Field nickname updated successfully for user {phone_number}")
     return result
+
 
 async def update_user_status(phone_number: str, new_status: str):
     query = users.update().where(users.c.phone_number == phone_number).values(status=new_status)
@@ -1261,12 +1347,14 @@ async def update_user_status(phone_number: str, new_status: str):
     logging.info(f"Field status updated successfully for user {phone_number}")
     return result
 
+
 async def update_user_profile_picture(phone_number: str, new_profile_picture: str):
     query = users.update().where(users.c.phone_number == phone_number).values(profile_picture=new_profile_picture)
     logging.info(f"Updating field profile_picture for user with phone number: {phone_number} to {new_profile_picture}")
     result = await database.execute(query)
     logging.info(f"Field profile_picture updated successfully for user {phone_number}")
     return result
+
 
 @app.get("/profile/picture/{phone_number}", response_class=FileResponse)
 async def get_profile_picture(phone_number: str):
@@ -1283,6 +1371,7 @@ async def get_profile_picture(phone_number: str):
 
     profile_picture_path = user.profile_picture.decode('utf-8')
     return FileResponse(profile_picture_path)
+
 
 async def save_profile_picture(profile_picture: UploadFile):
     try:
@@ -1305,6 +1394,7 @@ async def save_profile_picture(profile_picture: UploadFile):
         print(f"Unable to save profile picture. {e}")
         return None
 
+
 @app.post("/profile/delete_picture")
 async def delete_profile_picture(request: Request):  # new
     phone_number = request.session.get("phone_number")
@@ -1312,6 +1402,7 @@ async def delete_profile_picture(request: Request):  # new
         raise HTTPException(status_code=403, detail="You must be logged in to edit the profile")
     await update_user_profile_picture(phone_number, "images/default.jpg")  # new
     return RedirectResponse(url="/profile", status_code=303)
+
 
 @app.post("/profile/update")
 async def update_user_profile(request: Request,
@@ -1336,6 +1427,7 @@ async def update_user_profile(request: Request,
             await update_user_profile_picture(phone_number, picture_path)
     return RedirectResponse(url=f'/profile/{phone_number}', status_code=303)
 
+
 async def update_user_field(phone_number: str, field: str, new_value: str):
     async with AsyncSession(engine) as session:
         print(f"Updating field {field} for user with phone number: {phone_number} to {new_value}")
@@ -1349,6 +1441,7 @@ async def update_user_field(phone_number: str, field: str, new_value: str):
         session.add(user)
         await session.commit()
         print(f"Field {field} updated successfully for user {phone_number}")
+
 
 async def get_user_dialogs(current_user_id: int) -> list:
     conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
@@ -1372,7 +1465,8 @@ async def get_user_dialogs(current_user_id: int) -> list:
     for row in rows:
         dialog_id = row[0]
         # Запрос на последнее сообщение
-        query = dialog_messages.select().where(dialog_messages.c.dialog_id == dialog_id).order_by(dialog_messages.c.timestamp.desc()).limit(1)
+        query = dialog_messages.select().where(dialog_messages.c.dialog_id == dialog_id).order_by(
+            dialog_messages.c.timestamp.desc()).limit(1)
         last_message = await database.fetch_one(query)
         if last_message:
             dialogs.append({
@@ -1384,6 +1478,7 @@ async def get_user_dialogs(current_user_id: int) -> list:
                 "last_message_timestamp": last_message['timestamp']
             })
     return dialogs
+
 
 async def get_subscribed_channels(user_phone_number: str):
     # Выборка из таблицы channel_members, где user_phone_number равен номеру телефона пользователя
@@ -1405,8 +1500,10 @@ async def get_subscribed_channels(user_phone_number: str):
     # Возвращаем список с информацией о подписанных каналах
     return subscribed_channels
 
+
 @app.get("/home", response_class=HTMLResponse)
-async def main_page(request: Request, current_user: User = Depends(get_current_user_from_request), search_query: str = None): # Используем функцию для получения текущего пользователя из заголовка
+async def main_page(request: Request, current_user: User = Depends(get_current_user_from_request),
+                    search_query: str = None):  # Используем функцию для получения текущего пользователя из заголовка
     logging.info('Main page route called')
     if current_user is None:
         logging.info('No current user, redirecting to login from main page')
@@ -1441,6 +1538,7 @@ async def main_page(request: Request, current_user: User = Depends(get_current_u
         "search_query": search_query,
     })
 
+
 # Маршрут к странице чатов пользователя
 @app.get("/chats", response_class=HTMLResponse)
 async def read_chats(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
@@ -1457,12 +1555,18 @@ async def read_chats(request: Request, current_user: Union[str, RedirectResponse
         "left_chats": left_chats  # передаем список в шаблон
     })
 
+
 async def is_member_of_chat(chat_id: int, phone_number: str):
+    logging.info(f"Checking if user with phone_number {phone_number} is a member of chat {chat_id}")
     members = await get_chat_members(chat_id)
-    return any(member['user_phone_number'] == phone_number for member in members)
+    logging.info(f"Members of chat {chat_id}: {members}")
+    is_member = any(member['user_phone_number'] == phone_number for member in members)
+    logging.info(f"Is user a member of chat {chat_id}: {is_member}")
+    return is_member
 
 @app.get("/chat/{chat_id}", response_class=HTMLResponse)
-async def read_chat(request: Request, chat_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def read_chat(request: Request, chat_id: int,
+                    current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     chat = await get_chat(chat_id)
@@ -1483,10 +1587,12 @@ async def read_chat(request: Request, chat_id: int, current_user: Union[str, Red
                 if poll:
                     polls.append(poll)
                     poll_results[poll_id] = await get_poll_results(poll_id)
-                    user_voted = bool(await database.fetch_one(query="SELECT * FROM PollVotes WHERE poll_id = :poll_id AND voter_phone_number = :voter_phone_number",
-                                                               values={"poll_id": poll_id, "voter_phone_number": current_user.phone_number}))
+                    user_voted = bool(await database.fetch_one(
+                        query="SELECT * FROM PollVotes WHERE poll_id = :poll_id AND voter_phone_number = :voter_phone_number",
+                        values={"poll_id": poll_id, "voter_phone_number": current_user.phone_number}))
 
-    return templates.TemplateResponse("chat.html", {"request": request, "chat": chat, "messages": messages, "polls": polls, "poll_results": poll_results, "user_voted": user_voted, "current_user": current_user})
+    return templates.TemplateResponse("chat.html", {"request": request, "chat": chat, "messages": messages, "polls": polls, "poll_results": poll_results, "user_voted": user_voted,  "current_user": current_user})
+
 
 # Маршрут к странице создания нового чата
 @app.get("/create_chat", response_class=HTMLResponse)
@@ -1495,32 +1601,40 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
     if isinstance(current_user, RedirectResponse):
         return current_user
     users = await get_all_users()
-    return templates.TemplateResponse("create_chat.html", {"request": request, "users": users, "current_user": current_user})
+    return templates.TemplateResponse("create_chat.html",
+                                      {"request": request, "users": users, "current_user": current_user})
+
 
 # Маршрут для создания нового чата
 @app.post("/create_chat", response_class=HTMLResponse)
-async def create_chat(request: Request, chat_name: str = Form(...), user_phone: str = Form(...), current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def create_chat(request: Request, chat_name: str = Form(...), user_phone: str = Form(...),
+                      current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     # Этот маршрут обрабатывает создание нового чата
     if isinstance(current_user, RedirectResponse):
         return current_user
     chat_id = await create_new_chat(chat_name, current_user['phone_number'], user_phone)
     return RedirectResponse(url=f"/chat/{chat_id}", status_code=303)  # перенаправление на страницу чата
 
-#Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
+
+# Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
 @app.get("/chats/{chat_id}", response_class=HTMLResponse)
-async def chat_page(request: Request, chat_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def chat_page(request: Request, chat_id: int,
+                    current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     chat = await get_chat(chat_id)
     if chat is None:
         raise HTTPException(status_code=404, detail="Chat not found")
     messages = await get_chat_messages(chat_id)
-    left_chats = request.session.get("left_chats", []) # Получаем список покинутых чатов
-    return templates.TemplateResponse("chat.html", {"request": request, "chat": chat, "messages": messages, "current_user": current_user, "left_chats": left_chats})
+    left_chats = request.session.get("left_chats", [])  # Получаем список покинутых чатов
+    return templates.TemplateResponse("chat.html", {"request": request, "chat": chat, "messages": messages,
+                                                    "current_user": current_user, "left_chats": left_chats})
+
 
 # Маршрут для удаления чата
 @app.post("/chats/{chat_id}/delete", response_class=HTMLResponse)
-async def delete_chat(request: Request, chat_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def delete_chat(request: Request, chat_id: int,
+                      current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -1547,6 +1661,7 @@ async def delete_chat(request: Request, chat_id: int, current_user: Union[str, R
 
     return RedirectResponse(url="/chats", status_code=303)
 
+
 async def get_chat_participants(chat_id: int):
     query = select([ChatMembers.c.user_phone_number]).where(ChatMembers.c.chat_id == chat_id)
     result = await database.fetch_all(query)
@@ -1554,19 +1669,23 @@ async def get_chat_participants(chat_id: int):
 
 
 @app.post("/chats/{chat_id}/send_message")
-async def send_message_to_chat(
-        chat_id: int,
-        message_text: str = Form(None),
-        file: UploadFile = File(None),
-        current_user: Union[str, RedirectResponse] = Depends(get_current_user)
-):
+async def send_message_to_chat(chat_id: int, message_text: str = Form(None), file: UploadFile = File(None),
+                               current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    # Проверка, является ли пользователь участником чата
+    is_member = await is_member_of_chat(chat_id, current_user.phone_number)
+    if not is_member:
+        raise HTTPException(status_code=403, detail="You are not a member of this chat")
+
+    room = f"chat_{chat_id}"
+    await manager.send_message_to_room(room,
+                                       f"New message in chat {chat_id} from {current_user.phone_number}: {message_text}")
+
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    room = f"chat_{chat_id}"
-
     # Отправка сообщения в чат через вебсокет
-    await manager.send_message_to_room(room, f"New message in chat {chat_id} from {current_user.phone_number}: {message_text}")
+    await manager.send_message_to_room(room,
+                                       f"New message in chat {chat_id} from {current_user.phone_number}: {message_text}")
 
     file_id = None
     file_name = None
@@ -1587,17 +1706,19 @@ async def send_message_to_chat(
             message_text += f' [[FILE]]File ID: {file_id}, File Name: {file_name}[[/FILE]]'
 
         await create_message(chat_id, message_text, current_user.phone_number)
-        participants = await get_chat_participants(chat_id)  # change here
-        await manager.send_message(f"chat_{chat_id}", current_user.phone_number, f"New message in chat {chat_id}: {message_text}")
+        await manager.send_message(f"chat_{chat_id}", current_user.phone_number,
+                                   f"New message in chat {chat_id}: {message_text}")
 
     except HTTPException:
         raise HTTPException(status_code=500, detail="Error sending message or uploading file")
 
     return RedirectResponse(url=f"/chats/{chat_id}", status_code=303)
 
+
 # Этот маршрут обрабатывает действие "покинуть чат"
 @app.post("/chats/{chat_id}/leave", response_class=RedirectResponse)
-async def leave_chat(request: Request, chat_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def leave_chat(request: Request, chat_id: int,
+                     current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -1610,9 +1731,11 @@ async def leave_chat(request: Request, chat_id: int, current_user: Union[str, Re
 
     return RedirectResponse(f"/chats", status_code=303)
 
+
 # Этот маршрут обрабатывает действие "вернуться в чат"
 @app.post("/chats/{chat_id}/return", response_class=RedirectResponse)
-async def return_to_chat(request: Request, chat_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def return_to_chat(request: Request, chat_id: int,
+                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -1626,7 +1749,8 @@ async def return_to_chat(request: Request, chat_id: int, current_user: Union[str
 
     return RedirectResponse(f"/chat/{chat_id}", status_code=303)
 
-#Vаршрут присоединения к чату
+
+# Vаршрут присоединения к чату
 @app.post("/join_chat/{chat_id}")
 async def join_chat(chat_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
@@ -1637,7 +1761,8 @@ async def join_chat(chat_id: int, current_user: Union[str, RedirectResponse] = D
 
     return RedirectResponse(url=f"/chat/{chat_id}", status_code=status.HTTP_303_SEE_OTHER)
 
-#БЛОК 3 КАНАЛ
+
+# БЛОК 3 КАНАЛ
 # Функция, которая создает новый канал
 async def create_new_channel(channel_name: str, owner_phone_number: str):
     try:
@@ -1647,24 +1772,31 @@ async def create_new_channel(channel_name: str, owner_phone_number: str):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error creating new channel")
 
+
 async def get_channel_messages(channel_id: int):
-    query = channel_history.select().where(channel_history.c.channel_id == channel_id).order_by(channel_history.c.timestamp)
+    query = channel_history.select().where(channel_history.c.channel_id == channel_id).order_by(
+        channel_history.c.timestamp)
     messages = await database.fetch_all(query)
     return messages
+
 
 @app.get("/create_channel", response_class=HTMLResponse)
 async def create_channel_page(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     user_channels = await get_user_channels(current_user.phone_number)
-    return templates.TemplateResponse("create_channel.html", {"request": request, "current_user": current_user, "channels": user_channels})
+    return templates.TemplateResponse("create_channel.html",
+                                      {"request": request, "current_user": current_user, "channels": user_channels})
+
 
 @app.post("/create_channel", response_class=HTMLResponse)
-async def create_channel(request: Request, channel_name: str = Form(...), current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def create_channel(request: Request, channel_name: str = Form(...),
+                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     channel_id = await create_new_channel(channel_name, current_user.phone_number)
     return RedirectResponse(url=f"/channels/{channel_id}", status_code=303)
+
 
 async def remove_user_from_channel(user_phone_number: str, channel_id: int):
     async with database.transaction():
@@ -1674,18 +1806,21 @@ async def remove_user_from_channel(user_phone_number: str, channel_id: int):
         )
         await database.execute(query)
 
+
 async def get_channel_info(channel_id: int):
     stmt = select(channels).where(channels.c.id == channel_id)
 
-    conn = engine.connect() # Используем engine.connect() без контекстного менеджера
+    conn = engine.connect()  # Используем engine.connect() без контекстного менеджера
     result = conn.execute(stmt)
 
     channel_info = result.fetchone()
 
     return dict(channel_info)
 
+
 @app.post("/channels/{channel_id}/subscribers/{subscriber_phone_number}/remove", response_class=RedirectResponse)
-async def remove_subscriber(channel_id: int, subscriber_phone_number: str, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def remove_subscriber(channel_id: int, subscriber_phone_number: str,
+                            current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -1752,6 +1887,7 @@ async def get_user_channels(user_phone_number: str):
 
     return user_channels
 
+
 # Функция, которая добавляет пользователя в канал.
 async def add_channel_member(channel_id: int, phone_number: str):
     try:
@@ -1766,6 +1902,7 @@ async def add_channel_member(channel_id: int, phone_number: str):
         print(f"Error occurred: {e}")  # Debug line to print the exception
         raise HTTPException(status_code=500, detail="Error adding channel member")
 
+
 async def get_channel_subscribers(channel_id: int):
     query = select([users]).select_from(
         users.join(channel_members, users.c.phone_number == channel_members.c.user_phone_number)
@@ -1773,6 +1910,7 @@ async def get_channel_subscribers(channel_id: int):
 
     subscribers = await database.fetch_all(query)
     return subscribers
+
 
 async def search_subscribers(channel_id: int, search_user: str):
     query = select([users]).select_from(
@@ -1789,12 +1927,13 @@ async def search_subscribers(channel_id: int, search_user: str):
     search_results = await database.fetch_all(query)
     return search_results
 
+
 @app.get("/channels/{channel_id}/subscribers", response_class=HTMLResponse)
 async def view_subscribers(
-    request: Request,
-    channel_id: int,
-    search_user: Optional[str] = None,
-    current_user: Union[str, RedirectResponse] = Depends(get_current_user)
+        request: Request,
+        channel_id: int,
+        search_user: Optional[str] = None,
+        current_user: Union[str, RedirectResponse] = Depends(get_current_user)
 ):
     if isinstance(current_user, RedirectResponse):
         return current_user
@@ -1812,8 +1951,11 @@ async def view_subscribers(
 
     return templates.TemplateResponse(
         "subscribers.html",
-        {"request": request, "channel": channel, "subscribers": subscribers, "search_results": search_results, "current_user": current_user}
+        {"request": request, "channel": channel, "subscribers": subscribers, "search_results": search_results,
+         "current_user": current_user}
     )
+
+
 @app.post("/join_channel/{channel_id}", response_class=RedirectResponse)
 async def join_channel(channel_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
@@ -1823,8 +1965,10 @@ async def join_channel(channel_id: int, current_user: Union[str, RedirectRespons
     print(f"User {current_user['phone_number']} has been added to channel {channel_id}")  # Debug line
     return RedirectResponse(f"/channels/{channel_id}", status_code=303)
 
+
 @app.get("/channels/{channel_id}", response_class=HTMLResponse)
-async def view_channel_page(request: Request, channel_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def view_channel_page(request: Request, channel_id: int,
+                            current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     query = channels.select().where(channels.c.id == channel_id)
@@ -1840,17 +1984,23 @@ async def view_channel_page(request: Request, channel_id: int, current_user: Uni
     is_owner = current_user.phone_number == channel.owner_phone_number
 
     messages = await get_channel_messages(channel_id)
-    return templates.TemplateResponse("channel.html", {"request": request, "channel": channel, "messages": messages, "current_user": current_user, "subscribers_count": subscribers_count, "is_owner": is_owner})
+    return templates.TemplateResponse("channel.html", {"request": request, "channel": channel, "messages": messages,
+                                                       "current_user": current_user,
+                                                       "subscribers_count": subscribers_count, "is_owner": is_owner})
+
 
 @app.post("/channels/{channel_id}", response_class=HTMLResponse)
-async def update_channel(request: Request, channel_id: int, new_content: str = Form(...), current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def update_channel(request: Request, channel_id: int, new_content: str = Form(...),
+                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     query = channels.update().where(channels.c.id == channel_id).values(content=new_content)
     await database.execute(query)
     return RedirectResponse(url=f"/", status_code=303)
 
-async def create_channel_message(channel_id: int, message_text: str, sender_phone_number: str, file_id: int = None, file_name: str = None):
+
+async def create_channel_message(channel_id: int, message_text: str, sender_phone_number: str, file_id: int = None,
+                                 file_name: str = None):
     try:
         current_time = datetime.now(MSK_TZ)
         query = channel_history.insert().values(
@@ -1865,8 +2015,11 @@ async def create_channel_message(channel_id: int, message_text: str, sender_phon
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error creating message in channel")
 
+
 @app.post("/channels/{channel_id}/send_message", response_class=HTMLResponse)
-async def send_channel_message(request: Request, channel_id: int, message_text: str = Form(...), file: UploadFile = File(None), current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def send_channel_message(request: Request, channel_id: int, message_text: str = Form(...),
+                               file: UploadFile = File(None),
+                               current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -1874,7 +2027,8 @@ async def send_channel_message(request: Request, channel_id: int, message_text: 
     room = f"channel_{channel_id}"
 
     # Отправка сообщения в канал через вебсокет
-    await manager.send_message_to_room(room, f"New message in channel {channel_id} from user {current_user.phone_number}: {message_text}")
+    await manager.send_message_to_room(room,
+                                       f"New message in channel {channel_id} from user {current_user.phone_number}: {message_text}")
 
     # Проверяем, является ли текущий пользователь владельцем канала
     query = channels.select().where(channels.c.id == channel_id)
@@ -1899,14 +2053,19 @@ async def send_channel_message(request: Request, channel_id: int, message_text: 
     await create_channel_message(channel_id, message_text, current_user.phone_number, file_id, file_name)
     return RedirectResponse(url=f"/channels/{channel_id}", status_code=303)
 
+
 # Для просмотра истории сообщений канала вам также может потребоваться функция, которая будет извлекать сообщения из channel_history вместо message_history. Возможно, это будет выглядеть примерно так:
 @app.get("/channels/{channel_id}/history", response_class=HTMLResponse)
-async def get_channel_history(request: Request, channel_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def get_channel_history(request: Request, channel_id: int,
+                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
-    query = channel_history.select().where(channel_history.c.channel_id == channel_id).order_by(desc(channel_history.c.timestamp))
+    query = channel_history.select().where(channel_history.c.channel_id == channel_id).order_by(
+        desc(channel_history.c.timestamp))
     messages = await database.fetch_all(query)
-    return templates.TemplateResponse("channel_history.html", {"request": request, "messages": messages, "current_user": current_user})
+    return templates.TemplateResponse("channel_history.html",
+                                      {"request": request, "messages": messages, "current_user": current_user})
+
 
 async def delete_channel(channel_id: int):
     try:
@@ -1924,6 +2083,7 @@ async def delete_channel(channel_id: int):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error deleting the channel")
 
+
 @app.post("/channels/{channel_id}/delete", response_class=RedirectResponse)
 async def delete_channel_route(channel_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
@@ -1940,6 +2100,7 @@ async def delete_channel_route(channel_id: int, current_user: Union[str, Redirec
 
     return RedirectResponse(url=f"/", status_code=303)
 
+
 async def delete_channel_message(message_id: int):
     try:
         # Remove message from channel
@@ -1948,8 +2109,10 @@ async def delete_channel_message(message_id: int):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error deleting the message")
 
+
 @app.post("/channels/{channel_id}/delete_message/{message_id}", response_class=RedirectResponse)
-async def delete_message_route(channel_id: int, message_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def delete_message_route(channel_id: int, message_id: int,
+                               current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -1964,6 +2127,7 @@ async def delete_message_route(channel_id: int, message_id: int, current_user: U
 
     return RedirectResponse(url=f"/channels/{channel_id}", status_code=303)
 
+
 @app.post("/channels/{channel_id}/leave")
 async def leave_channel(channel_id: int, request: Request):
     # Получить текущего пользователя
@@ -1976,12 +2140,14 @@ async def leave_channel(channel_id: int, request: Request):
     assert channel_id, "ID канала не указан"
 
     # Удалить пользователя из списка подписчиков канала
-    await remove_user_from_channel(user.phone_number, channel_id)  # Передайте номер телефона пользователя, а не объект пользователя
+    await remove_user_from_channel(user.phone_number,
+                                   channel_id)  # Передайте номер телефона пользователя, а не объект пользователя
 
     # Перенаправить пользователя на домашнюю страницу, где он увидит обновленный список каналов
     return RedirectResponse(url='/home', status_code=303)
 
-#БЛОК ПОИСК
+
+# БЛОК ПОИСК
 # Функция для поиска по чатам и каналам
 async def search_chats_and_channels(search_query: str):
     try:
@@ -1997,7 +2163,8 @@ async def search_chats_and_channels(search_query: str):
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error getting search results")
 
-#БЛОК ДИАЛОГ
+
+# БЛОК ДИАЛОГ
 # Маршрут для создания нового диалога
 @app.get("/create_dialog", response_class=HTMLResponse)
 async def create_dialog_route(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
@@ -2010,6 +2177,7 @@ async def create_dialog_route(request: Request, current_user: Union[str, Redirec
         "users": await get_all_users(),
         "search_results": [],
     })
+
 
 # Метод служит для поиска диалога.
 @app.post("/create_dialog", response_class=HTMLResponse)
@@ -2030,7 +2198,8 @@ async def search_dialog_route(request: Request, current_user: Union[str, Redirec
         "search_results": search_results,
     })
 
-#Cоздает новый диалог между двумя пользователями.
+
+# Cоздает новый диалог между двумя пользователями.
 async def create_new_dialog(user1_id: int, user2_id: int) -> int:
     conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
     cur = await conn.cursor()
@@ -2044,7 +2213,8 @@ async def create_new_dialog(user1_id: int, user2_id: int) -> int:
 
     return dialog_id
 
-#Функция поиска пользователей по заданному запросу.
+
+# Функция поиска пользователей по заданному запросу.
 async def search_users(query: str) -> List[dict]:
     conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
     cur = await conn.cursor()
@@ -2063,6 +2233,7 @@ async def search_users(query: str) -> List[dict]:
     conn.close()
     return result
 
+
 # Возвращает информацию о диалоге по его идентификатору. Если диалог не найден, возникает исключение
 async def get_dialog_by_id(dialog_id: int, current_user_id: int, check_user_deleted: bool = True) -> dict:
     # Get the dialog information
@@ -2074,7 +2245,8 @@ async def get_dialog_by_id(dialog_id: int, current_user_id: int, check_user_dele
         raise HTTPException(status_code=404, detail="Dialog not found")
 
     # Check if the dialog was deleted by the user
-    if check_user_deleted and ((current_user_id == row['user1_id'] and row['user1_deleted']) or (current_user_id == row['user2_id'] and row['user2_deleted'])):
+    if check_user_deleted and ((current_user_id == row['user1_id'] and row['user1_deleted']) or (
+            current_user_id == row['user2_id'] and row['user2_deleted'])):
         raise HTTPException(status_code=410, detail="Dialog was deleted by the user")
 
     # Get the interlocutor information
@@ -2101,7 +2273,8 @@ async def get_dialog_by_id(dialog_id: int, current_user_id: int, check_user_dele
         "user2_deleted": row['user2_deleted']
     }
 
-#Возвращает все сообщения из данного диалога.
+
+# Возвращает все сообщения из данного диалога.
 async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> List[dict]:
     conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
     cur = await conn.cursor()
@@ -2128,7 +2301,8 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
 
     return result
 
-#Добавляет новое сообщение в базу данных
+
+# Добавляет новое сообщение в базу данных
 async def send_message(dialog_id: int, sender_id: int, message: str):
     conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
     cur = await conn.cursor()
@@ -2148,8 +2322,10 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
     }
     await manager.send_message_to_room(room, json.dumps({"type": "new_message", "message": new_message}))
 
+
 @app.get("/dialogs/{dialog_id}", response_class=HTMLResponse)
-async def dialog_route(dialog_id: int, request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def dialog_route(dialog_id: int, request: Request,
+                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -2178,18 +2354,19 @@ async def dialog_route(dialog_id: int, request: Request, current_user: Union[str
 
 async def update_last_online(user_id: int):
     current_time = datetime.utcnow()
-    query = users.update().\
-        where(users.c.id == user_id).\
+    query = users.update(). \
+        where(users.c.id == user_id). \
         values(last_online=current_time)
     await database.execute(query)
+
 
 # Обработчик отправки сообщения в диалог
 @app.post("/dialogs/{dialog_id}/send_message")
 async def send_message_to_dialog(
-    dialog_id: int,
-    message: str = Form(None),
-    file: UploadFile = File(None),
-    current_user: Union[str, RedirectResponse] = Depends(get_current_user)
+        dialog_id: int,
+        message: str = Form(None),
+        file: UploadFile = File(None),
+        current_user: Union[str, RedirectResponse] = Depends(get_current_user)
 ):
     if isinstance(current_user, RedirectResponse):
         return current_user
@@ -2239,7 +2416,8 @@ async def send_message_to_dialog(
 
     return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=303)
 
-#Обрабатывает создание диалога с определенным пользователем
+
+# Обрабатывает создание диалога с определенным пользователем
 @app.get("/create_dialog/{user_id}")
 @app.post("/create_dialog/{user_id}")
 async def create_dialog_handler(user_id: int, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
@@ -2256,7 +2434,8 @@ async def create_dialog_handler(user_id: int, current_user: Union[str, RedirectR
     # Перенаправляем пользователя на страницу диалога (нового или уже существующего)
     return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=status.HTTP_303_SEE_OTHER)
 
-#Удаление сообщения из диалога
+
+# Удаление сообщения из диалога
 @app.post("/dialogs/{dialog_id}/delete_message/{message_id}")
 async def delete_message(
         dialog_id: int,
@@ -2277,7 +2456,8 @@ async def delete_message(
 
     return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=303)
 
-#Функция полностью удаляет сообщение из базы данных.
+
+# Функция полностью удаляет сообщение из базы данных.
 async def delete_message_by_id(message_id: int):
     conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
     cur = await conn.cursor()
@@ -2291,6 +2471,7 @@ async def delete_message_by_id(message_id: int):
     await conn.commit()
     await cur.close()
     conn.close()
+
 
 # Маршрут, который обрабатывает удаление диалога.
 ## Обработчик удаления диалога
@@ -2306,17 +2487,18 @@ async def delete_dialog(dialog_id: int, current_user: User = Depends(get_current
 
     # Обновляем статус удаления для пользователя
     if dialog['user1_id'] == current_user.id:
-        query = dialogs.update().\
-            where(dialogs.c.id == dialog_id).\
+        query = dialogs.update(). \
+            where(dialogs.c.id == dialog_id). \
             values(user1_deleted=True)
         await database.execute(query)
     else:
-        query = dialogs.update().\
-            where(dialogs.c.id == dialog_id).\
+        query = dialogs.update(). \
+            where(dialogs.c.id == dialog_id). \
             values(user2_deleted=True)
         await database.execute(query)
 
     return RedirectResponse("/home", status_code=303)
+
 
 # Проверка наличия активного диалога между двумя пользователями
 async def check_dialog_exists(user1_id: int, user2_id: int) -> Union[int, None]:
@@ -2338,13 +2520,14 @@ async def check_dialog_exists(user1_id: int, user2_id: int) -> Union[int, None]:
 
     return row[0] if row else None
 
+
 # Обновление статуса удаления диалога
 async def update_dialog_deleted_status(dialog_id: int, deleted_by_user1: bool = False, deleted_by_user2: bool = False):
     try:
         conn = await aiomysql.connect(user='root', password='root', db='chat', host='localhost', port=3306)
         cur = await conn.cursor()
         await cur.execute("UPDATE Dialogs SET user1_deleted = %s, user2_deleted = %s WHERE id = %s",
-                        (deleted_by_user1, deleted_by_user2, dialog_id))
+                          (deleted_by_user1, deleted_by_user2, dialog_id))
         await conn.commit()
     except Exception as e:
         logging.error(f"Error updating dialog deleted status: {str(e)}")
@@ -2352,6 +2535,7 @@ async def update_dialog_deleted_status(dialog_id: int, deleted_by_user1: bool = 
     finally:
         await cur.close()
         conn.close()
+
 
 # Получение сообщений диалога
 async def get_dialog_messages(dialog_id: int) -> List[dict]:
@@ -2395,9 +2579,11 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
 
     return messages
 
+
 # Получение диалога по его ID
 @app.get("/dialogs/{dialog_id}", response_class=HTMLResponse)
-async def get_dialog_route(dialog_id: int, request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def get_dialog_route(dialog_id: int, request: Request,
+                           current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -2422,19 +2608,32 @@ async def get_dialog_route(dialog_id: int, request: Request, current_user: Union
         "messages": messages,
     })
 
+
 # БЛОК №4 СОКЕТЫ
 class WebSocketState(Enum):
     DISCONNECTED = auto()
     CONNECTED = auto()
     ERROR = auto()
+
+
 class EnhancedConnectionManager:
     def __init__(self):
         self.active_connections: Dict[int, Dict[str, WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket, user_id: int, room: str):
+    async def connect(self, websocket: WebSocket, user_id: int, room: str, existing_token: Optional[str] = None):
         logging.info(f"Attempting to connect WebSocket for user {user_id} in room {room}")
-        token = await get_websocket_token(websocket)
-        if token and await verify_and_validate_token(token):
+        token = existing_token if existing_token else await get_websocket_token(websocket)
+        logging.info(f"Received token: {token}")
+
+        if not token:
+            logging.warning(f"No token received for user {user_id}. Closing connection.")
+            await websocket.close(code=status.HTTP_403_FORBIDDEN)
+            return
+
+        is_valid = await verify_and_validate_token(token)
+        logging.info(f"Is token valid: {is_valid}")
+
+        if is_valid:
             await websocket.accept()
             logging.info(f"WebSocket connected for user {user_id} in room {room}")
             if user_id not in self.active_connections:
@@ -2443,7 +2642,7 @@ class EnhancedConnectionManager:
             logging.info(f"Active connections for user {user_id}: {self.active_connections[user_id]}")
         else:
             logging.warning(f"WebSocket connection failed for user {user_id} due to invalid token.")
-            await websocket.close(code=4001)
+            await websocket.close(code=status.HTTP_403_FORBIDDEN)
 
     async def disconnect(self, user_id: int, room: str):
         logging.info(f"Attempting to disconnect WebSocket for user {user_id} in room {room}")
@@ -2458,7 +2657,8 @@ class EnhancedConnectionManager:
             del self.active_connections[user_id][room]
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
-        logging.info(f"Active connections after disconnect for user {user_id}: {self.active_connections.get(user_id, {})}")
+        logging.info(
+            f"Active connections after disconnect for user {user_id}: {self.active_connections.get(user_id, {})}")
 
     async def send_message(self, user_id: int, room: str, message: str):
         try:
@@ -2469,7 +2669,8 @@ class EnhancedConnectionManager:
                     await connection.send_text(message)
                     logging.info(f"Message sent to user {user_id} in room {room}")
                 else:
-                    logging.warning(f"Failed to send message to user {user_id} in room {room}: WebSocket is disconnected")
+                    logging.warning(
+                        f"Failed to send message to user {user_id} in room {room}: WebSocket is disconnected")
             else:
                 logging.warning(f"Failed to send message to user {user_id} in room {room}: No active connection")
         except Exception as e:
@@ -2488,17 +2689,46 @@ class EnhancedConnectionManager:
             for websocket in user_rooms.values():
                 await websocket.send_text(message)
 
+
 manager = EnhancedConnectionManager()
 
-async def get_websocket_token(websocket: WebSocket):
-    logging.info(f"Getting WebSocket token for: {websocket}")
 
-    token = websocket.cookies.get("token")
-    if token is None:
-        logging.warning(f"Token is missing from WebSocket connection: {websocket.url.path}")
-        await websocket.close(code=4000)  # 4000 is a custom close code indicating "missing token"
-        return None
+async def get_websocket_token(websocket: WebSocket):
+    logging.info("Initiating process to get WebSocket token.")
+
+    cookies = websocket.cookies
+    logging.info(f"All received cookies: {cookies}")
+
+    token = cookies.get("token")
+
+    if token:
+        logging.info(f"Successfully retrieved token from WebSocket cookies: {token}")
+    else:
+        logging.warning("Token is missing from WebSocket cookies.")
+        await websocket.close(code=4000)  # Custom close code for "missing token"
+
     return token
+
+
+@app.websocket("/ws/global/")
+async def global_websocket_endpoint(websocket: WebSocket,
+                                    current_user: User = Depends(get_current_user_from_websocket)):
+    logging.info(f"Attempting to connect global WebSocket with user {current_user.id}")
+    await manager.connect(websocket, current_user.id, "global")
+    logging.info(f"Global WebSocket connected with user {current_user.id}")
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logging.info(f"Received data in global chat: {data}")
+            room = data.get("chat_id")  # Идентификатор чата из сообщения
+            await manager.send_message(current_user.id, f"chat_{room}", data.get("message"))
+    except Exception as e:
+        logging.error(f"Exception in global_websocket_endpoint: {e}")
+    finally:
+        await manager.disconnect(current_user.id, "global")
+        logging.info(f"Global WebSocket disconnected for user {current_user.id}")
+
 
 async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User):
     try:
@@ -2513,31 +2743,50 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
         dialog_query = dialogs.select().where(dialogs.c.id == dialog_id)
         dialog_data = await database.fetch_one(dialog_query)
         if dialog_data:
-            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data["user2_id"]
+            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data[
+                "user2_id"]
             room = f"dialog_{dialog_id}"
             await manager.send_message(recipient_id, room, message_content)
     except Exception as e:
         logging.error(f"An error occurred while handling dialog message: {e}")
         logging.exception(e)
 
+
 async def handle_chat_message(chat_id: int, message_content: str, current_user: User):
     try:
-        logging.info(f"Handling chat message from user {current_user.id} in chat {chat_id}: {message_content}")
+        logging.info(f"Starting to handle chat message from user {current_user.id} in chat {chat_id}.")
         query = chatmessages.insert().values(
             chat_id=chat_id,
             sender_phone_number=current_user.phone_number,
             message=message_content
         )
-        await database.execute(query)
+        logging.info(f"SQL Query: {query}")
+        result = await database.execute(query)
+        if result is None:
+            logging.error("Message could not be saved to the database.")
+        else:
+            logging.info(f"Message saved to database.")
+
+        # Log fetching chat members
         chat_members_query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
+        logging.info(f"Fetching chat members with query: {chat_members_query}")
+
         chat_members = await database.fetch_all(chat_members_query)
+        logging.info(f"Fetched chat members: {chat_members}")
+
         room = f"chat_{chat_id}"
+
+        # Log the message sending part
         for member in chat_members:
             member_id = member["user_id"]
+            logging.info(f"Attempting to send message to user {member_id} in chat {chat_id}.")
             await manager.send_message(member_id, room, message_content)
+            logging.info(f"Message sent to user {member_id} in chat {chat_id}.")
+
     except Exception as e:
         logging.error(f"An error occurred while handling chat message: {e}")
-        logging.exception(e)
+        logging.exception(e)  # This will log the exception traceback, helping you understand what exactly went wrong.
+
 
 async def handle_channel_message(channel_id: int, message_content: str, current_user: User):
     try:
@@ -2558,55 +2807,78 @@ async def handle_channel_message(channel_id: int, message_content: str, current_
         logging.error(f"An error occurred while handling channel message: {e}")
         logging.exception(e)
 
+
 @app.websocket("/ws/messages/")
 async def messages_endpoint(websocket: WebSocket, current_user: User = Depends(get_current_user_from_websocket)):
     logging.info(f"Connecting WebSocket for messages with user {current_user.id}")
 
-     # Use the enhanced manager
-    await manager.connect(websocket, current_user.id, "general")
+    token = websocket.cookies.get("token")  # Извлечение токена из cookies
+    phone_number, is_valid = await verify_and_validate_token(token)  # Валидация токена
 
-    # Add heartbeat and token refresh mechanism
-    last_heartbeat = datetime.now()
-    last_token_refresh = datetime.now()
-    HEARTBEAT_INTERVAL = 30  # seconds
-    TOKEN_REFRESH_INTERVAL = 1800  # 30 minutes
+    if not is_valid or not current_user:
+        logging.warning("WebSocket connection attempt failed: Invalid Token or Current user is None.")
+        await websocket.close(code=status.HTTP_403_FORBIDDEN)
+        return
 
-    try:
-        while True:
-            # Check if a heartbeat is due
-            if (datetime.now() - last_heartbeat).total_seconds() > HEARTBEAT_INTERVAL:
-                await websocket.send_text("ping")
-                last_heartbeat = datetime.now()
+        # Использование улучшенного менеджера
+        await manager.connect(websocket, current_user.id, "general")
 
-            # Check if a token refresh is due
-            if (datetime.now() - last_token_refresh).total_seconds() > TOKEN_REFRESH_INTERVAL:
-                new_token = create_access_token({"sub": current_user.id})  # Use your existing function
-                await websocket.send_text(json.dumps({"action": "refresh_token", "new_token": new_token}))
-                last_token_refresh = datetime.now()
+        # Добавление механизма heartbeat и обновления токена
+        last_heartbeat = datetime.now()
+        last_token_refresh = datetime.now()
+        HEARTBEAT_INTERVAL = 30  # в секундах
+        TOKEN_REFRESH_INTERVAL = 1800  # 30 минут
 
-            data = await websocket.receive_text()
-            logging.info(f"Received message from user {current_user.id}: {data}")
-            # (rest of the code remains unchanged)
+        try:
+            while True:
+                # Проверка необходимости heartbeat
+                if (datetime.now() - last_heartbeat).total_seconds() > HEARTBEAT_INTERVAL:
+                    await websocket.send_text("ping")
+                    last_heartbeat = datetime.now()
 
-    except WebSocketDisconnect:
-        await manager.disconnect(current_user.id, "general")
-    except Exception as e:
-        logging.error(f"Error handling WebSocket for user {current_user.id}: {e}")
-        await manager.disconnect(current_user.id, "general")
+                # Проверка необходимости обновления токена
+                if (datetime.now() - last_token_refresh).total_seconds() > TOKEN_REFRESH_INTERVAL:
+                    new_token = create_access_token({"sub": current_user.id})
+                    await websocket.send_text(json.dumps({"action": "refresh_token", "new_token": new_token}))
+                    last_token_refresh = datetime.now()
+
+                data = await websocket.receive_text()
+                logging.info(f"Received message from user {current_user.id}: {data}")
+
+        except WebSocketDisconnect:
+            logging.warning(f"WebSocket disconnected for user {current_user.id}")
+            await manager.disconnect(current_user.id, "general")
+        except Exception as e:
+            logging.error(f"Error handling WebSocket for user {current_user.id}: {e}")
+            await manager.disconnect(current_user.id, "general")
+    else:
+        logging.warning("Invalid or missing token. Closing WebSocket.")
+        await websocket.close(code=4000)  # Закрыть соединение, если токен недействителен
+
 
 @app.websocket("/ws/chats/{chat_id}/")
-async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int,
-                                  current_user: User = Depends(get_current_user_from_websocket)):
-    logging.info(f"Attempting to connect WebSocket for chat {chat_id} with user {current_user.id}")
+async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int):
+    logging.info(f"Attempting to connect WebSocket for chat {chat_id}")
+
+    current_user = await get_current_user_from_websocket(websocket)
+    if current_user is None:
+        logging.warning("WebSocket connection closed: user not found.")
+        return
+
     room = f"chat_{chat_id}"
-    await manager.connect(websocket, current_user.id, room)
+    global_token = None  # Здесь можно получить токен из глобального вебсокет-соединения
+    await manager.connect(websocket, current_user.id, room, existing_token=global_token)
     logging.info(f"WebSocket connected for chat {chat_id} with user {current_user.id}")
 
     try:
         while True:
             data = await websocket.receive_text()
-            logging.info(f"Received data in chat {chat_id}: {data}")
+            logging.info(f"Received message from user {current_user.id} in chat {chat_id}: {data}")
             await manager.send_message(current_user.id, room, data)
+            await websocket.send_text(json.dumps({"status": "message_received", "message": data}))  # Исправил message_content на data
+    except WebSocketDisconnect:
+        await manager.disconnect(current_user.id, room)
+        logging.info(f"WebSocket disconnected for chat {chat_id} with user {current_user.id}")
     except Exception as e:
         logging.error(f"Exception in chat_websocket_endpoint: {e}")
     finally:
@@ -2642,10 +2914,10 @@ async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: str):
         await manager.disconnect(current_user.id, room)
         logging.info(f"WebSocket disconnected for dialog {dialog_id} with user {current_user.id}")
 
-#Обработчик ошибок
+
+# Обработчик ошибок
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     if exc.status_code == 401:
         return RedirectResponse(url="/login", status_code=303)
     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
-

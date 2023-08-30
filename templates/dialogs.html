@@ -6,83 +6,83 @@
     <link rel="stylesheet" href="/static/dialogsStyle.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Диалог с {{ dialog.interlocutor_phone_number }}</h1>
-        <h2>Был(а) онлайн: {{ dialog.last_online }}</h2>
+<div class="container">
+    <h1>Диалог с {{ dialog.interlocutor_phone_number }}</h1>
+    <h2>Был(а) онлайн: {{ dialog.last_online }}</h2>
 
-        <h3>Сообщения:</h3>
-        <ul class="messages-list">
-            {% for message in messages %}
-                {% if not message.delete_timestamp %}
-                    <li>
-                        {{ message.sender_id }}:
-                        {% if '[[FILE]]' in message.message %}
-                            {% set message_text, file_info = message.message.split('[[FILE]]') %}
-                            {% if ', ' in file_info %}
-                                {% set file_id, file_name = file_info.replace('[[/FILE]]','').split(', ') %}
-                            {% else %}
-                                {% set file_id = file_info.replace('[[/FILE]]','') %}
-                                {% set file_name = "unknown" %}
-                            {% endif %}
-                            {{ message_text }}
-                            <a href="/files/{{ file_id.split(': ')[1] }}"> {{ file_name.split(': ')[1] }}</a>
-                        {% else %}
-                            {{ message.message }}
-                        {% endif %}
-                        <br>
-                        Отправлено: {{ message.timestamp }}
-                        {% if message.sender_id == current_user.id %}
-                            <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post">
-                                <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-                                <input type="hidden" name="message_id" value="{{ message.id }}">
-                                <input type="submit" value="Удалить сообщение">
-                            </form>
-                        {% endif %}
-                    </li>
-                {% endif %}
-            {% endfor %}
-        </ul>
+    <h3>Сообщения:</h3>
+    <ul class="messages-list">
+        {% for message in messages %}
+        {% if not message.delete_timestamp %}
+        <li>
+            {{ message.sender_id }}:
+            {% if '[[FILE]]' in message.message %}
+            {% set message_text, file_info = message.message.split('[[FILE]]') %}
+            {% if ', ' in file_info %}
+            {% set file_id, file_name = file_info.replace('[[/FILE]]','').split(', ') %}
+            {% else %}
+            {% set file_id = file_info.replace('[[/FILE]]','') %}
+            {% set file_name = "unknown" %}
+            {% endif %}
+            {{ message_text }}
+            <a href="/files/{{ file_id.split(': ')[1] }}"> {{ file_name.split(': ')[1] }}</a>
+            {% else %}
+            {{ message.message }}
+            {% endif %}
+            <br>
+            Отправлено: {{ message.timestamp }}
+            {% if message.sender_id == current_user.id %}
+            <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post">
+                <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+                <input type="hidden" name="message_id" value="{{ message.id }}">
+                <input type="submit" value="Удалить сообщение">
+            </form>
+            {% endif %}
+        </li>
+        {% endif %}
+        {% endfor %}
+    </ul>
 
-        <h3>Отправить сообщение:</h3>
-        <form action="/dialogs/{{ dialog.id }}/send_message" method="post" enctype="multipart/form-data">
-            <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-            <input type="hidden" name="sender_id" value="{{ current_user.id }}">
-            <textarea name="message"></textarea>
-            <label for="file">Прикрепить файл:</label>
-            <input type="file" id="file" name="file">
-            <input type="submit" value="Отправить">
-        </form>
+    <h3>Отправить сообщение:</h3>
+    <form action="/dialogs/{{ dialog.id }}/send_message" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+        <input type="hidden" name="sender_id" value="{{ current_user.id }}">
+        <textarea name="message"></textarea>
+        <label for="file">Прикрепить файл:</label>
+        <input type="file" id="file" name="file">
+        <input type="submit" value="Отправить">
+    </form>
 
-        <button onclick="location.href='/home'">Вернуться на главную</button>
-    </div>
-    <script>
-        const dialogId = "{{ dialog.id }}";
-        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+    <button onclick="location.href='/home'">Вернуться на главную</button>
+</div>
+<script>
+    const dialogId = "{{ dialog.id }}";
+    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
-        ws.onmessage = function(event) {
-            const messageData = JSON.parse(event.data);
-            console.log(messageData);
-            const messagesList = document.querySelector('.messages-list');
-            const newMessage = document.createElement('li');
+    ws.onmessage = function (event) {
+        const messageData = JSON.parse(event.data);
+        console.log(messageData);
+        const messagesList = document.querySelector('.messages-list');
+        const newMessage = document.createElement('li');
 
-            const senderId = messageData.message.sender_id;
-            const rawMessage = messageData.message.message;
+        const senderId = messageData.message.sender_id;
+        const rawMessage = messageData.message.message;
 
-            if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-                const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-                const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-                const fileId = fileIdInfo.split(': ')[1];
-                const fileName = fileNameInfo.split(': ')[1];
+        if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+            const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
+            const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
+            const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
+            const fileId = fileIdInfo.split(': ')[1];
+            const fileName = fileNameInfo.split(': ')[1];
 
-                newMessage.innerHTML = `${senderId}: ${messageText} <a href="/files/${fileId}">${fileName}</a>`;
-            } else {
-                newMessage.textContent = `${senderId}: ${rawMessage}`;
-            }
+            newMessage.innerHTML = `${senderId}: ${messageText} <a href="/files/${fileId}">${fileName}</a>`;
+        } else {
+            newMessage.textContent = `${senderId}: ${rawMessage}`;
+        }
 
-            messagesList.appendChild(newMessage);
-        };
-    </script>
+        messagesList.appendChild(newMessage);
+    };
+</script>
 </body>
 </html>
 
