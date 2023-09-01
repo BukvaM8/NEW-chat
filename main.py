@@ -185,8 +185,8 @@ dialogs = Table(
     Column("user1_id", Integer, ForeignKey('Users.id')),
     Column("user2_id", Integer, ForeignKey('Users.id')),
     Column("created_at", DateTime(timezone=True), default=datetime.now(moscow_tz)),
-    Column("user1_deleted", Boolean, default=False),  # Add this
-    Column("user2_deleted", Boolean, default=False),  # Add this
+    Column("user1_deleted", Boolean, default=False),
+    Column("user2_deleted", Boolean, default=False),
 )
 
 dialog_messages = Table(
@@ -208,7 +208,7 @@ chatmessages = Table(
     Column("sender_phone_number", String, ForeignKey('Users.phone_number')),
     Column("message", String),
     Column("timestamp", DateTime, default=func.now()),
-    Column("delete_timestamp", DateTime),  # новый столбец
+    Column("delete_timestamp", DateTime),
 )
 
 ChatMembers = Table(
@@ -268,7 +268,7 @@ credentials_exception = HTTPException(
 
 SECRET_KEY = "Bondar"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 100
+ACCESS_TOKEN_EXPIRE_MINUTES = 1800
 REFRESH_TOKEN_EXPIRE_DAYS = 2
 
 oauth2_scheme = OAuth2PasswordBearer(
@@ -346,65 +346,80 @@ async def get_user_by_phone(phone_number: str):
     logging.info(f'No user found for phone: {phone_number}')
     return None
 
+# Функция для проверки срока действия токена
+def is_token_expired(token: str, secret_key: str) -> bool:
+    payload = jwt.decode(token, secret_key, algorithms=[ALGORITHM], options={"verify_exp": False})
+    expire_timestamp = payload.get("exp")
+    if expire_timestamp:
+        expire_datetime = datetime.utcfromtimestamp(expire_timestamp)
+        return datetime.utcnow() > expire_datetime
+    return True
 
+# Создание доступного токена
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  # Set the expiration using the constant
-    to_encode.update({"exp": expire})
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     logging.info(f"Access token created: {encoded_jwt}")
     return encoded_jwt
 
-
+# Создание обновленного токена
 def create_refresh_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
-            days=REFRESH_TOKEN_EXPIRE_DAYS)  # Set the expiration using a constant for days
-    to_encode.update({"exp": expire})
+        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     logging.info(f"Refresh token created: {encoded_jwt}")
     return encoded_jwt
 
-
+# Получение токена из запроса
 async def get_token(request: Request):
     logging.info('get_token called.')
     token = request.cookies.get("token")
+    if token and is_token_expired(token, SECRET_KEY):
+        logging.warning("Token has expired.")
+        token = None  # Устанавливаем token в None, если он просрочен
+
+    if token is None:
+        phone_number = request.form.get("username")
+        if phone_number:
+            token = await get_token_from_db_by_phone_number(phone_number)
     return token
 
-
+# Проверка и валидация токена
 async def verify_and_validate_token(token: str):
     logging.info("Initiating process to verify and validate the token.")
     logging.info(f"Token to verify: {token}")
+
+    if is_token_expired(token, SECRET_KEY):
+        logging.warning("Token has expired.")
+        return None, False, None  # Добавлен третий параметр для типа токена
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         logging.info(f"Successfully decoded JWT payload: {payload}")
 
+        token_type = payload.get("type")  # Получаем тип токена
         phone_number = payload.get("sub")
 
         if phone_number:
             logging.info(f"Successfully retrieved phone_number from payload: {phone_number}")
-            return phone_number, True
+            return phone_number, True, token_type  # Возвращаем тип токена
         else:
             logging.warning("Phone_number is missing from the payload.")
-            return None, False
+            return None, False, None  # Возвращаем None для типа токена
 
     except JWTError as e:
         logging.error(f"JWT Error while verifying the token: {e}")
-        return None, False
+        return None, False, None  # Возвращаем None для типа токена
 
-
-
-async def save_refresh_token_to_db(db: Database, user_id: int, refresh_token: str):
-    query = refresh_tokens.insert().values(user_id=user_id, refresh_token=refresh_token)
-    await db.execute(query)
 
 
 @app.post("/token", response_model=Token)
@@ -416,10 +431,23 @@ async def login_for_access_token(response: Response, form_data: OAuth2PasswordRe
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
         )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.phone_number, "type": "access"},  # Добавлен тип токена
+        expires_delta=access_token_expires
     )
+    access_expires_at = datetime.utcnow() + access_token_expires
+
+    refresh_token = create_refresh_token(data={"sub": user.phone_number, "type": "refresh"})  # Добавлен тип токена
+    refresh_expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+    # Транзакция для сохранения обоих токенов в базе данных
+    async with database.transaction():
+        await save_token_to_db(database, user.id, access_token, access_expires_at)
+        await save_refresh_token_to_db(database, user.id, refresh_token, refresh_expires_at)
+
+    # Установка cookies для access_token и refresh_token
     response.set_cookie(
         key="access_token",
         value=f"Bearer {access_token}",
@@ -427,37 +455,81 @@ async def login_for_access_token(response: Response, form_data: OAuth2PasswordRe
         secure=True,
         samesite='Strict'
     )
+    response.set_cookie(
+        key="refresh_token",
+        value=f"Bearer {refresh_token}",
+        httponly=True,
+        secure=True,
+        samesite='Strict'
+    )
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+# Обновление токена в базе данных
+async def update_token_in_db(old_token: str, new_token: str):
+    logging.info(f"Updating token in database: {old_token} to {new_token}")
+    query = update(tokens).where(tokens.c.token == old_token).values(token=new_token)
+    await database.execute(query)
+
+
+# Функция для сохранения токена в базе данных
+async def save_token_to_db(db: Database, user_id: int, token: str, expires_at: datetime):
+    try:
+        query = tokens.insert().values(user_id=user_id, token=token, expires_at=expires_at)
+        await db.execute(query)
+    except Exception as e:
+        logging.error(f"An error occurred while saving token to database: {e}")
+        raise HTTPException(status_code=500, detail="Could not save token to database")
+
+# Функция для сохранения обновленного токена в базе данных
+async def save_refresh_token_to_db(db: Database, user_id: int, refresh_token: str, expires_at: datetime):
+    try:
+        query = refresh_tokens.insert().values(user_id=user_id, token=refresh_token, expires_at=expires_at)
+        await db.execute(query)
+    except Exception as e:
+        logging.error(f"An error occurred while saving refresh token to database: {e}")
+        raise HTTPException(status_code=500, detail="Could not save refresh token to database")
+
 
 @app.post("/token/refresh")
-async def refresh_access_token(response: Response, refresh_token: str):
-    payload = verify_and_validate_token(refresh_token)
-    if payload is None:
+async def refresh_access_token(response: Response, request: Request):
+    # Извлечение refresh_token из cookies
+    refresh_token = request.cookies.get("refresh_token")
+
+    phone_number, is_valid = await verify_and_validate_token(refresh_token)
+
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
         )
-    user_phone_number = payload.get("sub")
-    user = await get_user_by_phone(user_phone_number)
+
+    user = await get_user_by_phone(phone_number)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
+    new_access_token = create_access_token(
         data={"sub": user.phone_number}, expires_delta=access_token_expires
     )
+
+    expires_at = datetime.utcnow() + access_token_expires
+    await save_token_to_db(database, user.id, new_access_token, expires_at)
+
     response.set_cookie(
         key="access_token",
-        value=f"Bearer {access_token}",
+        value=f"Bearer {new_access_token}",
         httponly=True,
         secure=True,
         samesite='Strict'
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    return {"access_token": new_access_token, "token_type": "bearer"}
+
 
 @app.post("/token/revoke")
 async def revoke_token(token: str = Depends(oauth2_scheme)):
@@ -465,8 +537,12 @@ async def revoke_token(token: str = Depends(oauth2_scheme)):
     return {"msg": "Token has been revoked"}
 
 
+# Получение токена из базы данных
 async def get_token_from_db(token: str) -> str:
     logging.info(f"Getting token from database: {token}")
+    if is_token_expired(token, SECRET_KEY):
+        logging.warning(f"Token has expired: {token}")
+        return None
     query = select([tokens.c.token]).where(tokens.c.token == token)
     result = await database.fetch_one(query)
     if result:
@@ -484,39 +560,52 @@ async def is_token_in_db(phone_number: str) -> bool:
     logging.info(f"Token for phone number {phone_number} found in database: {bool(result)}")
     return bool(result)
 
+async def get_refresh_token_from_db_by_user_id(user_id: int) -> Optional[str]:
+    logging.info(f"Getting refresh token from database by user ID: {user_id}")
+    query = select([refresh_tokens.c.token]).where(refresh_tokens.c.user_id == user_id)
+    result = await database.fetch_one(query)
+    if result:
+        logging.info(f"Refresh token found in database for user ID: {result.token}")
+        return result.token
+    else:
+        logging.warning(f"Refresh token not found in database for user ID: {user_id}")
+        return None
+
 
 async def validate_and_refresh_token(websocket: WebSocket, user_id: int):
     logging.info(f"Validating and possibly refreshing token for user ID {user_id}")
 
-    token = await get_websocket_token(websocket)
-    phone_number, is_valid = await verify_and_validate_token(token)
-
-    # Убрана проверка согласованности токена с базой данных
-    # if token != await get_token_from_db_by_phone_number(phone_number):
-    #     logging.warning("Token mismatch. Closing WebSocket.")
-    #     await websocket.close(code=4003)
-    #     return None
+    old_token = await get_websocket_token(websocket)
+    phone_number, is_valid = await verify_and_validate_token(old_token)
 
     if not is_valid:
-        logging.warning("Invalid token. Closing WebSocket.")
-        await websocket.send_text(json.dumps({"action": "reauthenticate"}))  # Добавлено уведомление о необходимости реаутентификации
-        await websocket.close(code=4001)
-        return None
+        # Здесь нужно использовать токен обновления для создания нового токена
+        refresh_token = await get_refresh_token_from_db_by_user_id(user_id)
+        if refresh_token:
+            phone_number, is_valid = await verify_and_validate_token(refresh_token)
+            if is_valid:
+                new_token = create_access_token({"sub": phone_number})  # Используем phone_number вместо user_id
+                await update_token_in_db(old_token, new_token)  # Обновление токена в базе данных
+                return new_token
+            else:
+                logging.warning("Invalid refresh token. Closing WebSocket.")
+                await websocket.close(code=4001)
+                return None
+        else:
+            logging.warning("Invalid token and no refresh token found. Closing WebSocket.")
+            await websocket.close(code=4001)
+            return None
+    else:
+        return old_token  # Если токен валиден, возвращаем его
 
-    if user_id != int(phone_number):
-        logging.warning("User ID mismatch. Closing WebSocket.")
-        await websocket.close(code=4002)
-        return None
 
-    new_token = create_access_token({"sub": user_id})
-    return new_token
-
-
-
-async def send_heartbeat(websocket: WebSocket, interval: int = 30):
+async def send_heartbeat(websocket: WebSocket, user_id: int, interval: int = 30):
     logging.info(f"Starting heartbeat for WebSocket: {websocket}")
     while True:
         await asyncio.sleep(interval)
+        new_token = await validate_and_refresh_token(websocket, user_id)
+        if new_token:
+            await websocket.send_text(json.dumps({"action": "new_token", "token": new_token}))
         await websocket.send_text("ping")
         logging.info(f"Sent heartbeat to WebSocket: {websocket}")
 
@@ -1238,6 +1327,10 @@ async def login_user(request: Request, phone_number: str = Form(...), password: 
         access_token = create_access_token(
             data={"sub": user.phone_number}, expires_delta=access_token_expires
         )
+        access_expires_at = datetime.utcnow() + access_token_expires
+
+        # Сохранение access_token в базе данных
+        await save_token_to_db(database, user.id, access_token, access_expires_at)
 
         refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         refresh_token_data = {"sub": user.phone_number, "type": "refresh"}
@@ -1255,6 +1348,7 @@ async def login_user(request: Request, phone_number: str = Form(...), password: 
         response_redirect = RedirectResponse(url="/home", status_code=303)
         response_redirect.set_cookie(key="access_token", value=access_token, httponly=True)
         return response_redirect
+
 
 
 # Маршрут для выхода из системы
@@ -1676,21 +1770,12 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
     if not is_member:
         raise HTTPException(status_code=403, detail="You are not a member of this chat")
 
-    room = f"chat_{chat_id}"
-    await manager.send_message_to_room(room,
-                                       f"New message in chat {chat_id} from {current_user.phone_number}: {message_text}")
-
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    # Отправка сообщения в чат через вебсокет
-    await manager.send_message_to_room(room,
-                                       f"New message in chat {chat_id} from {current_user.phone_number}: {message_text}")
-
+    # Обрабатываем прикрепленный файл, если он есть
     file_id = None
     file_name = None
-
-    # Обрабатываем прикрепленный файл, если он есть
     if file and file.filename:
         file_content = await file.read()
         file_id = await save_file(current_user.phone_number, file.filename, file_content, file.filename.split('.')[-1])
@@ -1700,15 +1785,12 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
     if message_text is None:
         message_text = ""
 
+    # Если файл был загружен, добавьте информацию о файле в текст сообщения
+    if file_id and file_name:
+        message_text += f' [[FILE]]File ID: {file_id}, File Name: {file_name}[[/FILE]]'
+
     try:
-        # Если файл был загружен, добавьте информацию о файле в текст сообщения
-        if file_id and file_name:
-            message_text += f' [[FILE]]File ID: {file_id}, File Name: {file_name}[[/FILE]]'
-
-        await create_message(chat_id, message_text, current_user.phone_number)
-        await manager.send_message(f"chat_{chat_id}", current_user.phone_number,
-                                   f"New message in chat {chat_id}: {message_text}")
-
+        await handle_chat_message(chat_id, message_text, current_user)
     except HTTPException:
         raise HTTPException(status_code=500, detail="Error sending message or uploading file")
 
@@ -2622,7 +2704,7 @@ class EnhancedConnectionManager:
 
     async def connect(self, websocket: WebSocket, user_id: int, room: str, existing_token: Optional[str] = None):
         logging.info(f"Attempting to connect WebSocket for user {user_id} in room {room}")
-        token = existing_token if existing_token else await get_websocket_token(websocket)
+        token = existing_token if existing_token else await get_websocket_token(websocket, user_id)
         logging.info(f"Received token: {token}")
 
         if not token:
@@ -2630,19 +2712,20 @@ class EnhancedConnectionManager:
             await websocket.close(code=status.HTTP_403_FORBIDDEN)
             return
 
-        is_valid = await verify_and_validate_token(token)
-        logging.info(f"Is token valid: {is_valid}")
+        # Здесь вызываем вашу функцию для валидации и возможного обновления токена
+        validated_token = await validate_and_refresh_token(websocket, user_id)
 
-        if is_valid:
-            await websocket.accept()
-            logging.info(f"WebSocket connected for user {user_id} in room {room}")
-            if user_id not in self.active_connections:
-                self.active_connections[user_id] = {}
-            self.active_connections[user_id][room] = websocket
-            logging.info(f"Active connections for user {user_id}: {self.active_connections[user_id]}")
-        else:
+        if validated_token is None:
             logging.warning(f"WebSocket connection failed for user {user_id} due to invalid token.")
             await websocket.close(code=status.HTTP_403_FORBIDDEN)
+            return
+
+        await websocket.accept()
+        logging.info(f"WebSocket connected for user {user_id} in room {room}")
+        if user_id not in self.active_connections:
+            self.active_connections[user_id] = {}
+        self.active_connections[user_id][room] = websocket
+        logging.info(f"Active connections for user {user_id}: {self.active_connections[user_id]}")
 
     async def disconnect(self, user_id: int, room: str):
         logging.info(f"Attempting to disconnect WebSocket for user {user_id} in room {room}")
@@ -2693,19 +2776,30 @@ class EnhancedConnectionManager:
 manager = EnhancedConnectionManager()
 
 
-async def get_websocket_token(websocket: WebSocket):
+async def get_websocket_token(websocket: WebSocket, phone_number: Optional[str] = None):
     logging.info("Initiating process to get WebSocket token.")
 
+    # Попытка извлечь токен из куки
     cookies = websocket.cookies
     logging.info(f"All received cookies: {cookies}")
-
     token = cookies.get("token")
 
     if token:
         logging.info(f"Successfully retrieved token from WebSocket cookies: {token}")
     else:
         logging.warning("Token is missing from WebSocket cookies.")
-        await websocket.close(code=4000)  # Custom close code for "missing token"
+
+        # Если токен отсутствует в куки, попробуем извлечь его из базы данных
+        if phone_number:
+            token = await get_token_from_db_by_phone_number(phone_number)
+        else:
+            token = await get_token_from_db(token)
+
+        if token:
+            logging.info(f"Successfully retrieved token from database: {token}")
+        else:
+            logging.warning("Token is also missing from database.")
+            await websocket.close(code=4000)  # Custom close code for "missing token"
 
     return token
 
@@ -2754,39 +2848,27 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
 
 async def handle_chat_message(chat_id: int, message_content: str, current_user: User):
     try:
-        logging.info(f"Starting to handle chat message from user {current_user.id} in chat {chat_id}.")
+        logging.info(f"Starting to handle chat message from user {current_user.phone_number} in chat {chat_id}.")
         query = chatmessages.insert().values(
             chat_id=chat_id,
             sender_phone_number=current_user.phone_number,
             message=message_content
         )
-        logging.info(f"SQL Query: {query}")
         result = await database.execute(query)
-        if result is None:
-            logging.error("Message could not be saved to the database.")
-        else:
-            logging.info(f"Message saved to database.")
-
-        # Log fetching chat members
-        chat_members_query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
-        logging.info(f"Fetching chat members with query: {chat_members_query}")
-
-        chat_members = await database.fetch_all(chat_members_query)
-        logging.info(f"Fetched chat members: {chat_members}")
-
+        logging.info(f"Message saved to database with result: {result}")
         room = f"chat_{chat_id}"
 
-        # Log the message sending part
-        for member in chat_members:
-            member_id = member["user_id"]
-            logging.info(f"Attempting to send message to user {member_id} in chat {chat_id}.")
-            await manager.send_message(member_id, room, message_content)
-            logging.info(f"Message sent to user {member_id} in chat {chat_id}.")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        message_data = {
+            "message": message_content,
+            "sender_phone_number": current_user.phone_number,
+            "timestamp": current_time
+        }
+        await manager.send_message_to_room(room, json.dumps(message_data))
 
     except Exception as e:
         logging.error(f"An error occurred while handling chat message: {e}")
-        logging.exception(e)  # This will log the exception traceback, helping you understand what exactly went wrong.
-
 
 async def handle_channel_message(channel_id: int, message_content: str, current_user: User):
     try:
@@ -2820,100 +2902,113 @@ async def messages_endpoint(websocket: WebSocket, current_user: User = Depends(g
         await websocket.close(code=status.HTTP_403_FORBIDDEN)
         return
 
-        # Использование улучшенного менеджера
-        await manager.connect(websocket, current_user.id, "general")
+    # Использование улучшенного менеджера
+    await manager.connect(websocket, current_user.id, "general")
 
-        # Добавление механизма heartbeat и обновления токена
-        last_heartbeat = datetime.now()
-        last_token_refresh = datetime.now()
-        HEARTBEAT_INTERVAL = 30  # в секундах
-        TOKEN_REFRESH_INTERVAL = 1800  # 30 минут
+    # Добавление механизма heartbeat и обновления токена
+    last_heartbeat = datetime.now()
+    last_token_refresh = datetime.now()
+    HEARTBEAT_INTERVAL = 30  # в секундах
+    TOKEN_REFRESH_INTERVAL = 1800  # 30 минут
 
-        try:
-            while True:
-                # Проверка необходимости heartbeat
-                if (datetime.now() - last_heartbeat).total_seconds() > HEARTBEAT_INTERVAL:
-                    await websocket.send_text("ping")
-                    last_heartbeat = datetime.now()
+    try:
+        while True:
+            # Проверка необходимости heartbeat
+            if (datetime.now() - last_heartbeat).total_seconds() > HEARTBEAT_INTERVAL:
+                await websocket.send_text("ping")
+                last_heartbeat = datetime.now()
 
-                # Проверка необходимости обновления токена
-                if (datetime.now() - last_token_refresh).total_seconds() > TOKEN_REFRESH_INTERVAL:
-                    new_token = create_access_token({"sub": current_user.id})
-                    await websocket.send_text(json.dumps({"action": "refresh_token", "new_token": new_token}))
-                    last_token_refresh = datetime.now()
+            # Проверка необходимости обновления токена
+            if (datetime.now() - last_token_refresh).total_seconds() > TOKEN_REFRESH_INTERVAL:
+                # Используем вашу функцию для создания нового access token
+                new_token = create_access_token({"sub": current_user.id})
+                # Обновление токена в базе данных (если необходимо)
+                await update_token_in_db(token, new_token)
+                # Отправляем новый токен клиенту
+                await websocket.send_text(json.dumps({"action": "refresh_token", "new_token": new_token}))
+                # Обновляем время последнего обновления токена
+                last_token_refresh = datetime.now()
 
-                data = await websocket.receive_text()
-                logging.info(f"Received message from user {current_user.id}: {data}")
+            data = await websocket.receive_text()
+            logging.info(f"Received message from user {current_user.id}: {data}")
 
-        except WebSocketDisconnect:
-            logging.warning(f"WebSocket disconnected for user {current_user.id}")
-            await manager.disconnect(current_user.id, "general")
-        except Exception as e:
-            logging.error(f"Error handling WebSocket for user {current_user.id}: {e}")
-            await manager.disconnect(current_user.id, "general")
-    else:
-        logging.warning("Invalid or missing token. Closing WebSocket.")
-        await websocket.close(code=4000)  # Закрыть соединение, если токен недействителен
+    except WebSocketDisconnect:
+        logging.warning(f"WebSocket disconnected for user {current_user.id}")
+        await manager.disconnect(current_user.id, "general")
+    except Exception as e:
+        logging.error(f"Error handling WebSocket for user {current_user.id}: {e}")
+        await manager.disconnect(current_user.id, "general")
 
 
 @app.websocket("/ws/chats/{chat_id}/")
-async def chat_websocket_endpoint(websocket: WebSocket, chat_id: int):
-    logging.info(f"Attempting to connect WebSocket for chat {chat_id}")
-
-    current_user = await get_current_user_from_websocket(websocket)
-    if current_user is None:
-        logging.warning("WebSocket connection closed: user not found.")
+async def chat_websocket_endpoint(websocket: WebSocket, chat_id: str):
+    await websocket.accept()
+    user = await get_current_user_from_websocket(websocket)
+    if not user:
+        await websocket.close(code=4001)
         return
 
-    room = f"chat_{chat_id}"
-    global_token = None  # Здесь можно получить токен из глобального вебсокет-соединения
-    await manager.connect(websocket, current_user.id, room, existing_token=global_token)
-    logging.info(f"WebSocket connected for chat {chat_id} with user {current_user.id}")
+    await manager.connect(websocket, user.id, chat_id)
+    last_token_refresh = datetime.utcnow()
 
     try:
         while True:
             data = await websocket.receive_text()
-            logging.info(f"Received message from user {current_user.id} in chat {chat_id}: {data}")
-            await manager.send_message(current_user.id, room, data)
-            await websocket.send_text(json.dumps({"status": "message_received", "message": data}))  # Исправил message_content на data
-    except WebSocketDisconnect:
-        await manager.disconnect(current_user.id, room)
-        logging.info(f"WebSocket disconnected for chat {chat_id} with user {current_user.id}")
-    except Exception as e:
-        logging.error(f"Exception in chat_websocket_endpoint: {e}")
-    finally:
-        await manager.disconnect(current_user.id, room)
-        logging.info(f"WebSocket disconnected for chat {chat_id} with user {current_user.id}")
 
+            # Example message handling logic
+            received_data = json.loads(data)
+            action = received_data.get('action')
+
+            if action == 'send_message':
+                message = received_data.get('message')
+                # Process the message here
+                await manager.broadcast(message, chat_id)
+
+            # Refresh the token every 30 minutes
+            if (datetime.utcnow() - last_token_refresh).seconds >= 1800:
+                new_token = await validate_and_refresh_token(websocket, user.id)
+                if new_token:
+                    await websocket.send_json({'action': 'refresh_token', 'token': new_token})
+                    last_token_refresh = datetime.utcnow()
+
+    except WebSocketDisconnect:
+        manager.disconnect(user.id, chat_id)
+        await websocket.close()
 
 @app.websocket("/ws/dialogs/{dialog_id}/")
 async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: str):
-    logging.info(f"Attempting to connect WebSocket for dialog {dialog_id}")
-    current_user = await get_current_user_from_websocket(websocket)
-    if current_user is None:
-        logging.warning("WebSocket connection closed: user not found.")
+    await websocket.accept()
+    user = await get_current_user_from_websocket(websocket)
+    if not user:
+        await websocket.close(code=4001)
         return
-    room = f"dialog_{dialog_id}"
-    await manager.connect(websocket, current_user.id, room)
-    logging.info(f"WebSocket connected for dialog {dialog_id} with user {current_user.id}")
+
+    await manager.connect(websocket, user.id, dialog_id)
+    last_token_refresh = datetime.utcnow()
 
     try:
         while True:
             data = await websocket.receive_text()
-            logging.info(f"Received data in dialog {dialog_id}: {data}")
-            message_data = json.loads(data)
-            message_content = message_data["message"]
-            await handle_dialog_message(dialog_id, message_content, current_user)
-            await websocket.send_text(json.dumps({"status": "message_received", "message": message_content}))
-    except WebSocketDisconnect:
-        await manager.disconnect(current_user.id, room)
-        logging.info(f"WebSocket disconnected for dialog {dialog_id} with user {current_user.id}")
-    except Exception as e:
-        logging.error(f"Exception in dialog_websocket_endpoint: {e}")
-    finally:
-        await manager.disconnect(current_user.id, room)
-        logging.info(f"WebSocket disconnected for dialog {dialog_id} with user {current_user.id}")
 
+            # Example message handling logic
+            received_data = json.loads(data)
+            action = received_data.get('action')
+
+            if action == 'send_message':
+                message = received_data.get('message')
+                # Process the message here
+                await manager.broadcast(message, dialog_id)
+
+            # Refresh the token every 30 minutes
+            if (datetime.utcnow() - last_token_refresh).seconds >= 1800:
+                new_token = await validate_and_refresh_token(websocket, user.id)
+                if new_token:
+                    await websocket.send_json({'action': 'refresh_token', 'token': new_token})
+                    last_token_refresh = datetime.utcnow()
+
+    except WebSocketDisconnect:
+        manager.disconnect(user.id, dialog_id)
+        await websocket.close()
 
 # Обработчик ошибок
 @app.exception_handler(HTTPException)
@@ -2921,3 +3016,4 @@ async def http_exception_handler(request, exc):
     if exc.status_code == 401:
         return RedirectResponse(url="/login", status_code=303)
     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
+

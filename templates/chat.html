@@ -4,6 +4,62 @@
     <meta charset="UTF-8">
     <title>{{ chat.chat_name }}</title>
     <link rel="stylesheet" type="text/css" href="/static/GroupStyle.css">
+    <script>
+var chatId = "{{ chat.id }}";
+var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+
+ws.onopen = function(event) {
+    console.log("WebSocket connection opened.");
+};
+
+ws.onmessage = function(event) {
+    var received_data = JSON.parse(event.data);
+    var action = received_data.action;
+
+    if (action === 'new_token') {
+        var new_token = received_data.token;
+        document.cookie = "token=" + new_token;  // Устанавливаем новый токен в куки
+    } else {
+        var messageBox = document.getElementById("chat-history");
+        var messageElement = document.createElement("div");
+
+        var senderElement = document.createElement("h4");
+        senderElement.innerText = received_data.sender_phone_number || "Unknown";
+        messageElement.appendChild(senderElement);
+
+        var textElement = document.createElement("p");
+        textElement.innerText = received_data.message;
+        messageElement.appendChild(textElement);
+
+        var timeElement = document.createElement("small");
+        timeElement.innerText = "Sent at: " + received_data.timestamp;
+        textElement.appendChild(timeElement);
+
+        messageBox.appendChild(messageElement);
+    }
+};
+
+function sendMessage() {
+    var message_content = document.getElementById("message-input").value;
+    ws.send(JSON.stringify({ "action": "send_message", "message": message_content }));
+    document.getElementById("message-input").value = '';  // очистка поля ввода
+}
+
+// Функция для отправки файлов
+function sendFile() {
+    var fileInput = document.getElementById('file-input');
+    var file = fileInput.files[0];
+    var reader = new FileReader();
+
+    reader.onload = function(event) {
+        ws.send(JSON.stringify({ "action": "send_file", "file": event.target.result }));
+    };
+
+    reader.readAsDataURL(file);
+}
+
+
+    </script>
 </head>
 <body>
 <div id="container">
@@ -123,10 +179,12 @@
                 <input type="hidden" name="creator_phone_number" value="{{ current_user.phone_number }}">
                 <label for="poll-question">Вопрос:</label>
                 <input type="text" id="poll-question" name="question"><br>
-                <label>Варианты ответа:</label>
+
                 <div id="poll-options">
-                    <input type="text" name="options"><br>
+                    <label for="pollInput">Варианты ответа:</label>
+                    <input type="text" id="pollInput" name="options"><br>
                 </div>
+
                 <button type="button" onclick="addOption()">Добавить вариант ответа</button>
                 <button type="submit">Создать</button>
                 <label for="poll-file">Прикрепить файл:</label>
@@ -136,66 +194,6 @@
         {% endif %}
     </div>
 </div>
-<script>
-    // Глобальное WebSocket-соединение
-    const globalWs = new WebSocket("ws://127.0.0.1:8000/ws/global/");
-
-    globalWs.onmessage = function (event) {
-        // Обработка глобальных сообщений
-    };
-
-    // Локальное WebSocket-соединение для чата
-    const chatId = "{{ chat.id }}";
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${chatId}/`);
-
-    ws.onopen = function(event) {
-        console.log("WebSocket is open now.");
-    };
-
-    ws.onerror = function(event) {
-        console.error("WebSocket Error:", event);
-    };
-
-    ws.onclose = function(event) {
-        if(event.wasClean) {
-            console.log(`Closed cleanly, code=${event.code}, reason=${event.reason}`);
-        } else {
-            console.error("Connection died");
-        }
-    };
-
-    ws.onmessage = function (event) {
-        const messageData = JSON.parse(event.data);
-
-        // Обработка сообщений с действием "reauthenticate"
-        if (messageData.action === "reauthenticate") {
-            console.log("Reauthentication required.");
-            // Здесь можно вызвать функцию для обновления токена или переаутентификации
-            return;
-        }
-
-        const chatHistory = document.getElementById("chat-history");
-        const newMessageDiv = document.createElement('div');
-        const senderPhoneNumber = messageData.message.sender_phone_number;
-        const rawMessage = messageData.message.message;
-        const timestamp = messageData.message.timestamp;
-        let messageContent = `<h4>${senderPhoneNumber}</h4><p><small>Sent at: ${timestamp}</small></p>`;
-
-        if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-            const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-            const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-            const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-            const fileId = fileIdInfo.split(': ')[1];
-            const fileName = fileNameInfo.split(': ')[1];
-            messageContent += `<p>${messageText}</p><p><a href="/files/${fileId}">${fileName}</a></p>`;
-        } else {
-            messageContent += `<p>${rawMessage}</p>`;
-        }
-
-        newMessageDiv.innerHTML = messageContent;
-        chatHistory.appendChild(newMessageDiv);
-    };
-</script>
 </body>
 </html>
 
