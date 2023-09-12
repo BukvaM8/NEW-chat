@@ -53,36 +53,55 @@
         <input type="submit" value="Отправить">
     </form>
 
-    <button onclick="location.href='/home'">Вернуться на главную</button>
+ <button onclick="location.href='/home'">Вернуться на главную</button>
 </div>
 <script>
     const dialogId = "{{ dialog.id }}";
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+    const access_token = cookie ? cookie.split('=')[1] : null;
+
+
     const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
-    ws.onmessage = function (event) {
+    ws.onopen = function(event) {
+        console.log("WebSocket connection opened.");
+        ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
+    };
+
+    ws.onmessage = function(event) {
         const messageData = JSON.parse(event.data);
-        console.log(messageData);
-        const messagesList = document.querySelector('.messages-list');
-        const newMessage = document.createElement('li');
+        const action = messageData.action;
 
-        const senderId = messageData.message.sender_id;
-        const rawMessage = messageData.message.message;
-
-        if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-            const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-            const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-            const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-            const fileId = fileIdInfo.split(': ')[1];
-            const fileName = fileNameInfo.split(': ')[1];
-
-            newMessage.innerHTML = `${senderId}: ${messageText} <a href="/files/${fileId}">${fileName}</a>`;
+        if (action === 'new_token') {
+            document.cookie = "access_token=" + messageData.token;
         } else {
-            newMessage.textContent = `${senderId}: ${rawMessage}`;
-        }
+            // Добавляем проверку на наличие поля message и sender_id
+            if (messageData.message && messageData.message.sender_id) {
+                const messagesList = document.querySelector('.messages-list');
+                const newMessage = document.createElement('li');
 
-        messagesList.appendChild(newMessage);
+                const senderId = messageData.message.sender_id;
+                const rawMessage = messageData.message.message;
+
+                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                    const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
+                    const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
+                    const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
+                    const fileId = fileIdInfo.split(': ')[1];
+                    const fileName = fileNameInfo.split(': ')[1];
+
+                    newMessage.innerHTML = `${senderId}: ${messageText} <a href="/files/${fileId}">${fileName}</a>`;
+                } else {
+                    newMessage.textContent = `${senderId}: ${rawMessage}`;
+                }
+
+                messagesList.appendChild(newMessage);
+            } else {
+                // Выводим предупреждение, если поля message или sender_id отсутствуют
+                console.warn('Неожиданный формат сообщения: ', messageData);
+            }
+        }
     };
 </script>
 </body>
 </html>
-

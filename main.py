@@ -15,6 +15,7 @@ from urllib.parse import quote, unquote
 
 # Модули для работы с SQL базами данных
 import aiomysql
+import connection as connection
 import cur as cur
 import jwt
 import room as room
@@ -22,7 +23,7 @@ from fastapi.params import Path, Body, Header
 from jose import JWTError
 from jwt import PyJWTError
 from sqlalchemy import create_engine, MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
-    Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON
+    Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete
 from sqlalchemy.exc import SQLAlchemyError, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -271,11 +272,6 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1800
 REFRESH_TOKEN_EXPIRE_DAYS = 2
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="token",
-    scopes={"me": "Read information about the current user."},
-)
-
 # Хранилище для аннулированных токенов
 revoked_tokens = []
 
@@ -335,6 +331,14 @@ class TokenData(BaseModel):
     phone_number: str
 
 
+# Извлекает информацию о пользователе из базы данных по номеру телефона.
+async def get_user(phone_number: str):
+    query = users.select().where(users.c.phone_number == phone_number)
+    logging.info(f"Executing query: {query}")  # Debug info
+    user = await database.fetch_one(query)
+    logging.info(f"User from database in get_user function: {user}")  # Debug info
+    return user
+
 # Получает пользователя по номеру телефона.
 async def get_user_by_phone(phone_number: str):
     logging.info(f'Getting user by phone: {phone_number}')
@@ -346,86 +350,161 @@ async def get_user_by_phone(phone_number: str):
     logging.info(f'No user found for phone: {phone_number}')
     return None
 
+# Извлекает текущего пользователя из сессии.
+async def get_current_user(request: Request):
+    access_token = request.cookies.get("access_token")
+    if access_token  is None:
+        logging.warning("Token is missing.")
+        return RedirectResponse(url="/login", status_code=303)
+
+    try:
+        if is_token_expired(access_token , SECRET_KEY):
+            logging.warning("Token has expired.")
+            # Для данного случая, вам нужно извлечь user_id из истекшего токена
+            payload = jwt.decode(access_token , SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+            user_id = payload.get("sub")
+
+            new_token = await validate_and_refresh_token(request, user_id)
+            if new_token:
+                access_token = new_token
+            else:
+                logging.error("Failed to refresh the token.")
+                return RedirectResponse(url="/login", status_code=303)
+
+        payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+        phone_number: str = payload.get("sub")
+        if phone_number is None:
+            logging.error("Phone number not found in payload")
+            raise credentials_exception
+
+        user = await get_user_by_phone(phone_number)
+        if user is None:
+            logging.error("User not found by phone number")
+            raise credentials_exception
+
+        logging.info(f"User found: {user}")
+        return user
+    except PyJWTError as e:
+        logging.error(f"JWT error: {e}")
+        raise credentials_exception
+
+
+
+# Добавим новую функцию для извлечения номера телефона по user_id
+async def get_phone_number_by_user_id(user_id: int) -> Optional[str]:
+    query = select([users.c.phone_number]).where(users.c.id == user_id)
+    try:
+        result = await database.fetch_one(query)
+        if result:
+            logging.info(f"Phone number found: {result.phone_number}")
+            return result.phone_number
+        else:
+            logging.warning(f"No phone number found for user ID: {user_id}")
+            return None
+    except Exception as e:
+        logging.error(f"An error occurred while fetching the phone number: {e}")
+        return None
+
+
+#функцию для извлечениz user_id из базы данных по токену:
+async def get_user_id_by_token(access_token: str) -> Optional[int]:
+    logging.info(f"Validating token: {access_token}")
+    query = select([tokens.c.user_id]).where(tokens.c.token == access_token)
+    result = await database.fetch_one(query)
+    if result:
+        logging.info(f"Token is valid, user_id: {result.user_id}")
+        return result.user_id
+    logging.warning("Token is invalid or not found in database.")
+    return None
+
+
 # Функция для проверки срока действия токена
-def is_token_expired(token: str, secret_key: str) -> bool:
-    payload = jwt.decode(token, secret_key, algorithms=[ALGORITHM], options={"verify_exp": False})
-    expire_timestamp = payload.get("exp")
-    if expire_timestamp:
-        expire_datetime = datetime.utcfromtimestamp(expire_timestamp)
-        return datetime.utcnow() > expire_datetime
-    return True
+def is_token_expired(access_token, SECRET_KEY):
+    try:
+        payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+        expiration = payload.get("exp")
+        if expiration:
+            return datetime.utcfromtimestamp(expiration) < datetime.utcnow()
+        return True
+    except Exception as e:
+        logging.error(f"Error in is_token_expired: {e}")
+        return True
+
+
 
 # Создание доступного токена
 def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    logging.info(f"Access token created: {encoded_jwt}")
-    return encoded_jwt
+    try:
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=15)
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return encoded_jwt
+    except Exception as e:
+        logging.error(f"Error in create_access_token: {e}")
+        return None
 
 # Создание обновленного токена
 def create_refresh_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    logging.info(f"Refresh token created: {encoded_jwt}")
-    return encoded_jwt
+    try:
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(days=7)
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return encoded_jwt
+    except Exception as e:
+        logging.error(f"Error in create_refresh_token: {e}")
 
 # Получение токена из запроса
 async def get_token(request: Request):
     logging.info('get_token called.')
-    token = request.cookies.get("token")
-    if token and is_token_expired(token, SECRET_KEY):
+    access_token = request.cookies.get("access_token")
+    if access_token and is_token_expired(access_token, SECRET_KEY):
         logging.warning("Token has expired.")
-        token = None  # Устанавливаем token в None, если он просрочен
+        access_token = None  # Устанавливаем token в None, если он просрочен
 
-    if token is None:
+    if access_token is None:
         phone_number = request.form.get("username")
         if phone_number:
-            token = await get_token_from_db_by_phone_number(phone_number)
-    return token
+            access_token = await get_token_from_db_by_phone_number(phone_number)
+    return access_token
 
 # Проверка и валидация токена
-async def verify_and_validate_token(token: str):
+async def verify_and_validate_token(access_token: str):
     logging.info("Initiating process to verify and validate the token.")
-    logging.info(f"Token to verify: {token}")
+    logging.info(f"Token to verify: {access_token}")
 
-    if is_token_expired(token, SECRET_KEY):
+    if is_token_expired(access_token, SECRET_KEY):
         logging.warning("Token has expired.")
-        return None, False, None  # Добавлен третий параметр для типа токена
+        return None, False
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
         logging.info(f"Successfully decoded JWT payload: {payload}")
 
-        token_type = payload.get("type")  # Получаем тип токена
         phone_number = payload.get("sub")
-
         if phone_number:
             logging.info(f"Successfully retrieved phone_number from payload: {phone_number}")
-            return phone_number, True, token_type  # Возвращаем тип токена
+            return phone_number, True
         else:
             logging.warning("Phone_number is missing from the payload.")
-            return None, False, None  # Возвращаем None для типа токена
+            return None, False
 
     except JWTError as e:
         logging.error(f"JWT Error while verifying the token: {e}")
-        return None, False, None  # Возвращаем None для типа токена
-
+        return None, False
 
 
 @app.post("/token", response_model=Token)
-async def login_for_access_token(response: Response, form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(response: Response, phone_number: str = Form(...), password: str = Form(...)):
     logging.info("Login endpoint called")
-    user = await authenticate_user(form_data.username, form_data.password)
+    user = await authenticate_user(phone_number, password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -434,30 +513,33 @@ async def login_for_access_token(response: Response, form_data: OAuth2PasswordRe
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.phone_number, "type": "access"},  # Добавлен тип токена
-        expires_delta=access_token_expires
+        data={"sub": user.phone_number}, expires_delta=access_token_expires
     )
     access_expires_at = datetime.utcnow() + access_token_expires
 
-    refresh_token = create_refresh_token(data={"sub": user.phone_number, "type": "refresh"})  # Добавлен тип токена
+    # Сохранение access_token в базе данных
+    await save_token_to_db(database, user.id, access_token, access_expires_at)
+
+    refresh_token = create_refresh_token(data={"sub": user.phone_number})
     refresh_expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
 
-    # Транзакция для сохранения обоих токенов в базе данных
+    # Транзакция для сохранения обоих токенов
     async with database.transaction():
         await save_token_to_db(database, user.id, access_token, access_expires_at)
         await save_refresh_token_to_db(database, user.id, refresh_token, refresh_expires_at)
 
-    # Установка cookies для access_token и refresh_token
     response.set_cookie(
         key="access_token",
         value=f"Bearer {access_token}",
         httponly=True,
         secure=True,
-        samesite='Strict'
+        samesite='Strict',
+        max_age=3600  # установка срока действия кукиса в один час
     )
+
     response.set_cookie(
-        key="refresh_token",
-        value=f"Bearer {refresh_token}",
+        key="refresh_token",  # добавьте эту строку
+        value=f"Bearer {refresh_token}",  # и эту
         httponly=True,
         secure=True,
         samesite='Strict'
@@ -467,16 +549,16 @@ async def login_for_access_token(response: Response, form_data: OAuth2PasswordRe
 
 
 # Обновление токена в базе данных
-async def update_token_in_db(old_token: str, new_token: str):
-    logging.info(f"Updating token in database: {old_token} to {new_token}")
-    query = update(tokens).where(tokens.c.token == old_token).values(token=new_token)
+async def update_access_token_in_db(old_access_token: str, new_access_token: str):
+    logging.info(f"Updating token in database: {old_access_token} to {new_access_token}")
+    query = update(tokens).where(tokens.c.token == old_access_token).values(token=new_access_token)
     await database.execute(query)
 
 
 # Функция для сохранения токена в базе данных
-async def save_token_to_db(db: Database, user_id: int, token: str, expires_at: datetime):
+async def save_token_to_db(db: Database, user_id: int, access_token: str, expires_at: datetime):  # Изменен аргумент с 'token' на 'access_token'
     try:
-        query = tokens.insert().values(user_id=user_id, token=token, expires_at=expires_at)
+        query = tokens.insert().values(user_id=user_id, token=access_token, expires_at=expires_at)
         await db.execute(query)
     except Exception as e:
         logging.error(f"An error occurred while saving token to database: {e}")
@@ -494,62 +576,71 @@ async def save_refresh_token_to_db(db: Database, user_id: int, refresh_token: st
 
 @app.post("/token/refresh")
 async def refresh_access_token(response: Response, request: Request):
-    # Извлечение refresh_token из cookies
     refresh_token = request.cookies.get("refresh_token")
-
-    phone_number, is_valid = await verify_and_validate_token(refresh_token)
-
-    if not is_valid:
+    if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
+            detail="Refresh token not found."
         )
 
-    user = await get_user_by_phone(phone_number)
-    if not user:
+    # Добавленная проверка: Проверка действительности refresh_token
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type."
+            )
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
+            detail="Invalid refresh token."
+        )
+
+    new_token = await validate_and_refresh_token(request, user_id)
+    if new_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token or failed to refresh."
         )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    new_access_token = create_access_token(
-        data={"sub": user.phone_number}, expires_delta=access_token_expires
-    )
-
     expires_at = datetime.utcnow() + access_token_expires
-    await save_token_to_db(database, user.id, new_access_token, expires_at)
+    await save_token_to_db(database, user_id, new_token, expires_at)
 
     response.set_cookie(
         key="access_token",
-        value=f"Bearer {new_access_token}",
+        value=f"Bearer {new_token}",
         httponly=True,
         secure=True,
         samesite='Strict'
     )
+    logging.info(f"Refreshed access token: {new_token}")
 
-    return {"access_token": new_access_token, "token_type": "bearer"}
+    return {"access_token": new_token, "token_type": "bearer"}
 
 
 @app.post("/token/revoke")
-async def revoke_token(token: str = Depends(oauth2_scheme)):
-    revoked_tokens.append(token)
-    return {"msg": "Token has been revoked"}
+async def revoke_token(response: Response):
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return {"msg": "Tokens have been revoked"}
 
 
 # Получение токена из базы данных
-async def get_token_from_db(token: str) -> str:
-    logging.info(f"Getting token from database: {token}")
-    if is_token_expired(token, SECRET_KEY):
-        logging.warning(f"Token has expired: {token}")
+async def get_token_from_db(access_token: str) -> str:
+    logging.info(f"Getting token from database: {access_token}")
+    if is_token_expired(access_token, SECRET_KEY):
+        logging.warning(f"Token has expired: {access_token}")
         return None
-    query = select([tokens.c.token]).where(tokens.c.token == token)
+    query = select([tokens.c.token]).where(tokens.c.token == access_token)
     result = await database.fetch_one(query)
     if result:
         logging.info(f"Token found in database: {result.token}")
         return result.token
     else:
-        logging.warning(f"Token not found in database: {token}")
+        logging.warning(f"Token not found in database: {access_token}")
         return None
 
 
@@ -572,41 +663,87 @@ async def get_refresh_token_from_db_by_user_id(user_id: int) -> Optional[str]:
         return None
 
 
-async def validate_and_refresh_token(websocket: WebSocket, user_id: int):
-    logging.info(f"Validating and possibly refreshing token for user ID {user_id}")
+async def validate_and_refresh_token(connection: Union[WebSocket, Request], user_id: int, request_type: str = "websocket"):
+    logging.info("=== Validating and Refreshing Token ===")
+    logging.info(f"Validating and possibly refreshing token.")
 
-    old_token = await get_websocket_token(websocket)
-    phone_number, is_valid = await verify_and_validate_token(old_token)
-
-    if not is_valid:
-        # Здесь нужно использовать токен обновления для создания нового токена
-        refresh_token = await get_refresh_token_from_db_by_user_id(user_id)
-        if refresh_token:
-            phone_number, is_valid = await verify_and_validate_token(refresh_token)
-            if is_valid:
-                new_token = create_access_token({"sub": phone_number})  # Используем phone_number вместо user_id
-                await update_token_in_db(old_token, new_token)  # Обновление токена в базе данных
-                return new_token
-            else:
-                logging.warning("Invalid refresh token. Closing WebSocket.")
-                await websocket.close(code=4001)
-                return None
+    try:
+        old_access_token = None
+        if request_type == "websocket":
+            old_access_token = await get_websocket_token(connection)
+        elif request_type == "http":
+            old_access_token = connection.cookies.get("access_token")
         else:
-            logging.warning("Invalid token and no refresh token found. Closing WebSocket.")
-            await websocket.close(code=4001)
-            return None
-    else:
-        return old_token  # Если токен валиден, возвращаем его
+            logging.error("Invalid request_type specified")
+            return None, False  # Added is_valid flag
+
+        phone_number, is_valid = await verify_and_validate_token(old_access_token)
+
+        if not is_valid:
+            logging.warning(f"Token is invalid. Trying to refresh using refresh token for user {user_id}.")
+            refresh_token = await get_refresh_token_from_db_by_user_id(user_id)  # Use user_id to fetch the refresh token
+
+            if refresh_token:
+                phone_number, is_valid = await verify_and_validate_token(refresh_token)
+
+                if is_valid:
+                    new_access_token = create_access_token({"sub": phone_number})
+                    new_refresh_token = create_refresh_token({"sub": phone_number})
+
+                    await update_access_token_in_db(old_access_token, new_access_token)
+                    await update_refresh_token_in_db(refresh_token, new_refresh_token)
+
+                    return new_access_token, True
+                else:
+                    logging.warning("Invalid refresh token. Deleting from database and closing connection.")
+                    await delete_refresh_token_from_db(refresh_token)
+                    if request_type == "websocket":
+                        await connection.close(code=4001)
+                    return None, False
+            else:
+                logging.warning("Invalid token and no refresh token found. Closing connection.")
+                if request_type == "websocket":
+                    await connection.close(code=4001)
+                return None, False
+        else:
+            logging.info(f"Token is valid for user {user_id}.")
+            return old_access_token, True
+
+    except Exception as e:
+        logging.error(f"An error occurred while validating and refreshing the token: {e}")
+        if request_type == "websocket":
+            await connection.close(code=4002)  # Custom close code for "internal error"
+        return None, False
+
+
+# Function to delete refresh token from database
+async def delete_refresh_token_from_db(refresh_token: str):
+    query = delete(refresh_tokens).where(refresh_tokens.c.token == refresh_token)
+    await database.execute(query)
+
+
+# Function to update refresh token in database
+async def update_refresh_token_in_db(old_refresh_token: str, new_refresh_token: str):
+    query = update(refresh_tokens).where(refresh_tokens.c.token == old_refresh_token).values(token=new_refresh_token)
+    await database.execute(query)
 
 
 async def send_heartbeat(websocket: WebSocket, user_id: int, interval: int = 30):
     logging.info(f"Starting heartbeat for WebSocket: {websocket}")
     while True:
         await asyncio.sleep(interval)
-        new_token = await validate_and_refresh_token(websocket, user_id)
+
+        # Проверка и возможное обновление токена
+        new_token, is_valid = await validate_and_refresh_token(websocket, user_id)
+
+        if not is_valid:
+            await websocket.close(code=4001)  # Недействительный токен
+            return
+
         if new_token:
             await websocket.send_text(json.dumps({"action": "new_token", "token": new_token}))
-        await websocket.send_text("ping")
+
+        await websocket.send_text(json.dumps({"action": "ping"}))
         logging.info(f"Sent heartbeat to WebSocket: {websocket}")
 
 
@@ -626,16 +763,6 @@ async def get_current_websocket(websocket: WebSocket):
     logging.info(f"Getting current WebSocket: {websocket}")
     return websocket
 
-
-async def get_user_from_websocket(websocket: WebSocket) -> Optional[UserInDB]:
-    logging.info(f"Attempting to get user from WebSocket: {websocket}")
-    phone_number = websocket.url.path.split('/')[-1]
-    user = await get_user_by_phone(phone_number)
-    if user is None:
-        logging.warning(f"User not found for phone number: {phone_number}")
-    return user
-
-
 async def get_token_from_db_by_phone_number(phone_number: str) -> Optional[str]:
     logging.info(f"Getting token from database by phone number: {phone_number}")
     query = select([tokens.c.token]).join(users).where(users.c.phone_number == phone_number)
@@ -650,58 +777,41 @@ async def get_token_from_db_by_phone_number(phone_number: str) -> Optional[str]:
 
 async def get_current_user_from_websocket(websocket: WebSocket) -> Optional[UserInDB]:
     logging.info(f"Getting user from WebSocket: {websocket}")
+    # Проверка состояния WebSocket
+    logging.info(f"WebSocket state: {websocket.client_state}")
 
-    try:
-        token = websocket.cookies.get("token")
-        logging.info(f"Token from WebSocket cookies: {token}")  # Добавлено логирование токена
-
-        if token is None:
-            logging.warning("Token not found in cookies. Attempting to retrieve from database.")
-            phone_number = websocket.url.path.split('/')[-1]
-            user = await get_user_by_phone(phone_number)
-            if user is not None:
-                token = await get_token_from_db_by_phone_number(user.phone_number)
-            logging.info(f"Retrieved token from database: {token}")
-
-        if token is None:
-            logging.warning("Token not found in cookies or database.")
-            return None
-
-        # Валидация токена
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        logging.info(f"Decoded payload: {payload}")
-
-        phone_number: str = payload.get("sub")
-        if phone_number is None:
-            logging.warning("Token is missing phone number.")
-            return None
-
-        user = await get_user_by_phone(phone_number)
-        logging.info(f"Retrieved user by phone: {user}")
-
-        if user is None:
-            logging.warning("User not found by phone number.")
-            return None
-
-        logging.info(f"User found: {user}")
-        logging.info("WebSocket authentication successful.")
-        return user
-
-    except JWTError as e:
-        logging.error(f"JWT error during WebSocket authentication: {e}")
-        return None
-    except Exception as e:
-        logging.error(f"Unexpected error with WebSocket: {e}")
+    access_token = websocket.cookies.get("access_token")
+    if access_token is None:
+        logging.warning("Access token not found in cookies.")
         return None
 
+    logging.info(f"Access token found: {access_token}")
 
-# Извлекает информацию о пользователе из базы данных по номеру телефона.
-async def get_user(phone_number: str):
-    query = users.select().where(users.c.phone_number == phone_number)
-    logging.info(f"Executing query: {query}")  # Debug info
-    user = await database.fetch_one(query)
-    logging.info(f"User from database in get_user function: {user}")  # Debug info
+    user_id = await get_user_id_by_token(access_token)
+    if user_id is None:
+        logging.warning("User ID is None. Possibly invalid token.")
+        return None
+
+    phone_number = await get_phone_number_by_user_id(user_id)
+    if phone_number is None:
+        logging.error("Phone number not found for the user ID")
+        return None
+
+    new_access_token = await validate_and_refresh_token(websocket, user_id)
+    if new_access_token is None:
+        logging.warning("Invalid access token or failed to refresh.")
+        return None
+
+    if access_token != new_access_token:
+        await websocket.send_text(json.dumps({"action": "refresh_token", "new_token": new_access_token}))
+
+    user = await get_user_by_phone(phone_number)
+    if user is None:
+        logging.warning("User not found.")
+        return None
+
     return user
+
 
 
 # Проверяет, является ли хеш пароля действительным (соответствует формату bcrypt).
@@ -742,32 +852,6 @@ async def add_user(gender, last_name, first_name, middle_name, nickname, phone_n
     result = await database.execute(query)
     logging.info(f"Result: {result}")  # Debug info
     return result
-
-
-# Извлекает текущего пользователя из сессии.
-async def get_current_user(request: Request):  # Убираем Depends
-    token = request.cookies.get("access_token")  # Извлечение токена из куки
-    if token is None:
-        logging.warning("Token is missing.")
-        return RedirectResponse(url="/login", status_code=303)
-
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        phone_number: str = payload.get("sub")
-        if phone_number is None:
-            logging.error("Phone number not found in payload")
-            raise credentials_exception
-
-        user = await get_user_by_phone(phone_number)  # Используем переменную phone_number
-        if user is None:
-            logging.error("User not found by phone number")
-            raise credentials_exception
-
-        logging.info(f"User found: {user}")
-        return user
-    except PyJWTError as e:
-        logging.error(f"JWT error: {e}")
-        raise credentials_exception
 
 
 # Возвращает всех пользователей из базы данных.
@@ -1651,12 +1735,17 @@ async def read_chats(request: Request, current_user: Union[str, RedirectResponse
 
 
 async def is_member_of_chat(chat_id: int, phone_number: str):
-    logging.info(f"Checking if user with phone_number {phone_number} is a member of chat {chat_id}")
-    members = await get_chat_members(chat_id)
-    logging.info(f"Members of chat {chat_id}: {members}")
-    is_member = any(member['user_phone_number'] == phone_number for member in members)
-    logging.info(f"Is user a member of chat {chat_id}: {is_member}")
-    return is_member
+    try:
+        logging.info(f"Checking if user with phone_number {phone_number} is a member of chat {chat_id}")
+        members = await get_chat_members(chat_id)
+        logging.info(f"Members of chat {chat_id}: {members}")
+        is_member = any(member['user_phone_number'] == phone_number for member in members)
+        logging.info(f"Is user a member of chat {chat_id}: {is_member}")
+        return is_member
+    except Exception as e:
+        logging.error(f"An error occurred while checking membership: {e}")
+        return False
+
 
 @app.get("/chat/{chat_id}", response_class=HTMLResponse)
 async def read_chat(request: Request, chat_id: int,
@@ -1793,6 +1882,23 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
         await handle_chat_message(chat_id, message_text, current_user)
     except HTTPException:
         raise HTTPException(status_code=500, detail="Error sending message or uploading file")
+
+    new_message = {
+        "chat_id": chat_id,
+        "sender_id": current_user.id,
+        "message": message_text,
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    # Отправляем сообщение через WebSocket
+    room = f"chat_{chat_id}"
+    #await manager.send_message_to_room(room, json.dumps({"action": "send_message", "message": new_message}))
+
+    websocket = manager.get_connection(current_user.id, f"chat_{chat_id}")
+    if websocket:
+        await manager.send_message_to_room(f"chat_{chat_id}", json.dumps({"type": "new_message", "message": new_message}))
+    else:
+        logging.warning(f"No active connections found for room chat_{chat_id}")
 
     return RedirectResponse(url=f"/chats/{chat_id}", status_code=303)
 
@@ -2444,12 +2550,7 @@ async def update_last_online(user_id: int):
 
 # Обработчик отправки сообщения в диалог
 @app.post("/dialogs/{dialog_id}/send_message")
-async def send_message_to_dialog(
-        dialog_id: int,
-        message: str = Form(None),
-        file: UploadFile = File(None),
-        current_user: Union[str, RedirectResponse] = Depends(get_current_user)
-):
+async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file: UploadFile = File(None), current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -2458,13 +2559,11 @@ async def send_message_to_dialog(
 
     room = f"dialog_{dialog_id}"
 
-    # Отправка сообщения в диалог через вебсокет
     await manager.send_message_to_room(room, f"New message in dialog {dialog_id} from user {sender_id}: {message}")
 
     if sender_id not in [dialog['user1_id'], dialog['user2_id']]:
         raise HTTPException(status_code=400, detail="User not in this dialog")
 
-    # Изменяем статус удаления диалога на False для получателя, когда сообщение отправляется в диалог
     receiver_id = dialog['user1_id'] if sender_id == dialog['user2_id'] else dialog['user2_id']
     if receiver_id == dialog['user1_id']:
         await update_dialog_deleted_status(dialog_id, deleted_by_user1=False)
@@ -2474,18 +2573,15 @@ async def send_message_to_dialog(
     file_id = None
     file_name = None
 
-    # Обрабатываем прикрепленный файл, если он есть
     if file and file.filename:
         file_content = await file.read()
         file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
         file_name = file.filename
 
-    # Если файл был загружен, добавьте информацию о файле в текст сообщения
     if file_id and file_name:
         file_info = f' [[FILE]]File ID: {file_id}, File Name: {file_name}[[/FILE]]'
         message = file_info if message is None else message + file_info
 
-    # Проверяем, что у нас есть либо сообщение, либо файл
     if message is None:
         raise HTTPException(status_code=400, detail="No message or file to send")
 
@@ -2493,11 +2589,22 @@ async def send_message_to_dialog(
     participants = [sender_id, receiver_id]
     await manager.broadcast(f"New message in dialog {dialog_id} from user {sender_id}: {message}")
 
-    # Обновляем время последнего онлайна после отправки сообщения
+    new_message = {
+        "dialog_id": dialog_id,
+        "sender_id": sender_id,
+        "message": message,
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    websocket = manager.get_connection(current_user.id, f"dialog_{dialog_id}")
+    if websocket and isinstance(websocket, WebSocket) and websocket.client_state == WebSocketState.CONNECTED:
+        await manager.send_message_to_room(f"dialog_{dialog_id}", json.dumps({"type": "new_message", "message": new_message}))
+    else:
+        logging.warning(f"No active connections found for room dialog_{dialog_id}")
+
     await update_last_online(sender_id)
 
     return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=303)
-
 
 # Обрабатывает создание диалога с определенным пользователем
 @app.get("/create_dialog/{user_id}")
@@ -2691,139 +2798,178 @@ async def get_dialog_route(dialog_id: int, request: Request,
     })
 
 
-# БЛОК №4 СОКЕТЫ
-class WebSocketState(Enum):
-    DISCONNECTED = auto()
-    CONNECTED = auto()
-    ERROR = auto()
-
-
-class EnhancedConnectionManager:
+class ConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[int, Dict[str, WebSocket]] = {}
+        self.active_connections: Dict[int, Dict[str, Dict]] = {}
+        self.global_active_connections: Dict[str, List[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: int, room: str, existing_token: Optional[str] = None):
-        logging.info(f"Attempting to connect WebSocket for user {user_id} in room {room}")
-        token = existing_token if existing_token else await get_websocket_token(websocket, user_id)
-        logging.info(f"Received token: {token}")
-
-        if not token:
-            logging.warning(f"No token received for user {user_id}. Closing connection.")
-            await websocket.close(code=status.HTTP_403_FORBIDDEN)
-            return
-
-        # Здесь вызываем вашу функцию для валидации и возможного обновления токена
-        validated_token = await validate_and_refresh_token(websocket, user_id)
-
-        if validated_token is None:
-            logging.warning(f"WebSocket connection failed for user {user_id} due to invalid token.")
-            await websocket.close(code=status.HTTP_403_FORBIDDEN)
-            return
-
-        await websocket.accept()
-        logging.info(f"WebSocket connected for user {user_id} in room {room}")
         if user_id not in self.active_connections:
             self.active_connections[user_id] = {}
-        self.active_connections[user_id][room] = websocket
-        logging.info(f"Active connections for user {user_id}: {self.active_connections[user_id]}")
+        self.active_connections[user_id][room] = {"websocket": websocket, "state": WebSocketState.CONNECTED}
+        self.add_global_connection(room, websocket)
 
-    async def disconnect(self, user_id: int, room: str):
-        logging.info(f"Attempting to disconnect WebSocket for user {user_id} in room {room}")
+    def disconnect(self, user_id: int, room: str):
         if user_id in self.active_connections and room in self.active_connections[user_id]:
-            connection = self.active_connections[user_id][room]
-            if connection and connection.client_state != WebSocketState.DISCONNECTED:
-                try:
-                    await connection.close()
-                    logging.info(f"WebSocket disconnected for user {user_id} in room {room}")
-                except RuntimeError as e:
-                    logging.warning(f"Attempted to close already closed connection: {e}")
+            self.active_connections[user_id][room]['state'] = WebSocketState.DISCONNECTED
+            self.remove_global_connection(room, self.active_connections[user_id][room]['websocket'])
             del self.active_connections[user_id][room]
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
-        logging.info(
-            f"Active connections after disconnect for user {user_id}: {self.active_connections.get(user_id, {})}")
 
-    async def send_message(self, user_id: int, room: str, message: str):
-        try:
-            if user_id in self.active_connections and room in self.active_connections[user_id]:
-                connection = self.active_connections[user_id][room]
-                if connection.client_state != WebSocketState.DISCONNECTED:
-                    logging.info(f"Attempting to send message to user {user_id} in room {room}: {message}")
-                    await connection.send_text(message)
-                    logging.info(f"Message sent to user {user_id} in room {room}")
-                else:
-                    logging.warning(
-                        f"Failed to send message to user {user_id} in room {room}: WebSocket is disconnected")
-            else:
-                logging.warning(f"Failed to send message to user {user_id} in room {room}: No active connection")
-        except Exception as e:
-            logging.error(f"An error occurred while sending message to user {user_id} in room {room}: {e}")
+    async def send_message(self, message: str, user_id: int, room: str):
+        connection = self.get_connection(user_id, room)
+        if connection and connection['state'] == WebSocketState.CONNECTED:
+            try:
+                await connection['websocket'].send_text(message)
+            except RuntimeError as e:
+                logging.error(f"An error occurred: {e}")
 
     async def send_message_to_room(self, room: str, message: str):
-        for user_rooms in self.active_connections.values():
-            for room_name, websocket in user_rooms.items():
-                if room_name == room and websocket.client_state != WebSocketState.DISCONNECTED:
-                    logging.info(f"Sending message to room {room}: {message}")
-                    await websocket.send_text(message)
-                    logging.info(f"Message sent to room {room}")
+        if room in self.global_active_connections:
+            for websocket in self.global_active_connections[room]:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    try:
+                        await websocket.send_text(message)
+                    except RuntimeError as e:
+                        logging.error(f"An error occurred: {e}")
 
     async def broadcast(self, message: str):
         for user_rooms in self.active_connections.values():
-            for websocket in user_rooms.values():
-                await websocket.send_text(message)
+            for data in user_rooms.values():
+                websocket = data['websocket']
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    try:
+                        await websocket.send_text(message)
+                    except RuntimeError as e:
+                        logging.error(f"An error occurred: {e}")
+
+    def get_connection(self, user_id: int, room: str) -> Optional[Dict]:
+        return self.active_connections.get(user_id, {}).get(room)
+
+    def add_global_connection(self, room, websocket):
+        if room not in self.global_active_connections:
+            self.global_active_connections[room] = []
+        self.global_active_connections[room].append(websocket)
+
+    def remove_global_connection(self, room, websocket):
+        if room in self.global_active_connections:
+            self.global_active_connections[room].remove(websocket)
+            if not self.global_active_connections[room]:
+                del self.global_active_connections[room]
+
+    async def auto_reconnect(self, user_id: int, room: str, max_retries=5):
+        retries = 0
+        websocket_info = self.get_connection(user_id, room)
+        if not websocket_info:
+            return
+        websocket = websocket_info['websocket']
+        while websocket.client_state == WebSocketState.DISCONNECTED and retries < max_retries:
+            try:
+                await websocket.connect()
+                self.active_connections[user_id][room]['state'] = WebSocketState.CONNECTED
+                break
+            except Exception as e:
+                await asyncio.sleep(5)
+                retries += 1
+
+    async def keep_alive(self):
+        while True:
+            await asyncio.sleep(30)
+            for user_rooms in self.active_connections.values():
+                for data in user_rooms.values():
+                    websocket = data['websocket']
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        await websocket.send_text(json.dumps({"action": "keep_alive"}))
+
+manager = ConnectionManager()
+# Запуск метода keep_alive в фоне
+asyncio.create_task(manager.keep_alive())
 
 
-manager = EnhancedConnectionManager()
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: int):
+    try:
+        logging.info("Trying to get the WebSocket token...")
+        access_token = await get_websocket_token(websocket)
+
+        if not access_token:
+            logging.warning("Missing token. Closing the WebSocket.")
+            await websocket.close(code=4000)
+            return
+
+        logging.info("Verifying the access_token...")
+        _, is_valid = await verify_and_validate_token(access_token)
+
+        if not is_valid:
+            logging.warning("Invalid access_token. Trying to get the refresh_token...")
+            refresh_token = websocket._cookies.get("refresh_token")
+
+            if refresh_token:
+                _, is_valid = await verify_and_validate_token(refresh_token)
+
+            if not is_valid:
+                logging.warning("Invalid token. Closing the WebSocket.")
+                await websocket.close(code=4001)
+                return
+
+        user = await get_current_user_from_websocket(websocket)
+        if user is None:
+            logging.warning("User not found. Closing the WebSocket.")
+            return
+
+        await manager.connect(user_id, websocket)
+
+        while True:
+            data = await websocket.receive_text()
+            await manager.send_message(f"User {user_id} said: {data}", user_id)
+
+    except WebSocketDisconnect:
+        logging.info("WebSocket disconnected. Attempting to reconnect.")
+        await manager.auto_reconnect(user_id, "some_room")  # Добавленная строка для автоматического восстановления
+        manager.disconnect(user_id)
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        await websocket.close(code=4002)
 
 
 async def get_websocket_token(websocket: WebSocket, phone_number: Optional[str] = None):
+    logging.info("=== Getting WebSocket Token ===")
     logging.info("Initiating process to get WebSocket token.")
 
-    # Попытка извлечь токен из куки
-    cookies = websocket.cookies
-    logging.info(f"All received cookies: {cookies}")
-    token = cookies.get("token")
-
-    if token:
-        logging.info(f"Successfully retrieved token from WebSocket cookies: {token}")
-    else:
-        logging.warning("Token is missing from WebSocket cookies.")
-
-        # Если токен отсутствует в куки, попробуем извлечь его из базы данных
-        if phone_number:
-            token = await get_token_from_db_by_phone_number(phone_number)
-        else:
-            token = await get_token_from_db(token)
-
-        if token:
-            logging.info(f"Successfully retrieved token from database: {token}")
-        else:
-            logging.warning("Token is also missing from database.")
-            await websocket.close(code=4000)  # Custom close code for "missing token"
-
-    return token
-
-
-@app.websocket("/ws/global/")
-async def global_websocket_endpoint(websocket: WebSocket,
-                                    current_user: User = Depends(get_current_user_from_websocket)):
-    logging.info(f"Attempting to connect global WebSocket with user {current_user.id}")
-    await manager.connect(websocket, current_user.id, "global")
-    logging.info(f"Global WebSocket connected with user {current_user.id}")
-
     try:
-        while True:
-            data = await websocket.receive_text()
-            logging.info(f"Received data in global chat: {data}")
-            room = data.get("chat_id")  # Идентификатор чата из сообщения
-            await manager.send_message(current_user.id, f"chat_{room}", data.get("message"))
+        # Попытка извлечь токен из куки
+        cookies = websocket._cookies
+        logging.info(f"All received cookies: {cookies}")
+        access_token = cookies.get("access_token")
+
+        if access_token:
+            logging.info(f"Successfully retrieved token from WebSocket cookies: {access_token}")
+        else:
+            logging.warning("Token is missing from WebSocket cookies.")
+
+            # Если токен отсутствует в куки, попробуем извлечь его из базы данных
+            if phone_number:
+                access_token = await get_token_from_db_by_phone_number(phone_number)
+            else:
+                access_token = await get_token_from_db(access_token)
+
+            if access_token:
+                logging.info(f"Successfully retrieved token from database: {access_token}")
+            else:
+                logging.warning("Token is also missing from database.")
+                await websocket.close(code=4000)  # Custom close code for "missing token"
+
+        return access_token
+
+
     except Exception as e:
-        logging.error(f"Exception in global_websocket_endpoint: {e}")
-    finally:
-        await manager.disconnect(current_user.id, "global")
-        logging.info(f"Global WebSocket disconnected for user {current_user.id}")
-
-
+        logging.error(f"An error occurred while getting the WebSocket token: {e}")
+        await websocket.close(code=4002)
+        return None
+#
+#
+#
 async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User):
     try:
         logging.info(f"Handling dialog message from user {current_user.id} in dialog {dialog_id}: {message_content}")
@@ -2861,6 +3007,7 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         message_data = {
+            "action": "new_message",  # добавьте это поле, чтобы клиент мог его интерпретировать
             "message": message_content,
             "sender_phone_number": current_user.phone_number,
             "timestamp": current_time
@@ -2870,145 +3017,402 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
     except Exception as e:
         logging.error(f"An error occurred while handling chat message: {e}")
 
-async def handle_channel_message(channel_id: int, message_content: str, current_user: User):
-    try:
-        logging.info(f"Handling channel message from user {current_user.id} in channel {channel_id}: {message_content}")
-        query = channel_history.insert().values(
-            channel_id=channel_id,
-            sender_phone_number=current_user.phone_number,
-            message=message_content
-        )
-        await database.execute(query)
-        channel_subscribers_query = channel_members.select().where(channel_members.c.channel_id == channel_id)
-        subscribers = await database.fetch_all(channel_subscribers_query)
-        room = f"channel_{channel_id}"
-        for subscriber in subscribers:
-            subscriber_id = subscriber["user_id"]
-            await manager.send_message(subscriber_id, room, message_content)
-    except Exception as e:
-        logging.error(f"An error occurred while handling channel message: {e}")
-        logging.exception(e)
+async def handle_heartbeat(websocket: WebSocket, last_heartbeat, interval=30):
+    current_time = datetime.utcnow()
+    if (current_time - last_heartbeat).seconds >= interval:
+        await websocket.send_text("heartbeat")
+        return current_time
+    return last_heartbeat
+
+async def handle_token_refresh(websocket: WebSocket, user_id, last_token_refresh, interval=3600):
+    current_time = datetime.utcnow()
+    if (current_time - last_token_refresh).seconds >= interval:
+        new_token, is_valid = await validate_and_refresh_token(websocket, user_id)
+        if is_valid:
+            # Отправляем новый токен на клиент или выполняем другие необходимые действия
+            await websocket.send_text(json.dumps({"action": "token_refreshed", "new_token": new_token}))
+            return current_time
+        else:
+            # Закрыть соединение, если не удается обновить токен
+            await websocket.close(code=4001)
+            return last_token_refresh
+    return last_token_refresh
 
 
-@app.websocket("/ws/messages/")
-async def messages_endpoint(websocket: WebSocket, current_user: User = Depends(get_current_user_from_websocket)):
-    logging.info(f"Connecting WebSocket for messages with user {current_user.id}")
+async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, user, manager: ConnectionManager):
+    current_time = datetime.utcnow()
+    last_heartbeat = current_time
+    last_token_refresh = current_time
+    HEARTBEAT_INTERVAL = 30  # в секундах
 
-    token = websocket.cookies.get("token")  # Извлечение токена из cookies
-    phone_number, is_valid = await verify_and_validate_token(token)  # Валидация токена
-
-    if not is_valid or not current_user:
-        logging.warning("WebSocket connection attempt failed: Invalid Token or Current user is None.")
+    access_token, is_valid = await validate_and_refresh_token(websocket, user.id)
+    if not is_valid:
+        logging.warning("WebSocket connection attempt failed: Invalid Token.")
         await websocket.close(code=status.HTTP_403_FORBIDDEN)
         return
 
-    # Использование улучшенного менеджера
-    await manager.connect(websocket, current_user.id, "general")
+    logging.info(f"WebSocket accepted for user {user.id} in room {room_name}")
 
-    # Добавление механизма heartbeat и обновления токена
-    last_heartbeat = datetime.now()
-    last_token_refresh = datetime.now()
-    HEARTBEAT_INTERVAL = 30  # в секундах
-    TOKEN_REFRESH_INTERVAL = 1800  # 30 минут
+    await manager.connect(websocket, user.id, room_name)
 
     try:
         while True:
-            # Проверка необходимости heartbeat
-            if (datetime.now() - last_heartbeat).total_seconds() > HEARTBEAT_INTERVAL:
-                await websocket.send_text("ping")
-                last_heartbeat = datetime.now()
-
-            # Проверка необходимости обновления токена
-            if (datetime.now() - last_token_refresh).total_seconds() > TOKEN_REFRESH_INTERVAL:
-                # Используем вашу функцию для создания нового access token
-                new_token = create_access_token({"sub": current_user.id})
-                # Обновление токена в базе данных (если необходимо)
-                await update_token_in_db(token, new_token)
-                # Отправляем новый токен клиенту
-                await websocket.send_text(json.dumps({"action": "refresh_token", "new_token": new_token}))
-                # Обновляем время последнего обновления токена
-                last_token_refresh = datetime.now()
+            last_heartbeat = await handle_heartbeat(websocket, last_heartbeat)
+            last_token_refresh = await handle_token_refresh(websocket, user.id, last_token_refresh)
 
             data = await websocket.receive_text()
-            logging.info(f"Received message from user {current_user.id}: {data}")
-
-    except WebSocketDisconnect:
-        logging.warning(f"WebSocket disconnected for user {current_user.id}")
-        await manager.disconnect(current_user.id, "general")
-    except Exception as e:
-        logging.error(f"Error handling WebSocket for user {current_user.id}: {e}")
-        await manager.disconnect(current_user.id, "general")
-
-
-@app.websocket("/ws/chats/{chat_id}/")
-async def chat_websocket_endpoint(websocket: WebSocket, chat_id: str):
-    await websocket.accept()
-    user = await get_current_user_from_websocket(websocket)
-    if not user:
-        await websocket.close(code=4001)
-        return
-
-    await manager.connect(websocket, user.id, chat_id)
-    last_token_refresh = datetime.utcnow()
-
-    try:
-        while True:
-            data = await websocket.receive_text()
-
-            # Example message handling logic
             received_data = json.loads(data)
+            print("Received data:", received_data)  # Отладочная строка
             action = received_data.get('action')
 
-            if action == 'send_message':
+            if action == 'init_connection':
+                logging.info(f"Initializing connection for room {room_name} and user {user.id}")
+            elif action == 'send_message':
                 message = received_data.get('message')
-                # Process the message here
-                await manager.broadcast(message, chat_id)
-
-            # Refresh the token every 30 minutes
-            if (datetime.utcnow() - last_token_refresh).seconds >= 1800:
-                new_token = await validate_and_refresh_token(websocket, user.id)
-                if new_token:
-                    await websocket.send_json({'action': 'refresh_token', 'token': new_token})
-                    last_token_refresh = datetime.utcnow()
-
+                logging.info(f"Received message from user {user.id}: {message}")
+                await manager.send_message_to_room(
+                    room_name,
+                    json.dumps({
+                        "action": "new_message",
+                        "message": message,
+                        "sender_phone_number": user.phone_number,
+                        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                )
+            elif action == 'delete_message':
+                message_id = received_data.get('message_id')
+                # Проверьте, является ли пользователь автором сообщения или админом чата
+                message = await get_message_by_id(message_id)
+                chat = await get_chat(int(room_name.split('_')[1]))
+                if message is None or message['chat_id'] != int(room_name.split('_')[1]) or (
+                        message['sender_phone_number'] != user.phone_number and chat['owner_phone_number'] != user.phone_number):
+                    logging.warning("Message not found or user is not the author or the chat admin")
+                else:
+                    # Удаление сообщения из базы данных
+                    await delete_message_from_db(message_id)
+                    # Отправка уведомления всем участникам чата о удалении сообщения
+                    await manager.send_message_to_room(
+                        room_name,
+                        json.dumps({
+                            "action": "message_deleted",
+                            "message_id": message_id
+                        })
+                    )
     except WebSocketDisconnect:
-        manager.disconnect(user.id, chat_id)
-        await websocket.close()
+        manager.disconnect(websocket, room_name)
+        logging.warning(f"WebSocket disconnected for user {user.id}")
+
+
+async def generic_websocket_endpoint(websocket: WebSocket, room_id: str, room_type: str):
+    logging.info(f"=== WebSocket Endpoint: {room_type.capitalize()} ===")
+    await websocket.accept()
+    user = await get_current_user_from_websocket(websocket)
+    room_name = f"{room_type}_{room_id}"
+
+    if not user:
+        logging.error("Failed to get the user from the websocket.")
+        return
+
+    logging.info(f"WebSocket accepted for user {user.id} in room {room_name}")
+    await common_websocket_endpoint_logic(websocket, room_name, user, manager)
+
+# Функция для чатов
+@app.websocket("/ws/chats/{chat_id}/")
+async def chat_websocket_endpoint(websocket: WebSocket, chat_id: str):
+    await generic_websocket_endpoint(websocket, chat_id, "chat")
 
 @app.websocket("/ws/dialogs/{dialog_id}/")
 async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: str):
-    await websocket.accept()
-    user = await get_current_user_from_websocket(websocket)
-    if not user:
-        await websocket.close(code=4001)
-        return
+    await generic_websocket_endpoint(websocket, dialog_id, "dialog")
 
-    await manager.connect(websocket, user.id, dialog_id)
-    last_token_refresh = datetime.utcnow()
 
-    try:
-        while True:
-            data = await websocket.receive_text()
 
-            # Example message handling logic
-            received_data = json.loads(data)
-            action = received_data.get('action')
 
-            if action == 'send_message':
-                message = received_data.get('message')
-                # Process the message here
-                await manager.broadcast(message, dialog_id)
 
-            # Refresh the token every 30 minutes
-            if (datetime.utcnow() - last_token_refresh).seconds >= 1800:
-                new_token = await validate_and_refresh_token(websocket, user.id)
-                if new_token:
-                    await websocket.send_json({'action': 'refresh_token', 'token': new_token})
-                    last_token_refresh = datetime.utcnow()
 
-    except WebSocketDisconnect:
-        manager.disconnect(user.id, dialog_id)
-        await websocket.close()
+
+# БЛОК №4 СОКЕТЫ
+# class WebSocketState(Enum):
+#     DISCONNECTED = auto()
+#     CONNECTED = auto()
+#     ERROR = auto()
+#
+#
+# class EnhancedConnectionManager:
+#     def __init__(self):
+#         self.active_connections: Dict[int, Dict[str, Dict]] = {}
+#         self.global_active_connections = {}  # новый глобальный словарь
+#
+#
+#     # новый метод для добавления соединения
+#     def add_global_connection(self, chat_id, websocket):
+#         if chat_id not in self.global_active_connections:
+#             self.global_active_connections[chat_id] = []
+#         self.global_active_connections[chat_id].append(websocket)
+#
+#
+#         # новый метод для удаления соединени
+#     def remove_global_connection(self, chat_id, websocket):
+#         if chat_id in self.global_active_connections:
+#             self.global_active_connections[chat_id].remove(websocket)
+#             if not self.global_active_connections[chat_id]:
+#                 del self.global_active_connections[chat_id]
+#
+#     async def auto_reconnect(self, websocket, user_id, room):
+#         logging.info("=== Auto Reconnect Attempt ===")
+#         logging.info(f"Current state for user {user_id} in room {room} is {websocket.client_state}")
+#         while True:
+#             if websocket.client_state == WebSocketState.DISCONNECTED:
+#                 try:
+#                     await websocket.connect()
+#                     # Update the connection state after successful reconnection
+#                     self.active_connections[user_id][room]['state'] = WebSocketState.CONNECTED
+#                     break
+#                 except Exception as e:
+#                     logging.warning(f"Reconnect failed: {e}")
+#                     await asyncio.sleep(5)
+#
+#     async def check_connections(self):
+#         while True:
+#             await asyncio.sleep(10)  # проверяем каждые 10 секунд
+#             for user_id, rooms in self.active_connections.items():
+#                 for room, data in rooms.items():
+#                     if data['state'] != WebSocketState.CONNECTED:
+#                         logging.warning(f"Connection for user {user_id} in room {room} is not active.")
+#                         # Добавленный вызов метода auto_reconnect
+#                         await self.auto_reconnect(data['websocket'], user_id, room)
+#
+#     async def keep_alive(self):
+#         while True:
+#             await asyncio.sleep(30)
+#             for user_rooms in self.active_connections.values():
+#                 for data in user_rooms.values():
+#                     websocket = data['websocket']
+#                     if websocket.client_state == WebSocketState.CONNECTED:
+#                         await websocket.send_text("keep-alive")
+#
+#     def get_connection(self, user_id: int, room: str) -> Optional[WebSocket]:
+#         return self.active_connections.get(user_id, {}).get(room, {}).get("websocket")
+#
+#     # Полный код для метода connect
+#     async def connect(self, websocket: WebSocket, user_id: int, room: str, existing_token: Optional[str] = None):
+#         logging.info("=== Connection Attempt ===")
+#         logging.info(f"Connect method called for user {user_id} in room {room}")
+#
+#         if user_id in self.active_connections and room in self.active_connections[user_id]:
+#             if self.active_connections[user_id][room]['state'] != WebSocketState.CONNECTED:
+#                 logging.warning("WebSocket is not in a CONNECTED state. Aborting connection.")
+#                 return
+#         else:
+#             logging.info("This is a new connection. Proceeding.")
+#
+#         logging.info(f"Current active connections before connect: {self.active_connections}")
+#
+#         try:
+#             logging.info(f"Initiating connection process for room {room} and user {user_id}")
+#
+#             if not websocket or user_id is None or room is None:
+#                 logging.error("Invalid parameters passed for connection.")
+#                 return
+#
+#             logging.info(f"Parameters validated. Proceeding to token acquisition and validation.")
+#
+#             access_token = existing_token if existing_token else await get_websocket_token(websocket, user_id)
+#             if not access_token:
+#                 logging.error(f"Failed to get a valid access_token for user {user_id}. Closing connection.")
+#                 await websocket.close(code=status.HTTP_403_FORBIDDEN)
+#                 return
+#
+#             logging.info(f"Access_token acquired: {access_token}. Validating...")
+#
+#             validated_token = await validate_and_refresh_token(websocket, user_id)
+#             if validated_token:
+#                 logging.info(f"Successfully initialized connection for room {room} and user {user_id}")
+#             else:
+#                 logging.error(f"Failed to initialize connection for room {room} and user {user_id}")
+#                 await websocket.send_text("REDIRECT_TO_LOGIN")
+#                 await websocket.close(code=status.HTTP_403_FORBIDDEN)
+#                 return
+#
+#             logging.info(f"Token validated for user {user_id}. Proceeding to add to active connections.")
+#
+#             if user_id not in self.active_connections:
+#                 self.active_connections[user_id] = {}
+#                 logging.info(f"Created new room dictionary for user {user_id}.")
+#
+#             self.active_connections[user_id][room] = {"websocket": websocket, "state": WebSocketState.CONNECTED}
+#             self.add_global_connection(room, websocket)  # Добавляем соединение в глобальный словарь
+#
+#             logging.info(f"Current active connections after connect: {self.active_connections}")
+#
+#         except Exception as e:
+#             logging.error(f"An error occurred while connecting: {e}")
+#
+#     # Полный код для метода disconnect
+#     async def disconnect(self, user_id: int, room: str):
+#         logging.info(f"Disconnect method called for user {user_id} in room {room}")
+#
+#         try:
+#             if user_id is None or room is None:
+#                 logging.warning("Invalid user_id or room.")
+#                 return
+#
+#             logging.info(
+#                 f"Attempting to disconnect WebSocket for user {user_id} in room {room}. Current active connections: {self.active_connections.get(user_id, {})}")
+#
+#             if user_id in self.active_connections:
+#                 if room in self.active_connections[user_id]:
+#                     self.active_connections[user_id][room]['state'] = WebSocketState.DISCONNECTED
+#
+#                     connection = self.active_connections[user_id][room]["websocket"]
+#                     if connection and connection.client_state != WebSocketState.DISCONNECTED:
+#                         try:
+#                             await connection.close()
+#                             logging.info(f"WebSocket disconnected for user {user_id} in room {room}")
+#                         except RuntimeError as e:
+#                             logging.warning(f"Attempted to close already closed connection: {e}")
+#
+#                     self.remove_global_connection(room, connection)  # Удаляем соединение из глобального словаря
+#
+#                     del self.active_connections[user_id][room]
+#
+#                     if not self.active_connections[user_id]:
+#                         del self.active_connections[user_id]
+#
+#             logging.info(f"Active connections after disconnect: {self.active_connections}")
+#
+#         except Exception as e:
+#             logging.error(f"An error occurred while disconnecting: {e}")
+#
+#     async def send(self, connection, message: str):
+#         if connection.client_state == WebSocketState.CONNECTED:
+#             await connection.send_text(message)
+#             return True
+#         return False
+#
+#     async def send_message(self, user_id: int, room: str, message: str):
+#         connection = self.get_connection(user_id, room)
+#         if connection:
+#             success = await self.send(connection, message)
+#             if success:
+#                 logging.info(f"Message sent to user {user_id} in room {room}")
+#             else:
+#                 logging.warning(f"Failed to send message to user {user_id} in room {room}: WebSocket is disconnected")
+#
+#     async def send_message_to_room(self, room: str, message: str):
+#         for user_rooms in self.active_connections.values():
+#             for room_name, data in user_rooms.items():
+#                 if room_name == room:
+#                     connection = data['websocket']
+#                     await self.send(connection, message)
+#
+#     async def send_message_to_websocket(self, websocket, message):
+#         if websocket.client_state == WebSocketState.CONNECTED:
+#             await websocket.send_text(message)
+#         else:
+#             logging.warning("WebSocket is not connected.")
+#
+#     async def broadcast(self, message: str):
+#         for user_rooms in self.active_connections.values():
+#             for data in user_rooms.values():
+#                 websocket = data['websocket']
+#                 await self.send_message_to_websocket(websocket, message)
+#
+#     async def broadcast_to_room(self, message: str, room: str):
+#         if not self.active_connections:
+#             logging.warning(f"No active connections found.")
+#
+#         for user_rooms in self.active_connections.values():
+#             if room in user_rooms:
+#                 data = user_rooms[room]
+#                 websocket = data['websocket']
+#                 await self.send_message_to_websocket(websocket, message)
+#
+#
+# manager = EnhancedConnectionManager()
+#
+# async def handle_heartbeat(websocket: WebSocket, last_heartbeat):
+#     if (datetime.utcnow() - last_heartbeat).total_seconds() > 30:  # 30 секунд
+#         await websocket.send_text(json.dumps({"action": "ping"}))
+#         return datetime.utcnow()
+#     return last_heartbeat
+#
+# async def handle_token_refresh(websocket: WebSocket, user_id: int, last_token_refresh):
+#     if (datetime.utcnow() - last_token_refresh).total_seconds() >= 1800:  # 30 минут
+#         new_access_token = await validate_and_refresh_token(websocket, user_id)
+#         if new_access_token:
+#             await websocket.send_json({'action': 'refresh_token', 'access_token': new_access_token})
+#             return datetime.utcnow()
+#     return last_token_refresh
+#
+#
+
+
+# async def handle_channel_message(channel_id: int, message_content: str, current_user: User):
+#     try:
+#         logging.info(f"Handling channel message from user {current_user.id} in channel {channel_id}: {message_content}")
+#         query = channel_history.insert().values(
+#             channel_id=channel_id,
+#             sender_phone_number=current_user.phone_number,
+#             message=message_content
+#         )
+#         await database.execute(query)
+#         channel_subscribers_query = channel_members.select().where(channel_members.c.channel_id == channel_id)
+#         subscribers = await database.fetch_all(channel_subscribers_query)
+#         room = f"channel_{channel_id}"
+#         for subscriber in subscribers:
+#             subscriber_id = subscriber["user_id"]
+#             await manager.send_message(subscriber_id, room, message_content)
+#     except Exception as e:
+#         logging.error(f"An error occurred while handling channel message: {e}")
+#         logging.exception(e)
+#
+#
+# @app.websocket("/ws/messages/")
+# async def messages_endpoint(websocket: WebSocket, current_user: User = Depends(get_current_user_from_websocket)):
+#     logging.info("=== WebSocket Endpoint: Messages ===")
+#     logging.info(f"Connecting WebSocket for messages with user {current_user.id}")
+#
+#     access_token = await validate_and_refresh_token(websocket, current_user.id)  # Валидация и обновление токена
+#
+#     if not access_token or not current_user:
+#         logging.warning("WebSocket connection attempt failed: Invalid Token or Current user is None.")
+#         await websocket.close(code=status.HTTP_403_FORBIDDEN)
+#         return
+#
+#     await manager.connect(websocket, current_user.id, "general")
+#     last_heartbeat = datetime.now()
+#     last_token_refresh = datetime.now()
+#
+#     HEARTBEAT_INTERVAL = 30  # в секундах
+#     TOKEN_REFRESH_INTERVAL = 1800  # 30 минут
+#
+#     try:
+#         while True:
+#             if (datetime.now() - last_heartbeat).total_seconds() > HEARTBEAT_INTERVAL:
+#                 await websocket.send_text(json.dumps({"action": "ping"}))
+#                 last_heartbeat = datetime.now()
+#
+#             if (datetime.now() - last_token_refresh).total_seconds() > TOKEN_REFRESH_INTERVAL:
+#                 if is_token_expired(access_token, SECRET_KEY):
+#                     new_access_token = create_access_token(data={"sub": current_user.id})
+#                     await websocket.send_text(json.dumps({"action": "new_token", "token": new_access_token}))
+#                 last_token_refresh = datetime.now()
+#
+#             data = await websocket.receive_text()
+#             logging.info(f"Received message from user {current_user.id}: {data}")
+#
+#
+#     except WebSocketDisconnect:
+#         logging.warning(f"WebSocket disconnected for user {current_user.id}")
+#         await manager.auto_reconnect(websocket, current_user.id, "general")
+#     except Exception as e:
+#         logging.error(f"Error handling WebSocket for user {current_user.id}: {e}")
+#         await manager.disconnect(current_user.id, "general")
+#
+# Функция для чатов
+# Общая логика для WebSocket endpoint'ов
+
 
 # Обработчик ошибок
 @app.exception_handler(HTTPException)
@@ -3016,4 +3420,3 @@ async def http_exception_handler(request, exc):
     if exc.status_code == 401:
         return RedirectResponse(url="/login", status_code=303)
     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
-

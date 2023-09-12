@@ -4,62 +4,72 @@
     <meta charset="UTF-8">
     <title>{{ chat.chat_name }}</title>
     <link rel="stylesheet" type="text/css" href="/static/GroupStyle.css">
-    <script>
+<script>
 var chatId = "{{ chat.id }}";
+const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+const access_token = cookie ? cookie.split('=')[1] : null;
 var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
 ws.onopen = function(event) {
     console.log("WebSocket connection opened.");
+    ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
+};
+
+ws.onclose = function(event) {
+    console.log("WebSocket connection closed:", event);
+};
+
+ws.onerror = function(error) {
+    console.log(`WebSocket Error: ${error}`);
 };
 
 ws.onmessage = function(event) {
+    console.log("Received data:", event.data);  // Отладочная строка
     var received_data = JSON.parse(event.data);
     var action = received_data.action;
 
     if (action === 'new_token') {
-        var new_token = received_data.token;
-        document.cookie = "token=" + new_token;  // Устанавливаем новый токен в куки
-    } else {
+        document.cookie = "access_token=" + received_data.token;
+    } else if (action === 'new_message' || action === 'send_message') {
         var messageBox = document.getElementById("chat-history");
         var messageElement = document.createElement("div");
+        messageElement.id = `message-${received_data.message_id}`; // Уникальный ID для каждого сообщения
 
         var senderElement = document.createElement("h4");
         senderElement.innerText = received_data.sender_phone_number || "Unknown";
         messageElement.appendChild(senderElement);
 
         var textElement = document.createElement("p");
-        textElement.innerText = received_data.message;
+        textElement.innerText = received_data.message || "[object Object]";
         messageElement.appendChild(textElement);
 
         var timeElement = document.createElement("small");
-        timeElement.innerText = "Sent at: " + received_data.timestamp;
+        timeElement.innerText = "Sent at: " + (received_data.timestamp || "undefined");
         textElement.appendChild(timeElement);
 
         messageBox.appendChild(messageElement);
+        messageBox.scrollTop = messageBox.scrollHeight;
+
+    } else if (action === 'message_deleted') {
+        var messageId = received_data.message_id;
+        var messageElement = document.getElementById(`message-${messageId}`);
+        if (messageElement) {
+            messageElement.remove();
+        }
     }
 };
 
 function sendMessage() {
     var message_content = document.getElementById("message-input").value;
-    ws.send(JSON.stringify({ "action": "send_message", "message": message_content }));
-    document.getElementById("message-input").value = '';  // очистка поля ввода
+    ws.send(JSON.stringify({"action": "send_message", "message": message_content, "chat_id": chatId}));
+    document.getElementById("message-input").value = '';
 }
 
-// Функция для отправки файлов
-function sendFile() {
-    var fileInput = document.getElementById('file-input');
-    var file = fileInput.files[0];
-    var reader = new FileReader();
-
-    reader.onload = function(event) {
-        ws.send(JSON.stringify({ "action": "send_file", "file": event.target.result }));
-    };
-
-    reader.readAsDataURL(file);
+function deleteMessage(messageId) {
+    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId, "chat_id": chatId}));
 }
 
-
-    </script>
+</script>
 </head>
 <body>
 <div id="container">
