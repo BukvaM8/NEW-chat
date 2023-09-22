@@ -3,63 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <title>Диалог</title>
-    <link rel="stylesheet" href="/static/dialogsStyle.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #ECE5DD;
+            font-family: Times New Roman, sans-serif;
+        }
+        .container {
+            height: 100%;
+        }
+        .messages-container {
+            height: calc(50vh - 100px);
+            overflow-y: auto;
+        }
+    </style>
 </head>
 <body>
-<div class="container">
-    <h1>Диалог с {{ dialog.interlocutor_phone_number }}</h1>
-    <h2>Был(а) онлайн: {{ dialog.last_online }}</h2>
-
-    <h3>Сообщения:</h3>
-    <ul class="messages-list">
-        {% for message in messages %}
-        {% if not message.delete_timestamp %}
-        <li>
-            {{ message.sender_id }}:
-            {% if '[[FILE]]' in message.message %}
-            {% set message_text, file_info = message.message.split('[[FILE]]') %}
-            {% if ', ' in file_info %}
-            {% set file_id, file_name = file_info.replace('[[/FILE]]','').split(', ') %}
-            {% else %}
-            {% set file_id = file_info.replace('[[/FILE]]','') %}
-            {% set file_name = "unknown" %}
-            {% endif %}
-            {{ message_text }}
-            <a href="/files/{{ file_id.split(': ')[1] }}"> {{ file_name.split(': ')[1] }}</a>
-            {% else %}
-            {{ message.message }}
-            {% endif %}
-            <br>
-            Отправлено: {{ message.timestamp }}
-            {% if message.sender_id == current_user.id %}
-            <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post">
+    <div class="container mt-5">
+        <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic" width="50" height="50">
+        <h1 class="text-center" style="font-size: 1.5em;">Диалог с {{ dialog.interlocutor_phone_number }}</h1>
+        <h2 class="text-center" style="font-size: 1.2em;">Был(а) онлайн: {{ dialog.last_online }}</h2>
+        <div class="mt-4 messages-container">
+            <h3>Сообщения:</h3>
+            <ul class="list-group">
+                {% for message in messages %}
+                {% if not message.delete_timestamp %}
+                <li class="list-group-item">
+                    <strong>{{ message.sender_id }}:</strong>
+                    {% if '[[FILE]]' in message.message %}
+                    <!-- Your code for handling files -->
+                    {% else %}
+                    {{ message.message }}
+                    {% endif %}
+                    <br>
+                    <small>Отправлено: {{ message.timestamp }}</small>
+                    {% if message.sender_id == current_user.id %}
+                    <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post" class="d-inline">
+                        <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+                        <input type="hidden" name="message_id" value="{{ message.id }}">
+                        <button type="submit" class="btn btn-link btn-sm p-0 ml-2">
+                            <img src="/static/trash-icon.png" alt="Delete" width="20" height="20">
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-link btn-sm p-0 ml-2" data-toggle="modal" data-target="#forwardMessageModal">
+                        <img src="/static/forward-icon.png" alt="Forward" width="20" height="20">
+                    </button>
+                    {% endif %}
+                </li>
+                {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="modal fade" id="forwardMessageModal" tabindex="-1" role="dialog" aria-labelledby="forwardMessageModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="forwardMessageModalLabel">Forward Message</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- List of chats and dialogs to forward the message can be added here -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary">Forward</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-4">
+            <h3>Сообщения:</h3>
+            <form id="message-form">
                 <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-                <input type="hidden" name="message_id" value="{{ message.id }}">
-                <input type="submit" value="Удалить сообщение">
+                <input type="hidden" name="sender_id" value="{{ current_user.id }}">
+                <div class="form-group">
+                    <textarea name="message" class="form-control" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="file">Attach files (up to 10):</label>
+                    <input type="file" id="file" name="file" class="form-control-file" multiple>
+                </div>
+                <button type="submit" class="btn btn-primary">Отправить</button>
             </form>
-            {% endif %}
-        </li>
-        {% endif %}
-        {% endfor %}
-    </ul>
-
-    <h3>Отправить сообщение:</h3>
-    <form action="/dialogs/{{ dialog.id }}/send_message" method="post" enctype="multipart/form-data">
-        <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-        <input type="hidden" name="sender_id" value="{{ current_user.id }}">
-        <textarea name="message"></textarea>
-        <label for="file">Прикрепить файл:</label>
-        <input type="file" id="file" name="file">
-        <input type="submit" value="Отправить">
-    </form>
-
- <button onclick="location.href='/home'">Вернуться на главную</button>
-</div>
-<script>
+        </div>
+        <div class="mt-4">
+            <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
+        </div>
+    </div>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
     const dialogId = "{{ dialog.id }}";
     const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
     const access_token = cookie ? cookie.split('=')[1] : null;
-
 
     const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
@@ -68,17 +105,60 @@
         ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
     };
 
+    const form = document.getElementById('message-form');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Создаем объект FormData для сбора данных формы
+        const formData = new FormData(form);
+
+        // Здесь можно добавить AJAX-запрос для отправки данных на сервер
+        // Например, с использованием fetch API:
+        fetch(`/dialogs/${dialogId}/send_message`, {
+        method: 'POST',
+        body: formData
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to send message');
+                }
+            })
+            .then(data => {
+        // Здесь ваш код для обработки ответа сервера, если нужно
+        // Очищаем поле ввода сообщения
+                form.querySelector('textarea[name="message"]').value = '';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    });
+
     ws.onmessage = function(event) {
-        const messageData = JSON.parse(event.data);
+        let messageData;
+        try {
+            messageData = JSON.parse(event.data);
+        } catch (e) {
+            console.error("Invalid JSON", e);
+            return;
+        }
+
         const action = messageData.action;
 
         if (action === 'new_token') {
             document.cookie = "access_token=" + messageData.token;
+        } else if (action === 'initial_messages') {
+            // Обработка начальных сообщений
+            // Здесь можно добавить сообщения в список на клиенте
+        } else if (action === 'refresh_token') {
+            // Обработка обновления токена
+            // Здесь можно обновить токен в cookie или выполнить другие действия
         } else {
-            // Добавляем проверку на наличие поля message и sender_id
+            const messagesList = document.querySelector('.list-group');
             if (messageData.message && messageData.message.sender_id) {
-                const messagesList = document.querySelector('.messages-list');
                 const newMessage = document.createElement('li');
+                newMessage.className = "list-group-item";
 
                 const senderId = messageData.message.sender_id;
                 const rawMessage = messageData.message.message;
@@ -89,19 +169,23 @@
                     const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
                     const fileId = fileIdInfo.split(': ')[1];
                     const fileName = fileNameInfo.split(': ')[1];
-
-                    newMessage.innerHTML = `${senderId}: ${messageText} <a href="/files/${fileId}">${fileName}</a>`;
+                    newMessage.innerHTML = `<strong>${senderId}:</strong> ${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
                 } else {
-                    newMessage.textContent = `${senderId}: ${rawMessage}`;
+                    newMessage.innerHTML = `<strong>${senderId}:</strong> ${rawMessage}<br>`;
                 }
+
+                const timeElement = document.createElement("small");
+                timeElement.innerText = "Отправлено: " + (messageData.message.timestamp || "undefined");
+                newMessage.appendChild(timeElement);
 
                 messagesList.appendChild(newMessage);
             } else {
-                // Выводим предупреждение, если поля message или sender_id отсутствуют
                 console.warn('Неожиданный формат сообщения: ', messageData);
             }
         }
     };
+});
+
 </script>
 </body>
 </html>

@@ -1,21 +1,66 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Login</title>
-    <link rel="stylesheet" type="text/css" href="/static/LoginStyle.css">
+    <meta charset="UTF-8">
+    <title>SpiritCHAT Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Custom styles to mimic the style in chats.html */
+        body {
+            background-color: #ECE5DD;
+            font-family: Times New Roman, sans-serif;
+        }
+        .container {
+            background-color: #FFFFFF;
+            border: 1px solid #ccc;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0px 0px 10px 2px black;
+        }
+        .card-header {
+            background-color: #075E54;
+            color: white;
+        }
+        .btn-primary {
+            background-color: #128C7E;
+            border: none;
+        }
+    </style>
 </head>
 <body>
-    <h1>Login</h1>
-    <form action="/login" method="post">
-        <label for="phone_number">Phone Number:</label><br>
-        <input type="text" id="phone_number" name="phone_number"><br>
-        <label for="password">Password:</label><br>
-        <input type="password" id="password" name="password"><br>
-        <input type="submit" value="Login">
-    </form>
-    {% if error %}
-        <p class="error">{{error}}</p>
-    {% endif %}
-    <p>If you don't have an account, <a href="/register">register here</a>.</p>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h1>SpiritCHAT-Web</h1>
+                    </div>
+                    <div class="card-body">
+                        <form action="/login" method="post">
+                            <div class="mb-3">
+                                <label for="phone_number" class="form-label">Phone Number:</label>
+                                <input type="text" id="phone_number" name="phone_number" class="form-control">
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password:</label>
+                                <input type="password" id="password" name="password" class="form-control">
+                            </div>
+                            <div class="mb-3">
+                                <input type="submit" value="Login" class="btn btn-primary">
+                            </div>
+                        </form>
+                        {% if error %}
+                            <div class="alert alert-danger" role="alert">
+                                {{error}}
+                            </div>
+                        {% endif %}
+                        <p>If you don't have an account, <a href="/register">register here</a>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Add Bootstrap JS (optional) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

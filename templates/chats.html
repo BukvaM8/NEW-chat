@@ -2,146 +2,296 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Chat App</title>
-    <link rel="stylesheet" type="text/css" href="/static/ChatStyle.css">
+    <title>SpiritCHAT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #ECE5DD;
+            font-family: Times New Roman, sans-serif;
+        }
+        .left-panel {
+            background-color: #FFFFFF;
+            border-right: 1px solid #ccc;
+            min-height: 100vh;
+            padding: 20px;
+
+        }
+        .right-panel {
+            /* Изменим цвет фона на бежевый */
+            background-color: #F5ECE5;
+            height: 100vh;
+            padding: 20px;
+        }
+        .scrollable-content {
+            /* Создаем прокручиваемый список */
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .profile-pic {
+            border-radius: 50%;
+        }
+        .small-title {
+            font-size: 0.9em;
+        }
+        .small-header {
+            font-size: 1.2em;
+        }
+        .btn-custom {
+            background-color: #075E54;
+            color: white;
+        }
+        .btn-custom:hover {
+            background-color: #128C7E;
+        }
+        .chat-item h3, .channel-item h3 {
+            font-size: 1.2em;
+            text-transform: none;
+        }
+        .flex-container {
+            display: flex;
+        }
+        .flex-grow {
+            flex-grow: 1;
+        }
+        .fixed-bottom-panel {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+    }
+        #logout-button {
+        background-color: #075E54 !important;
+        color: white !important;
+    }
+    </style>
 </head>
 <body>
-<div class="container">
-    <h1>Добро пожаловать в SpiritCHAT, {{ current_user.nickname }}!</h1>
-    <!-- Кнопка создания чата -->
-    <button onclick="location.href='/profile'">Личный профиль</button>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Left Panel -->
+            <div class="col-md-4 left-panel">
+                <!-- Profile Section -->
+                <div class="d-flex align-items-center mb-4">
+                    <!-- Profile Picture -->
+                    <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic" width="50" height="50">
+                    <!-- User Info -->
+                    <div class="ms-3">
+                        <h1 style="font-size: 1.5em;">SpiritCHAT</h1>
+                        <small>{{ current_user.nickname }}</small>
+                    </div>
+                    <div class="ms-auto">
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-custom dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                Menu
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/profile">Личный профиль</a></li>
+                                <li><a class="dropdown-item" href="/create_chat">Создать новый чат</a></li>
+                                <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>
+                                <li><a class="dropdown-item" href="/create_dialog">Создать новый диалог</a></li>
+                                <li><a class="dropdown-item" href="/favorites">Избранное</a></li>
+                                <li><hr class="dropdown-divider"></li> <!-- Разделитель -->
+                                <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <form action="/home" method="get" class="mt-3">
+                    <input type="text" id="search_query" name="search_query" class="form-control" placeholder="Search">
+                </form>
+                  <!-- Блок для отображения результатов поиска -->
+                {% if search_query %}
+                <h2 class="small-header">Результаты поиска</h2>
+                <div class="search-results-list">
+                    {% for chat in search_results_chats %}
+                    <div class="search-results-item small-title">
+                        <h3>{{ chat['chat_name'] }}</h3>
+                        <p>Владелец: {{ chat['owner_phone_number'] }}</p>
+                        <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
+                    </div>
+                    {% endfor %}
+                    {% for channel in search_results_channels %}
+                    <div class="search-results-item small-title">
+                        <h3>{{ channel['name'] }}</h3>
+                        <p>Владелец: {{ channel['owner_phone_number'] }}</p>
+                        <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
-    <!-- Кнопка создания чата -->
-    <button onclick="location.href='/create_chat'">Создать новый чат</button>
+             <div class="scrollable-content">
+                 <h2 class="small-header">Ваши диалоги</h2>
+                <div class="dialogs-list">
+                    {% for dialog in dialogs %}
+                    <div class="dialogs-item small-title">
+                        <p>{{ dialog.interlocutor_phone_number }}</p>
+                        {% if '[[FILE]]' in dialog.last_message %}
+                        {% set message_text, file_info = dialog.last_message.split('[[FILE]]') %}
+                        {% if ', ' in file_info %}
+                        {% set file_id, file_name = file_info.replace('[[/FILE]]','').split(', ') %}
+                        {% else %}
+                        {% set file_id = file_info.replace('[[/FILE]]','') %}
+                        {% set file_name = "unknown" %}
+                        {% endif %}
+                        <p> {{ message_text }} - <a href="/files/{{ file_id.split(': ')[1] }}"> {{ file_name.split(': ')[1] }}</a> -
+                        {{ dialog.last_message_timestamp }}</p>
+                        {% else %}
+                        <p> {{ dialog.last_message }} - {{ dialog.last_message_timestamp }}</p>
+                        {% endif %}
+                        <a href="#" data-dialog-id="{{ dialog.id }}" class="load-dialog">Перейти в диалог</a>
+                        <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">
+                            <input type="submit" value="Удалить диалог">
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
 
-    <!-- Кнопка создания канала -->
-    <button onclick="location.href='/create_channel'">Создать новый канал</button>
-
-    <!-- Кнопка создания диалога -->
-    <button onclick="location.href='/create_dialog'">Создать новый диалог</button>
-
-    <!-- Поисковая строка -->
-    <form action="/home" method="get">
-        <input type="text" id="search_query" name="search_query">
-        <input type="submit" value="Search">
-    </form>
-
-    {% if search_query %}
-    {% if search_results_chats or search_results_channels %}
-    <h2>Результаты поиска</h2>
-    <div class="search-results">
-        {% for chat in search_results_chats %}
-        <div class="chat-item">
-            <h3>{{ chat['chat_name'] }}</h3>
-            <p>Owner: {{ chat['owner_phone_number'] }}</p>
-            <p>Последнее сообщение: {{ chat.last_message }} - {{ chat.last_message_timestamp }}</p>
-            <!-- Условие, чтобы показать ссылку только для участников или владельцев чата -->
-            {% if chat['is_member'] or chat['owner_phone_number'] == current_user.phone_number %}
-            <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
-            {% else %}
-            <form action="/join_chat/{{ chat['id'] }}" method="post">
-                <input type="submit" value="Присоединиться к чату">
-            </form>
+                <h2 class="small-header">Ваши чаты</h2>
+                     <div class="chat-list">
+                       {% for chat in chats %}
+                      <div class="chat-item small-title">
+                   <h3>{{ chat['chat_name'] }}</h3>
+                   {% if chat['id'] in left_chats %}
+                      <p>Вы покинули чат</p>
+                   {% endif %}
+                      <p>Владелец: {{ chat['owner_phone_number'] }}</p>
+                       {% if '[[FILE]]' in chat['last_message'] %}
+                     {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
+                         {% if ', ' in file_message_parts[1] %}
+                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                <p>{{ chat['last_message_sender_phone'] }}</p>
+                <p>{{ file_info_parts[1].split(': ')[1] }}</p>
+                <p>Отправлено: {{ chat['last_message_timestamp'] }}</p>
             {% endif %}
-        </div>
-        {% endfor %}
-
-
-        {% for channel in search_results_channels %}
-        <div class="channel-item">
-            <h3>{{ channel['name'] }}</h3>
-            <p>Owner: {{ channel['owner_phone_number'] }}</p>
-            <p>Last Message: {{ channel['last_message'] }}</p>
-            <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
-            {% if channel['id'] not in subscribed_channels and channel['owner_phone_number'] !=
-            current_user.phone_number %}
-            <form action="/join_channel/{{ channel['id'] }}" method="post">
-                <input type="submit" value="Присоединиться к каналу">
-            </form>
-            {% endif %}
-        </div>
-        {% endfor %}
+        {% else %}
+            <p>{{ chat['last_message_sender_phone'] }} : {{ chat['last_message'] }} - Время: {{ chat['last_message_timestamp'] }}</p>
+        {% endif %}
+        <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
     </div>
-    {% endif %}
-    {% endif %}
+    {% endfor %}
+</div>>
+                <h2 class="small-header">Ваши каналы</h2>
+                <div class="channel-list">
+                    {% for channel in channels %}
+                    <div class="channel-item small-title">
+                        <h3>{{ channel['name'] }}</h3>
+                        <p>Владелец: {{ channel['owner_phone_number'] }}</p>
+                        {% if channel['owner_phone_number'] == current_user.phone_number and channel['last_owner_message'] %}
+                        <p>{{ channel['last_owner_message'] }} - {{ channel['last_owner_message_timestamp'] }}</p>
+                        {% if channel['last_owner_message_file'] %}
+                        <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть прикрепленный файл</a>
+                        {% endif %}
+                        {% elif channel['last_message'] %}
+                        <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>
+                        {% if channel['last_message_file'] %}
+                        <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный файл</a>
+                        {% endif %}
+                        {% endif %}
+                        <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
+                        {% if channel['owner_phone_number'] == current_user.phone_number %}
+                        <form action="/channels/{{ channel['id'] }}/delete" method="post">
+                            <input type="submit" value="Удалить канал">
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
 
+             </div>
+            </div>
 
-    <h2>Ваши диалоги</h2>
-    <div class="dialogs-list">
-        {% for dialog in dialogs %}
-        <div class="dialogs-item">
-            <p>{{ dialog.interlocutor_phone_number }}</p>
-            {% if '[[FILE]]' in dialog.last_message %}
-            {% set message_text, file_info = dialog.last_message.split('[[FILE]]') %}
-            {% if ', ' in file_info %}
-            {% set file_id, file_name = file_info.replace('[[/FILE]]','').split(', ') %}
-            {% else %}
-            {% set file_id = file_info.replace('[[/FILE]]','') %}
-            {% set file_name = "unknown" %}
-            {% endif %}
-            <p> {{ message_text }} - <a href="/files/{{ file_id.split(': ')[1] }}"> {{ file_name.split(': ')[1] }}</a> -
-                {{ dialog.last_message_timestamp }}</p>
-            {% else %}
-            <p> {{ dialog.last_message }} - {{ dialog.last_message_timestamp }}</p>
-            {% endif %}
-            <a href="/dialogs/{{ dialog.id }}">Перейти в диалог</a>
-            <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">
-                <input type="submit" value="Удалить диалог">
-            </form>
+            <!-- Правая панель -->
+            <div class="col-md-8 right-panel">
+                <div id="dialog-panel">
+                    <!-- The selected dialog will be displayed here -->
+                    <div id="dialog-container">
+
+                        <!-- The dialog content will be loaded here -->
+                    </div>
+                </div>
+            </div>
         </div>
-        {% endfor %}
     </div>
+    <script>
+let ws; // Declare ws at the top-level scope
+let currentDialogId = null; // Добавьте эту переменную для хранения текущего ID диалога
 
-    <h2>Ваши чаты</h2>
-    <div class="chat-list">
-        {% for chat in chats %}
-        <div class="chat-item">
-            <h3>{{ chat['chat_name'] }}</h3>
-            {% if chat['id'] in left_chats %}
-            <p>Вы покинули чат</p>
-            {% endif %}
-            <p>Владелец: {{ chat['owner_phone_number'] }}</p>
-            <!-- Вставляем номер отправителя последнего сообщения -->
-            <p> {{ chat['last_message_sender_phone'] }} : {{ chat['last_message'] }}{% if chat['last_message_file'] %}
-                (Приложение: {{ chat['last_message_file'] }}){% endif %} - Время: {{ chat['last_message_timestamp']
-                }}</p>
-            <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
-        </div>
-        {% endfor %}
-    </div>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.load-dialog').forEach(function(anchor) {
+        anchor.addEventListener('click', function(e) {
+            e.preventDefault();
+            const dialogId = this.getAttribute('data-dialog-id');
+            fetchDialog(dialogId);
+        });
+    });
 
-    <!-- ... -->
-    <h2>Ваши каналы</h2>
-    <div class="channel-list">
-        {% for channel in channels %}
-        <div class="channel-item">
-            <h3>{{ channel['name'] }}</h3>
-            <p>Владелец: {{ channel['owner_phone_number'] }}</p>
+    const user_id = "{{ current_user.id }}";
+    ws = new WebSocket(`ws://127.0.0.1:8000/ws/${user_id}`);
 
-            <!-- Добавляем условие для проверки принадлежности канала -->
-            {% if channel['owner_phone_number'] == current_user.phone_number and channel['last_owner_message'] %}
-            <p>{{ channel['last_owner_message'] }} - {{ channel['last_owner_message_timestamp'] }}</p>
-            {% if channel['last_owner_message_file'] %}
-            <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть прикрепленный файл</a>
-            {% endif %}
-            {% elif channel['last_message'] %}
-            <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>
-            {% if channel['last_message_file'] %}
-            <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный файл</a>
-            {% endif %}
-            {% endif %}
-            <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
-            {% if channel['owner_phone_number'] == current_user.phone_number %}
-            <form action="/channels/{{ channel['id'] }}/delete" method="post">
-                <input type="submit" value="Удалить канал">
-            </form>
-            {% endif %}
-        </div>
-        {% endfor %}
-        <!-- ... -->
+    ws.onopen = function(event) {
+        console.log("WebSocket is open now.");
+    };
 
-    </div>
-    <button onclick="location.href='/logout'">Выйти из аккаунта</button>
-</div>
+    ws.onclose = function(event) {
+        console.log("WebSocket is closed now.", event);
+    };
+
+    ws.onerror = function(event) {
+        console.error("WebSocket error observed:", event);
+    };
+
+    ws.onmessage = function(event) {
+        const messagesList = document.querySelector('.messages-list');
+
+        if(messagesList === null) {
+            console.error('Element with class ".messages-list" not found');
+            return;
+        }
+
+        const messageData = JSON.parse(event.data);
+        const action = messageData.action;
+
+        if (action === 'new_message') {
+            const newMessage = document.createElement('li');
+            newMessage.innerHTML = `${messageData.sender}: ${messageData.message}`;
+            messagesList.appendChild(newMessage);
+
+            // Если текущий диалог совпадает с диалогом нового сообщения, обновите его
+            if (currentDialogId === messageData.dialog_id) {
+                fetchDialog(currentDialogId);
+            }
+        }
+    };
+});
+
+function fetchDialog(dialogId) {
+    currentDialogId = dialogId; // Запомните текущий ID диалога
+    fetch(`/api/dialogs/${dialogId}`)
+    .then(response => response.text())
+    .then(html => {
+        document.getElementById('dialog-container').innerHTML = html;
+
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+
+        if (messageForm) {
+            if (messageInput) {
+                messageForm.addEventListener('submit', function(e) {
+                    e.preventDefault(); // Stop the page from reloading
+                    const message = messageInput.value;
+                    ws.send(JSON.stringify({ "action": "send_message", "dialog_id": dialogId, "message": message }));
+                    messageInput.value = ""; // Clear the input field
+                });
+            } else {
+                console.error('Element with id "message-input" not found');
+            }
+        } else {
+            console.error('Element with id "message-form" not found');
+        }
+    });
+}
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
