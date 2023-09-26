@@ -68,7 +68,7 @@
     <div class="container-fluid">
         <div class="row">
             <!-- Left Panel -->
-            <div class="col-md-4 left-panel">
+            <div class="col-md-6 left-panel">
                 <!-- Profile Section -->
                 <div class="d-flex align-items-center mb-4">
                     <!-- Profile Picture -->
@@ -166,7 +166,7 @@
         {% else %}
             <p>{{ chat['last_message_sender_phone'] }} : {{ chat['last_message'] }} - Время: {{ chat['last_message_timestamp'] }}</p>
         {% endif %}
-        <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
+          <a href="#" data-chat-id="{{ chat.id }}" class="load-chat">Перейти в чат</a>
     </div>
     {% endfor %}
 </div>>
@@ -201,97 +201,108 @@
             </div>
 
             <!-- Правая панель -->
-            <div class="col-md-8 right-panel">
+            <div class="col-md-6 right-panel">
                 <div id="dialog-panel">
                     <!-- The selected dialog will be displayed here -->
                     <div id="dialog-container">
+
 
                         <!-- The dialog content will be loaded here -->
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    <script>
-let ws; // Declare ws at the top-level scope
-let currentDialogId = null; // Добавьте эту переменную для хранения текущего ID диалога
+</div>
+<div id="message-form" style="display: none;">
+    <input type="text" id="message-input" placeholder="Введите ваше сообщение">
+    <button id="send-button">Отправить</button>
+</div>
+<script>
+let ws;  // WebSocket будет храниться здесь
 
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.load-dialog').forEach(function(anchor) {
-        anchor.addEventListener('click', function(e) {
+// Функция для установки обработчиков событий формы диалога
+function setupDialogFormHandlers() {
+    const form = document.getElementById('message-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
             e.preventDefault();
-            const dialogId = this.getAttribute('data-dialog-id');
-            fetchDialog(dialogId);
+            const formData = new FormData(form);
+            const message = formData.get('message');
+            ws.send(JSON.stringify({ "action": "send_message", "message": message }));
+            form.querySelector('textarea[name="message"]').value = '';
         });
-    });
+    }
+}
 
-    const user_id = "{{ current_user.id }}";
-    ws = new WebSocket(`ws://127.0.0.1:8000/ws/${user_id}`);
+// Функция для инициализации WebSocket
+function setupWebSocket(dialogId) {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+    const access_token = cookie ? cookie.split('=')[1] : null;
+    ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
     ws.onopen = function(event) {
-        console.log("WebSocket is open now.");
-    };
-
-    ws.onclose = function(event) {
-        console.log("WebSocket is closed now.", event);
-    };
-
-    ws.onerror = function(event) {
-        console.error("WebSocket error observed:", event);
+        console.log("WebSocket connection opened.");
+        ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
     };
 
     ws.onmessage = function(event) {
-        const messagesList = document.querySelector('.messages-list');
+    let messageData;
+    try {
+        messageData = JSON.parse(event.data);
+    } catch (e) {
+        console.error("Invalid JSON", e, event.data);
+        return;
+    }
 
-        if(messagesList === null) {
-            console.error('Element with class ".messages-list" not found');
-            return;
-        }
-
-        const messageData = JSON.parse(event.data);
         const action = messageData.action;
 
-        if (action === 'new_message') {
-            const newMessage = document.createElement('li');
-            newMessage.innerHTML = `${messageData.sender}: ${messageData.message}`;
-            messagesList.appendChild(newMessage);
-
-            // Если текущий диалог совпадает с диалогом нового сообщения, обновите его
-            if (currentDialogId === messageData.dialog_id) {
-                fetchDialog(currentDialogId);
-            }
-        }
+    if (action === 'new_message') {
+        const messagesList = document.querySelector('.list-group');
+        const newMessage = document.createElement('li');
+        newMessage.className = "list-group-item";
+        newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}<br><small>Отправлено: ${messageData.timestamp}</small>`;
+        messagesList.appendChild(newMessage);
+    } else if (action === 'keep_alive') {
+        // Обработка keep-alive сообщений
+    } else if (action === 'initial_messages') {
+        // Обработка начальных сообщений
+    } else {
+        console.warn('Неожиданный формат сообщения:', messageData);
+    }
     };
+}
+function loadChat(chatId) {
+    fetch(`/load_chat/${chatId}`)
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById("right-panel").innerHTML = html;
+      });
+  }
+
+
+
+// Код для загрузки диалога при клике
+document.addEventListener('DOMContentLoaded', function() {
+    const dialogLinks = document.querySelectorAll('.load-dialog');
+    dialogLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const dialogId = this.getAttribute('data-dialog-id');
+            fetch(`/api/dialogs/${dialogId}`)
+                .then(response => response.text())
+                .then(data => {
+                    const dialogPanel = document.querySelector('#dialog-container');
+                    dialogPanel.innerHTML = data;
+                    setupDialogFormHandlers();  // Устанавливаем обработчики для формы
+                    setupWebSocket(dialogId);   // Инициализируем WebSocket
+                })
+                .catch(error => console.error('Error:', error));
+        });
+    });
 });
 
-function fetchDialog(dialogId) {
-    currentDialogId = dialogId; // Запомните текущий ID диалога
-    fetch(`/api/dialogs/${dialogId}`)
-    .then(response => response.text())
-    .then(html => {
-        document.getElementById('dialog-container').innerHTML = html;
-
-        const messageForm = document.getElementById('message-form');
-        const messageInput = document.getElementById('message-input');
-
-        if (messageForm) {
-            if (messageInput) {
-                messageForm.addEventListener('submit', function(e) {
-                    e.preventDefault(); // Stop the page from reloading
-                    const message = messageInput.value;
-                    ws.send(JSON.stringify({ "action": "send_message", "dialog_id": dialogId, "message": message }));
-                    messageInput.value = ""; // Clear the input field
-                });
-            } else {
-                console.error('Element with id "message-input" not found');
-            }
-        } else {
-            console.error('Element with id "message-form" not found');
-        }
-    });
-}
-
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+</script>
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
