@@ -205,22 +205,25 @@
                 <div id="dialog-panel">
                     <!-- The selected dialog will be displayed here -->
                     <div id="dialog-container">
+                        <ul class="list-group"></ul>
+                        <div id="dialog-history">
 
-
-                        <!-- The dialog content will be loaded here -->
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 </div>
+
 <div id="message-form" style="display: none;">
     <input type="text" id="message-input" placeholder="Введите ваше сообщение">
     <button id="send-button">Отправить</button>
 </div>
-<script>
-let ws;  // WebSocket будет храниться здесь
 
-// Функция для установки обработчиков событий формы диалога
+<script>
+let ws;  // WebSocket will be stored here
+
+// Function to set up event handlers for the dialog form
 function setupDialogFormHandlers() {
     const form = document.getElementById('message-form');
     if (form) {
@@ -234,7 +237,7 @@ function setupDialogFormHandlers() {
     }
 }
 
-// Функция для инициализации WebSocket
+// Function to initialize WebSocket
 function setupWebSocket(dialogId) {
     const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
     const access_token = cookie ? cookie.split('=')[1] : null;
@@ -246,42 +249,58 @@ function setupWebSocket(dialogId) {
     };
 
     ws.onmessage = function(event) {
-    let messageData;
-    try {
-        messageData = JSON.parse(event.data);
-    } catch (e) {
-        console.error("Invalid JSON", e, event.data);
-        return;
-    }
+        let messageData;
+        try {
+            messageData = JSON.parse(event.data);
+        } catch (e) {
+            console.error("Invalid JSON", e, event.data);
+            return;
+        }
 
         const action = messageData.action;
 
-    if (action === 'new_message') {
-        const messagesList = document.querySelector('.list-group');
+        if (action === 'new_message') {
+            const messagesList = document.querySelector('.list-group');
+            const newMessage = document.createElement('li');
+            newMessage.className = "list-group-item";
+            newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}<br><small>Отправлено: ${messageData.timestamp}</small>`;
+            messagesList.appendChild(newMessage);
+        } else if (action === 'keep_alive') {
+            // Handle keep-alive messages
+        } else if (action === 'initial_messages') {
+            displayInitialMessages(messageData.messages);
+        } else if (action === 'dialog_history') {
+            displayDialogHistory(messageData.history);
+        } else {
+            console.warn('Unexpected message format:', messageData);
+        }
+    };
+}
+
+function displayInitialMessages(messages) {
+    const messagesList = document.querySelector('.list-group');
+    messages.forEach(messageData => {
         const newMessage = document.createElement('li');
         newMessage.className = "list-group-item";
         newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}<br><small>Отправлено: ${messageData.timestamp}</small>`;
         messagesList.appendChild(newMessage);
-    } else if (action === 'keep_alive') {
-        // Обработка keep-alive сообщений
-    } else if (action === 'initial_messages') {
-        // Обработка начальных сообщений
-    } else {
-        console.warn('Неожиданный формат сообщения:', messageData);
-    }
-    };
+    });
 }
-function loadChat(chatId) {
-    fetch(`/load_chat/${chatId}`)
-      .then(response => response.text())
-      .then(html => {
-        document.getElementById("right-panel").innerHTML = html;
-      });
-  }
 
+// Функция для отображения истории диалога
+function displayDialogHistory(history) {
+    const historyContainer = document.getElementById('dialog-history');
+    if (historyContainer) {
+        let historyHtml = '<ul>';
+        history.messages.forEach(message => {
+            historyHtml += `<li><strong>${message.sender_id}:</strong> ${message.message} <small>(${message.timestamp})</small></li>`;
+        });
+        historyHtml += '</ul>';
+        historyContainer.innerHTML = historyHtml;
+    }
+}
 
-
-// Код для загрузки диалога при клике
+// Code to load the dialog when clicked
 document.addEventListener('DOMContentLoaded', function() {
     const dialogLinks = document.querySelectorAll('.load-dialog');
     dialogLinks.forEach(link => {
@@ -293,8 +312,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     const dialogPanel = document.querySelector('#dialog-container');
                     dialogPanel.innerHTML = data;
-                    setupDialogFormHandlers();  // Устанавливаем обработчики для формы
-                    setupWebSocket(dialogId);   // Инициализируем WebSocket
+                    setupDialogFormHandlers();  // Set up form handlers
+                    setupWebSocket(dialogId);   // Initialize WebSocket
                 })
                 .catch(error => console.error('Error:', error));
         });

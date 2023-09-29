@@ -5,8 +5,6 @@ import json
 import os
 import time
 import logging
-from asyncio import IncompleteReadError
-from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from enum import Enum, auto
 from operator import and_
@@ -15,37 +13,32 @@ from urllib.parse import quote, unquote
 
 # Модули для работы с SQL базами данных
 import aiomysql
-import connection as connection
-import cur as cur
 import jwt
-import room as room
-from fastapi.params import Path, Body, Header
+import room
+from fastapi.params import Path
 from jose import JWTError
 from jwt import PyJWTError
-from sqlalchemy import create_engine, MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
+from sqlalchemy import  MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete
-from sqlalchemy.exc import SQLAlchemyError, NoResultFound
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.sync import update
 from sqlalchemy.sql import select
 from databases import Database
-from pymysql.err import ProgrammingError
+
 
 # Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
-from fastapi import Request, FastAPI, WebSocket, HTTPException, Depends, status, Form, Cookie, logger, UploadFile, File, \
-    security, websockets
+from fastapi import  FastAPI, WebSocket, HTTPException, Depends, status, Form,  UploadFile, File
+
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPAuthorizationCredentials, HTTPBearer, \
-    OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from starlette.datastructures import URL
+from fastapi.security import HTTPBearer
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import StreamingResponse, PlainTextResponse, Response, JSONResponse
 from starlette.staticfiles import StaticFiles
-from starlette.status import HTTP_401_UNAUTHORIZED
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 # Сторонние библиотеки для работы с файлами, датами и временем
@@ -58,7 +51,7 @@ import bcrypt
 
 # Другие сторонние библиотеки
 from pydantic import BaseModel
-from requests import Session, request
+
 
 import mimetypes
 from pydantic.json import Union
@@ -2898,6 +2891,18 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
 
     return messages
 
+async def get_dialog_history(dialog_id: int, user_id: int) -> dict:
+    redirect, dialog, messages = await get_dialog_and_messages(dialog_id, user_id)
+    if redirect:
+        return {"error": "Redirect or some other issue"}
+
+    dialog_history = {
+        "dialog": dialog,
+        "messages": messages
+    }
+    return dialog_history
+
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[int, Dict[str, Dict[str, Any]]] = {}
@@ -3056,9 +3061,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
 
         # Добавленное логирование для отладки
         if access_token:
-            logging.info(f"Received token: {access_token}")  
+            logging.info(f"Received token: {access_token}")
         else:
-            logging.warning("No token received.")  
+            logging.warning("No token received.")
 
         if access_token is None:
             logging.warning("Missing token. Closing the WebSocket.")
@@ -3096,12 +3101,26 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         # Подключение к менеджеру
         await manager.connect(websocket, user_id, "some_room")
 
+
         # Основной цикл для приема и отправки сообщений
         while True:
             data = await websocket.receive_text()
+            messageData = json.loads(data)
+            action = messageData.get('action')
             logging.info(f"Received data from user {user_id}: {data}")
-            await manager.send_message(f"User {user_id} said: {data}", user_id, "some_room")
 
+            if action == "get_dialog_history":  # Новый блок кода
+                dialog_id = messageData.get("dialog_id")
+                if dialog_id:
+                    dialog_history = await get_dialog_history(dialog_id, user_id)  # предполагается, что эту функцию нужно реализовать
+                    await websocket.send_json({"action": "dialog_history", "history": dialog_history})
+            elif action == "get_initial_messages":
+                dialog_id = messageData.get("dialog_id")
+                if dialog_id:
+                    messages = await get_messages_from_dialog(dialog_id)
+                    await websocket.send_json({"action": "initial_messages", "messages": messages})
+            else:
+                await manager.send_message(f"User {user_id} said: {data}", user_id, "some_room")
     except WebSocketDisconnect:
         logging.info("WebSocket disconnected. Attempting to reconnect.")
         # Здесь должны быть определены `manager` и `room`, если вы их используете
@@ -3153,53 +3172,80 @@ async def get_websocket_token(websocket: WebSocket, phone_number: Optional[str] 
 async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User):
     try:
         logging.info(f"Handling dialog message from user {current_user.id} in dialog {dialog_id}: {message_content}")
+
+        # Получаем текущее время в формате строки
+        current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Вставляем сообщение в базу данных
         query = dialog_messages.insert().values(
             dialog_id=dialog_id,
             sender_id=current_user.id,
-            message=message_content
+            message=message_content,
+            timestamp=current_time  # Убедитесь, что у вас есть поле timestamp в таблице dialog_messages
         )
         result = await database.execute(query)
-        logging.info(f"Message saved to database with result: {result}")
+
+        if result:
+            logging.info(f"Message successfully saved in the database with result: {result}")
+        else:
+            logging.warning("Message was not saved in the database.")
+
+        # Получаем информацию о диалоге
         dialog_query = dialogs.select().where(dialogs.c.id == dialog_id)
         dialog_data = await database.fetch_one(dialog_query)
+
         if dialog_data:
-            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data[
-                "user2_id"]
+            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data["user2_id"]
             room = f"dialog_{dialog_id}"
+
+            # Формируем данные сообщения для отправки
+            message_data = {
+                "action": "new_message",
+                "dialog_id": dialog_id,
+                "message": message_content,
+                "sender_id": current_user.id,
+                "timestamp": current_time  # Добавляем время
+            }
+
+            # Отправляем сообщение
+            await manager.send_message_to_room(f"user_{recipient_id}", json.dumps(message_data))
             await manager.send_message_to_room(f"user_{current_user.id}", json.dumps({
                 "action": "new_message",
-                "dialog_id": dialog_id
+                "dialog_id": dialog_id,
+                "timestamp": current_time  # Добавляем время
             }))
+
     except Exception as e:
         logging.error(f"An error occurred while handling dialog message: {e}")
         logging.exception(e)
 
-
 async def handle_chat_message(chat_id: int, message_content: str, current_user: User):
     try:
         logging.info(f"Starting to handle chat message from user {current_user.phone_number} in chat {chat_id}.")
+        current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
         query = chatmessages.insert().values(
             chat_id=chat_id,
             sender_phone_number=current_user.phone_number,
-            message=message_content
+            message=message_content,
+            timestamp=current_time  # убедитесь, что у вас есть такое поле в базе данных
         )
+
         result = await database.execute(query)
         logging.info(f"Message saved to database with result: {result}")
+
         room = f"chat_{chat_id}"
-
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
         message_data = {
             "action": "new_message",
-            "message": message_content,  # теперь это будет включать мета-информацию о файле
+            "message": message_content,
             "sender_phone_number": current_user.phone_number,
-            "timestamp": current_time
+            "timestamp": current_time  # добавляем время
         }
+
         await manager.send_message_to_room(room, json.dumps(message_data))
-
-
     except Exception as e:
         logging.error(f"An error occurred while handling chat message: {e}")
+
 
 async def handle_heartbeat(websocket: WebSocket, last_heartbeat, interval=30):
     current_time = datetime.utcnow()
@@ -3249,14 +3295,23 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
 
             data = await websocket.receive_text()
             received_data = json.loads(data)
-            print("Received data:", received_data)  # Отладочная строка
             action = received_data.get('action')
 
             if action == 'init_connection':
                 logging.info(f"Initializing connection for room {room_name} and user {user.id}")
+
             elif action == 'send_message':
                 message = received_data.get('message')
                 logging.info(f"Received message from user {user.id}: {message}")
+
+                if "dialog" in room_name:
+                    dialog_id = int(room_name.split("_")[1])
+                    await handle_dialog_message(dialog_id, message, user)
+
+                elif "chat" in room_name:
+                    chat_id = int(room_name.split("_")[1])
+                    await handle_chat_message(chat_id, message, user)
+
                 await manager.send_message_to_room(
                     room_name,
                     json.dumps({
@@ -3269,7 +3324,7 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
             else:
                 logging.warning("Unsupported action or user is not the author or the chat admin")
     except WebSocketDisconnect:
-        manager.disconnect(websocket, room_name)
+        manager.disconnect(user.id, room_name)
         logging.warning(f"WebSocket disconnected for user {user.id}")
 
 
