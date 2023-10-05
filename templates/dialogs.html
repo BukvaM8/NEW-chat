@@ -10,6 +10,7 @@
             background-color: #ECE5DD;
             font-family: Times New Roman, sans-serif;
         }
+
         .container {
             height: 100%;
         }
@@ -17,79 +18,93 @@
             height: calc(50vh - 100px);
             overflow-y: auto;
         }
+
+        .interlocutor-info {
+        background-color: white;
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        }
+        .interlocutor-info img {
+        border-radius: 50%;
+        }
+        .interlocutor-details {
+        margin-left: 10px;
+        }
+        .message-item {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .message-item.user {
+        justify-content: flex-end;
+    }
+    .message-item .message-content {
+        background-color: #f1f1f1;
+        padding: 10px;
+        border-radius: 10px;
+    }
+    .message-item.user .message-content {
+        background-color: #4CAF50;
+        color: white;
+    }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic" width="50" height="50">
-        <h1 class="text-center" style="font-size: 1.5em;">Диалог с {{ dialog.interlocutor_phone_number }}</h1>
-        <h2 class="text-center" style="font-size: 1.2em;">Был(а) онлайн: {{ dialog.last_online }}</h2>
-        <div class="mt-4 messages-container">
-            <h3>Сообщения:</h3>
-            <ul class="list-group">
-                {% for message in messages %}
+<div class="container mt-5">
+    <div class="interlocutor-info mb-4">
+        <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}" alt="Interlocutor's profile picture" width="50" height="50">
+        <div class="interlocutor-details">
+            <h5>{{ dialog.interlocutor_phone_number }}</h5>
+            <small>Онлайн: {{ dialog.last_online }}</small>
+        </div>
+    </div>
+    <div class="mt-4 messages-container">
+        <ul class="list-group">
+            {% for message in messages %}
                 {% if not message.delete_timestamp %}
-                <li class="list-group-item">
-                    <strong>{{ message.sender_id }}:</strong>
-                    {% if '[[FILE]]' in message.message %}
-                    <!-- Your code for handling files -->
-                    {% else %}
-                    {{ message.message }}
-                    {% endif %}
-                    <br>
-                    <small>Отправлено: {{ message.timestamp }}</small>
-                    {% if message.sender_id == current_user.id %}
-                    <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post" class="d-inline">
-                        <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-                        <input type="hidden" name="message_id" value="{{ message.id }}">
-                        <button type="submit" class="btn btn-link btn-sm p-0 ml-2">
-                            <img src="/static/trash-icon.png" alt="Delete" width="20" height="20">
-                        </button>
-                    </form>
-                    <button type="button" class="btn btn-link btn-sm p-0 ml-2" data-toggle="modal" data-target="#forwardMessageModal">
-                        <img src="/forward-icon.png" alt="Forward" width="20" height="20">
-                    </button>
-                    {% endif %}
-                </li>
+                    <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}">
+                        <div class="message-content">
+                            <strong>{{ message.sender_id }}:</strong>
+                            {% if '[[FILE]]' in message.message %}
+                                <!-- Your code for handling files -->
+                            {% else %}
+                                {{ message.message }}
+                            {% endif %}
+                            <br>
+                            <small>Отправлено: {{ message.timestamp }}</small>
+                        </div>
+                        {% if message.sender_id == current_user.id %}
+                            <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post" class="d-inline">
+                                <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+                                <input type="hidden" name="message_id" value="{{ message.id }}">
+                                <button type="submit" class="btn btn-link btn-sm p-0 ml-2">
+                                    <img src="/static/trash-icon.png" alt="Delete" width="20" height="20">
+                                </button>
+                            </form>
+                        {% endif %}
+                    </li>
                 {% endif %}
-                {% endfor %}
-            </ul>
-        </div>
-        <div class="modal fade" id="forwardMessageModal" tabindex="-1" role="dialog" aria-labelledby="forwardMessageModalLabel" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="forwardMessageModalLabel">Forward Message</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <!-- List of chats and dialogs to forward the message can be added here -->
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary">Forward</button>
-                    </div>
-                </div>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="mt-4">
+        <form id="message-form">
+            <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+            <input type="hidden" name="sender_id" value="{{ current_user.id }}">
+            <div class="form-group">
+                <textarea name="message" class="form-control" rows="4"></textarea>
             </div>
-        </div>
-        <div class="mt-4">
-            <h3>Сообщения:</h3>
-            <form id="message-form">
-                <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-                <input type="hidden" name="sender_id" value="{{ current_user.id }}">
-                <div class="form-group">
-                    <textarea name="message" class="form-control" rows="4"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="file">Attach files (up to 10):</label>
-                    <input type="file" id="file" name="file" class="form-control-file" multiple>
-                </div>
-                <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
-            </form>
-        </div>
-        <div class="mt-4">
+            <div class="form-group">
+                <label for="file">Attach files (up to 10):</label>
+                <input type="file" id="file" name="file" class="form-control-file" multiple>
+            </div>
+            <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
+        </form>
+    </div>
+    <div class="mt-4">
             <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
         </div>
     </div>
@@ -109,30 +124,25 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        // Создаем объект FormData для сбора данных формы
         const formData = new FormData(form);
 
-        // Здесь можно добавить AJAX-запрос для отправки данных на сервер
-        // Например, с использованием fetch API:
         fetch(`/dialogs/${dialogId}/send_message`, {
-        method: 'POST',
-        body: formData
+            method: 'POST',
+            body: formData
         })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                } else {
-                    throw new Error('Failed to send message');
-                }
-            })
-            .then(data => {
-                // Здесь ваш код для обработки ответа сервера, если нужно
-                // Очищаем поле ввода сообщения
-                form.querySelector('textarea[name="message"]').value = '';
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error('Failed to send message');
+            }
+        })
+        .then(data => {
+            form.querySelector('textarea[name="message"]').value = '';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
     });
 
     ws.onmessage = function(event) {
@@ -149,35 +159,40 @@ document.addEventListener('DOMContentLoaded', function() {
         if (action === 'new_token') {
             document.cookie = "access_token=" + messageData.token;
         } else if (action === 'initial_messages') {
-            // Обработка начальных сообщений
-            // Здесь можно добавить сообщения в список на клиенте
+            // Handle initial messages
         } else if (action === 'refresh_token') {
-            // Обработка обновления токена
-            // Здесь можно обновить токен в cookie или выполнить другие действия
+            // Handle token refresh
         } else {
             const messagesList = document.querySelector('.list-group');
             if (messageData.message && messageData.message.sender_id) {
                 const newMessage = document.createElement('li');
-                newMessage.className = "list-group-item";
+                newMessage.className = "message-item"; // Changed from "list-group-item" to "message-item"
+
+                if (messageData.message.sender_id === "{{ current_user.id }}") {
+                    newMessage.classList.add("user");
+                }
+
+                const messageContent = document.createElement('div');
+                messageContent.className = "message-content";
 
                 const senderId = messageData.message.sender_id;
                 const rawMessage = messageData.message.message;
+                const strongElement = document.createElement('strong');
+                strongElement.innerText = senderId + ":";
+                messageContent.appendChild(strongElement);
 
                 if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                    const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-                    const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-                    const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-                    const fileId = fileIdInfo.split(': ')[1];
-                    const fileName = fileNameInfo.split(': ')[1];
-                    newMessage.innerHTML = `<strong>${senderId}:</strong> ${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
+                    // Your code for handling files
                 } else {
-                    newMessage.innerHTML = `<strong>${senderId}:</strong> ${rawMessage}<br>`;
+                    const textNode = document.createTextNode(" " + rawMessage);
+                    messageContent.appendChild(textNode);
                 }
 
                 const timeElement = document.createElement("small");
                 timeElement.innerText = "Отправлено: " + (messageData.message.timestamp || "undefined");
-                newMessage.appendChild(timeElement);
+                messageContent.appendChild(timeElement);
 
+                newMessage.appendChild(messageContent);
                 messagesList.appendChild(newMessage);
             } else {
                 console.warn('Неожиданный формат сообщения: ', messageData);
@@ -185,6 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 });
+
 </script>
 </body>
 </html>
