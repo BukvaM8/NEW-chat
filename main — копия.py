@@ -19,7 +19,7 @@ import jwt
 from fastapi.params import Path
 from jose import JWTError
 from jwt import PyJWTError
-from sqlalchemy import  MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
+from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -29,9 +29,8 @@ from sqlalchemy.orm.sync import update
 from sqlalchemy.sql import select
 from databases import Database
 
-
 # Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
-from fastapi import  FastAPI, WebSocket, HTTPException, Depends, status, Form,  UploadFile, File
+from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, UploadFile, File
 
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -52,7 +51,6 @@ import bcrypt
 
 # Другие сторонние библиотеки
 from pydantic import BaseModel
-
 
 import mimetypes
 from pydantic.json import Union
