@@ -216,14 +216,37 @@
 </div>
 
 <div id="message-form" style="display: none;">
-    <input type="text" id="message-input" placeholder="Введите ваше сообщение">
+    <input type="text" id="message-input" name="message" placeholder="Введите ваше сообщение">
+    <input type="file" id="file-input" name="file"> <!-- Добавлено -->
     <button id="send-button">Отправить</button>
 </div>
 
-<script>
-let ws;  // WebSocket will be stored here
 
-// Function to set up event handlers for the dialog form
+<script>
+// Function for loading dialog history when opening
+function loadDialogHistory(dialogId) {
+    fetch(`/api/dialogs/${dialogId}`)
+        .then(response => response.json())
+        .then(data => {
+            displayInitialMessages(data.messages);
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+// Function to append new message to dialog history
+function appendNewMessage(messageData) {
+    const messagesList = document.querySelector('.list-group');
+    const newMessage = document.createElement('li');
+    newMessage.className = "list-group-item";
+    newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}`;
+    if (messageData.file) {
+        newMessage.innerHTML += `<br><a href="/files/${messageData.file}">${messageData.file}</a>`;
+    }
+    newMessage.innerHTML += `<br><small>Отправлено: ${messageData.timestamp}</small>`;
+    messagesList.appendChild(newMessage);
+}
+
+// Modified function to set up event handlers for the dialog form
 function setupDialogFormHandlers() {
     const form = document.getElementById('message-form');
     if (form) {
@@ -231,8 +254,15 @@ function setupDialogFormHandlers() {
             e.preventDefault();
             const formData = new FormData(form);
             const message = formData.get('message');
-            ws.send(JSON.stringify({ "action": "send_message", "message": message }));
-            form.querySelector('textarea[name="message"]').value = '';
+            let messageData = {
+                "action": "send_message",
+                "message": message
+            };
+
+            ws.send(JSON.stringify(messageData));
+
+            // Clear the form
+            form.reset();
         });
     }
 }
@@ -246,62 +276,34 @@ function setupWebSocket(dialogId) {
     ws.onopen = function(event) {
         console.log("WebSocket connection opened.");
         ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
+        loadDialogHistory(dialogId);
     };
 
     ws.onmessage = function(event) {
-        let messageData;
-        try {
-            messageData = JSON.parse(event.data);
-        } catch (e) {
-            console.error("Invalid JSON", e, event.data);
-            return;
-        }
-
+        let messageData = JSON.parse(event.data);
         const action = messageData.action;
 
         if (action === 'new_message') {
-            const messagesList = document.querySelector('.list-group');
-            const newMessage = document.createElement('li');
-            newMessage.className = "list-group-item";
-            newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}<br><small>Отправлено: ${messageData.timestamp}</small>`;
-            messagesList.appendChild(newMessage);
-        } else if (action === 'keep_alive') {
-            // Handle keep-alive messages
+            appendNewMessage(messageData);
         } else if (action === 'initial_messages') {
             displayInitialMessages(messageData.messages);
-        } else if (action === 'dialog_history') {
-            displayDialogHistory(messageData.history);
         } else {
             console.warn('Unexpected message format:', messageData);
         }
     };
 }
 
+// Function to display initial messages in a dialog
 function displayInitialMessages(messages) {
     const messagesList = document.querySelector('.list-group');
     messages.forEach(messageData => {
-        const newMessage = document.createElement('li');
-        newMessage.className = "list-group-item";
-        newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}<br><small>Отправлено: ${messageData.timestamp}</small>`;
-        messagesList.appendChild(newMessage);
+        appendNewMessage(messageData);
     });
-}
-
-// Функция для отображения истории диалога
-function displayDialogHistory(history) {
-    const historyContainer = document.getElementById('dialog-history');
-    if (historyContainer) {
-        let historyHtml = '<ul>';
-        history.messages.forEach(message => {
-            historyHtml += `<li><strong>${message.sender_id}:</strong> ${message.message} <small>(${message.timestamp})</small></li>`;
-        });
-        historyHtml += '</ul>';
-        historyContainer.innerHTML = historyHtml;
-    }
 }
 
 // Code to load the dialog when clicked
 document.addEventListener('DOMContentLoaded', function() {
+    setupDialogFormHandlers();
     const dialogLinks = document.querySelectorAll('.load-dialog');
     dialogLinks.forEach(link => {
         link.addEventListener('click', function(e) {
@@ -312,15 +314,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     const dialogPanel = document.querySelector('#dialog-container');
                     dialogPanel.innerHTML = data;
-                    setupDialogFormHandlers();  // Set up form handlers
-                    setupWebSocket(dialogId);   // Initialize WebSocket
+                    setupDialogFormHandlers();
+                    setupWebSocket(dialogId);
                 })
                 .catch(error => console.error('Error:', error));
         });
     });
 });
-
-</script>
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>

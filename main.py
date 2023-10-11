@@ -3302,7 +3302,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
 
             elif action == 'send_message':
                 message = received_data.get('message')
-                logging.info(f"Received message from user {user.id}: {message}")
+                file = received_data.get('file')  # Добавлено: Получение информации о файле
+                logging.info(f"Received message from user {user.id}: {message}, File: {file}")  # Добавлено: Логирование информации о файле
 
                 if "dialog" in room_name:
                     dialog_id = int(room_name.split("_")[1])
@@ -3317,6 +3318,7 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                     json.dumps({
                         "action": "new_message",
                         "message": message,
+                        "file": file,  # Добавлено: Включение информации о файле в сообщение
                         "sender_phone_number": user.phone_number,
                         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                     })
@@ -3326,7 +3328,6 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)
         logging.warning(f"WebSocket disconnected for user {user.id}")
-
 
 async def generic_websocket_endpoint(websocket: WebSocket, room_id: str, room_type: str):
     logging.info(f"=== WebSocket Endpoint: {room_type.capitalize()} ===")
