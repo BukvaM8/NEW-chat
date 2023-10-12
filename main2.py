@@ -6,13 +6,16 @@ import json
 import logging
 import mimetypes
 import os
+import smtplib
 import time
 from datetime import datetime, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from enum import Enum
 from operator import and_
+from random import randint
 from typing import List, Optional, Dict, Tuple, Any
 from urllib.parse import quote, unquote
-import uvicorn
 
 # Модули для работы с SQL базами данных
 import aiomysql
@@ -20,6 +23,8 @@ import aiomysql
 import bcrypt
 import jwt
 import pytz as pytz
+import requests
+import uvicorn
 # Сторонние библиотеки для работы с файлами, датами и временем
 from aiofile import async_open
 from databases import Database
@@ -90,7 +95,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Создаем сессию для взаимодействия с базой данных
 engine = create_async_engine(f"mysql+aiomysql://{USER}:{PASSWORD}@{HOST}/{DATABASE}")
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-
 
 db_url = f'mysql+mysqlconnector://{USER}:{PASSWORD.replace("@", "%40")}@{HOST}/{DATABASE}'
 
@@ -346,7 +350,7 @@ class Registration(Base):
 
 
 class Users(Base):
-    __tablename__ = 'new_users'
+    __tablename__ = 'users'
 
     nickname = Column(String, primary_key=True)
     email = Column(String)
@@ -1582,33 +1586,291 @@ async def logout(request: Request, current_user: User = Depends(get_current_user
     return response_redirect
 
 
-# Маршрут к странице регистрации
-@app.get("/register", response_class=HTMLResponse)
-async def register_form(request: Request):
-    # Этот маршрут отображает форму регистрации
-    return templates.TemplateResponse("register.html", {"request": request})
+@app.post("/registration", response_class=HTMLResponse)
+async def get_registration_form(request: Request):
+    message = request.query_params.get("message", "")
+
+    error_message = ""
+    if message == "CaptchaFailed":
+        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Капча не пройдена.</div>'
+    elif message == "ConfirmationFailed":
+        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Неверный код подтверждения.</div>'
+
+    form = f"""
+    <html>
+    <head>
+        <title>Регистрация пользователя</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    </head>
+    <body>
+        <div class="container mt-5">
+            <h2>Регистрация пользователя</h2>
+            {error_message}
+            <form method="post" action="/confirm-code" id="form">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+                <div class="g-recaptcha" data-sitekey="{SITE_KEY}"></div>
+                <br>
+                <button type="submit" class="btn btn-primary" id="submit-button">Подтвердить</button>
+            </form>
+        </div>
+    </body>
+   <script>
+        function onSubmit(token) {{
+            document.getElementById("g-recaptcha-response").value = token;
+            document.getElementById("form").submit();
+        }}
+        function onSubmit(token) {{
+            // При успешной проверке капчи, разблокировать отправку формы
+            document.getElementById("submit-button").removeAttribute("disabled");
+        }}
+
+        // Блокировка отправки формы при загрузке страницы
+        document.getElementById("form").addEventListener("submit", function (event) {{
+            if (grecaptcha.getResponse() === "") {{
+                event.preventDefault();
+                alert("Пожалуйста, пройдите капчу.");
+            }}
+        }});
+    </script>
+    </html>
+    """
+    return form
+
+
+@app.post("/confirm-code", response_class=HTMLResponse)
+async def confirm_code(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
+    form_data = await request.form()
+    captcha_response = form_data.get("g-recaptcha-response")
+
+    if not captcha_response:
+        return RedirectResponse("/registration?message=CaptchaFailed")
+
+    verify_url = f"https://www.google.com/recaptcha/api/siteverify?secret={CAPTCHA_SECRET_KEY}&response={captcha_response}"
+
+    response = requests.get(verify_url)
+    result = response.json()
+
+    if result["success"]:
+        code = str(randint(100000, 999999))
+
+        existing_registration = db.query(Registration).filter(Registration.email == email).first()
+        if existing_registration:
+            db.delete(existing_registration)
+
+        new_registration = Registration(email=email, confirmation_code=code)
+        db.add(new_registration)
+        db.commit()
+
+        send_email(email, code)
+
+        response = f"""
+            <html>
+            <head>
+                <title>Код подтверждения отправлен</title>
+                <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+            </head>
+            <body>
+                <div class="container mt-5">
+                    <h2>Код подтверждения отправлен</h2>
+                    <p>На ваш email отправлен код подтверждения. Пожалуйста, введите его ниже:</p>
+                    <form method="post" action="/make-login">
+                        <div class="form-group">
+                            <label for="code">Код подтверждения:</label>
+                            <input type="text" class="form-control" id="code" name="code" required>
+                            <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Подтвердить</button>
+                    </form>
+                </div>
+            </body>
+            </html>
+            """
+        return response
+    else:
+        return RedirectResponse("/registration?message=CaptchaFailed")
+
+
+@app.post("/make-login", response_class=HTMLResponse)
+async def confirm_registration(code: str = Form(...), email: str = Form(...), db: Session = Depends(get_db)):
+    results = db.query(Registration).filter(Registration.email == email).first()
+
+    if results is None or code != results.confirmation_code:
+        return RedirectResponse("/registration?message=ConfirmationFailed")
+
+    response = f"""
+    <html>
+    <head>
+        <title>Регистрация завершена</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    </head>
+    <body>
+         <div class="container mt-5">
+            <h2>Регистрация пользователя</h2>
+            <form method="post" action="/complete-register" id="form">
+                <h2>Вход</h2>
+                <div class="form-group">
+                    <label for="nickname">Логин:</label>
+                    <input type="text" id="nickname" name="nickname" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" class="form-control" required>
+                    <p id="passwordError" style="color: red; display: none;">Пароль должен содержать как минимум одну маленькую букву, одну большую букву, одну цифру И быть более 8 символов.</p>
+                    <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
+                </div>
+                <button type="submit" class="btn btn-primary" id="loginButton" disabled>Войти</button>
+            </form>
+        </div>
+    </body>
+    <script>
+        // Получите ссылки на элементы формы
+        var passwordInput = document.getElementById("password");
+        var loginButton = document.getElementById("loginButton");
+        var passwordError = document.getElementById("passwordError");
+        
+        // Добавьте обработчик события для ввода пароля
+        passwordInput.addEventListener("input", function () {{
+            // Получите значение введенного пароля
+            var password = passwordInput.value;
+
+            // Создайте регулярные выражения для проверки наличия маленькой, большой буквы и цифры
+            var lowerCaseRegex = /[a-z]/;
+            var upperCaseRegex = /[A-Z]/;
+            var digitRegex = /[0-9]/;
+
+            // Проверьте, что пароль соответствует всем требованиям
+            if (
+                lowerCaseRegex.test(password) &&
+                upperCaseRegex.test(password) &&
+                digitRegex.test(password) && password.length >= 8
+            ) {{
+                // Если пароль соответствует, сделайте кнопку кликабельной
+                loginButton.removeAttribute("disabled");
+                passwordError.style.display = "none";
+            }} else {{
+                // Если пароль не соответствует, сделайте кнопку некликабельной
+                loginButton.setAttribute("disabled", "disabled");
+                passwordError.style.display = "block";
+            }}
+        }});7
+    </script>
+    </html>
+    """
+    return response
+
+
+@app.post("/complete-register", response_class=HTMLResponse)
+async def confirm_registration(nickname: str = Form(...), email: str = Form(...), password: str = Form(...),
+                               db: Session = Depends(get_db)):
+    existing_user = db.query(Users).filter(Users.nickname == nickname).first()
+    if not existing_user:
+        await add_user("М", "", "", "", nickname, nickname, "", email, password)
+
+    response = f"""
+                <html>
+                <head>
+                    <title>Код подтверждения отправлен</title>
+                    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+                </head>
+                <body>
+                    <div class="container mt-5">
+                        <h2>Вы успешно зарегистрированы!</h2>
+                        <button type="button" class="btn btn-primary" onclick="window.location.href='/login'">Войти</button>
+                    </div>
+                </body>
+                </html>
+                """
+    return response
+
+
+def send_email(to_email, code):
+    subject = "Код подтверждения"
+    message = f"""
+        <html>
+        <head>
+          <style>
+            body {{
+              font-family: Arial, sans-serif;
+              background-color: #f4f4f4;
+              margin: 0;
+              padding: 0;
+              text-align: center;
+            }}
+            .container {{
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              background-color: #ffffff;
+              box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+              border-radius: 5px;
+            }}
+            h1 {{
+              color: #333;
+            }}
+            p {{
+              font-size: 18px;
+              color: #555;
+              margin: 10px 0;
+            }}
+            .code {{
+              font-size: 24px;
+              font-weight: bold;
+              color: #007BFF;
+            }}
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>Добро пожаловать на наш сайт!</h1>
+            <p>Для завершения регистрации, используйте следующий код:</p>
+            <p class="code">{code}</p>
+            <p>Если вы не регистрировались на нашем сайте, проигнорируйте это сообщение.</p>
+          </div>
+        </body>
+        </html>
+    """
+
+    msg = MIMEMultipart()
+    msg['From'] = SMTP_FROM
+    msg['To'] = to_email
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(message, 'html'))
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.sendmail(SMTP_FROM, to_email, msg.as_string())
+        server.quit()
+    except Exception as e:
+        print(f"Ошибка отправки письма: {str(e)}")
 
 
 # Маршрут для регистрации пользователя
-@app.post("/register")
-async def register_user(gender: str = Form(...),
-                        last_name: str = Form(...),
-                        first_name: str = Form(...),
-                        middle_name: str = Form(...),
-                        nickname: str = Form(...),
-                        phone_number: str = Form(...),
-                        position: str = Form(...),
-                        email: str = Form(...),
-                        password: str = Form(...)):
-    user_by_nickname = await get_user(nickname)
-    user_by_phone = await get_user_by_phone(phone_number)
-    if user_by_nickname:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    if user_by_phone:
-        raise HTTPException(status_code=400, detail="Phone number already registered")
-    await add_user(gender, last_name, first_name, middle_name, nickname, phone_number, position, email, password)
-    token = create_access_token(data={"sub": phone_number})
-    return {"access_token": token, "token_type": "bearer"}
+# @app.post("/register")
+# async def register_user(gender: str = Form(...),
+#                         last_name: str = Form(...),
+#                         first_name: str = Form(...),
+#                         middle_name: str = Form(...),
+#                         nickname: str = Form(...),
+#                         phone_number: str = Form(...),
+#                         position: str = Form(...),
+#                         email: str = Form(...),
+#                         password: str = Form(...)):
+#     user_by_nickname = await get_user(nickname)
+#     user_by_phone = await get_user_by_phone(phone_number)
+#     if user_by_nickname:
+#         raise HTTPException(status_code=400, detail="Username already registered")
+#     if user_by_phone:
+#         raise HTTPException(status_code=400, detail="Phone number already registered")
+#     await add_user(gender, last_name, first_name, middle_name, nickname, phone_number, position, email, password)
+#     token = create_access_token(data={"sub": phone_number})
+#     return {"access_token": token, "token_type": "bearer"}
 
 
 @app.get("/profile", response_class=HTMLResponse)

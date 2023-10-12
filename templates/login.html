@@ -54,7 +54,10 @@
                                 {{error}}
                             </div>
                         {% endif %}
-                        <p>If you don't have an account, <a href="/register">register here</a>.</p>
+                        <form method="post" action="/registration" id="form">
+                            <button type="submit" id="submit-button">Зарегистрироваться</button>
+                        </form>
+{#                        <p>If you don't have an account, <a href="/register">register here</a>.</p>#}
                     </div>
                 </div>
             </div>
