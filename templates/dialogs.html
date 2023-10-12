@@ -64,18 +64,28 @@
     <div class="mt-4 messages-container">
         <ul class="list-group">
             {% for message in messages %}
-                {% if not message.delete_timestamp %}
-                    <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}">
-                        <div class="message-content">
-                            <strong>{{ message.sender_id }}:</strong>
-                            {% if '[[FILE]]' in message.message %}
-                                <!-- Your code for handling files -->
-                            {% else %}
-                                {{ message.message }}
-                            {% endif %}
-                            <br>
-                            <small>Отправлено: {{ message.timestamp }}</small>
-                        </div>
+    {% if not message.delete_timestamp %}
+        <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}">
+            <div class="message-content">
+                <strong>{{ message.sender_id }}:</strong>
+                {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+                    {% set raw_message = message.message.split('[[FILE]]') %}
+                    {{ raw_message[0] }}
+                    {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
+                    {% set file_id_info, file_name_info = file_info.split(', ') %}
+                    {% set file_id = file_id_info.split(': ')[1] %}
+                    {% set file_name = file_name_info.split(': ')[1] %}
+                    <a href="/files/{{ file_id }}">{{ file_name }}</a>
+                {% elif message.message %}
+                    {{ message.message }}
+                {% else %}
+                    <!-- Сообщение пустое или удалено -->
+                {% endif %}
+                <br>
+
+                <small>Отправлено: {{ message.timestamp }}</small>
+            </div>
+
                         {% if message.sender_id == current_user.id %}
                             <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post" class="d-inline">
                                 <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
@@ -123,9 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('message-form');
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-
         const formData = new FormData(form);
-
         fetch(`/dialogs/${dialogId}/send_message`, {
             method: 'POST',
             body: formData
@@ -166,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const messagesList = document.querySelector('.list-group');
             if (messageData.message && messageData.message.sender_id) {
                 const newMessage = document.createElement('li');
-                newMessage.className = "message-item"; // Changed from "list-group-item" to "message-item"
+                newMessage.className = "message-item";
 
                 if (messageData.message.sender_id === "{{ current_user.id }}") {
                     newMessage.classList.add("user");
@@ -182,7 +190,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 messageContent.appendChild(strongElement);
 
                 if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                    // Your code for handling files
+                    const [text, fileInfo] = rawMessage.split('[[FILE]]');
+                    const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+                    const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+                    const fileId = fileIdInfo.split(': ')[1];
+                    const fileName = fileNameInfo.split(': ')[1];
+
+                    const textNode = document.createTextNode(" " + text);
+                    messageContent.appendChild(textNode);
+
+                    const fileLink = document.createElement('a');
+                    fileLink.href = `/files/${fileId}`;
+                    fileLink.innerText = fileName;
+                    messageContent.appendChild(fileLink);
                 } else {
                     const textNode = document.createTextNode(" " + rawMessage);
                     messageContent.appendChild(textNode);

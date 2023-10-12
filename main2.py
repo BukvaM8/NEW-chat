@@ -21,6 +21,7 @@ from urllib.parse import quote, unquote
 import aiomysql
 # Сторонние библиотеки для безопасности и хеширования паролей
 import bcrypt
+# Сторонние библиотеки для безопасности и хеширования паролей
 import jwt
 import pytz as pytz
 import requests
@@ -30,6 +31,8 @@ from aiofile import async_open
 from databases import Database
 # Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
 from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, UploadFile, File
+# Сторонние библиотеки для работы с файлами, датами и временем
+# Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
 # import room
 from fastapi.params import Path
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
@@ -41,6 +44,7 @@ from jwt import PyJWTError
 from pydantic import BaseModel
 from pydantic.json import Union
 from pytz import timezone
+# Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete, create_engine
 from sqlalchemy.exc import SQLAlchemyError
