@@ -18,7 +18,7 @@ import room
 from fastapi.params import Path
 from jose import JWTError
 from jwt import PyJWTError
-from sqlalchemy import  MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
+from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -28,9 +28,8 @@ from sqlalchemy.orm.sync import update
 from sqlalchemy.sql import select
 from databases import Database
 
-
 # Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
-from fastapi import  FastAPI, WebSocket, HTTPException, Depends, status, Form,  UploadFile, File
+from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, UploadFile, File
 
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -51,7 +50,6 @@ import bcrypt
 
 # Другие сторонние библиотеки
 from pydantic import BaseModel
-
 
 import mimetypes
 from pydantic.json import Union
@@ -334,6 +332,7 @@ async def get_user(phone_number: str):
     logging.info(f"User from database in get_user function: {user}")  # Debug info
     return user
 
+
 # Получает пользователя по номеру телефона.
 async def get_user_by_phone(phone_number: str):
     logging.info(f'Getting user by phone: {phone_number}')
@@ -345,18 +344,19 @@ async def get_user_by_phone(phone_number: str):
     logging.info(f'No user found for phone: {phone_number}')
     return None
 
+
 # Извлекает текущего пользователя из сессии.
 async def get_current_user(request: Request):
     access_token = request.cookies.get("access_token")
-    if access_token  is None:
+    if access_token is None:
         logging.warning("Token is missing.")
         return RedirectResponse(url="/login", status_code=303)
 
     try:
-        if is_token_expired(access_token , SECRET_KEY):
+        if is_token_expired(access_token, SECRET_KEY):
             logging.warning("Token has expired.")
             # Для данного случая, вам нужно извлечь user_id из истекшего токена
-            payload = jwt.decode(access_token , SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+            payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
             user_id = payload.get("sub")
 
             new_token = await validate_and_refresh_token(request, user_id)
@@ -384,7 +384,6 @@ async def get_current_user(request: Request):
         raise credentials_exception
 
 
-
 # Добавим новую функцию для извлечения номера телефона по user_id
 async def get_phone_number_by_user_id(user_id: int) -> Optional[str]:
     query = select([users.c.phone_number]).where(users.c.id == user_id)
@@ -401,7 +400,7 @@ async def get_phone_number_by_user_id(user_id: int) -> Optional[str]:
         return None
 
 
-#функцию для извлечениz user_id из базы данных по токену:
+# функцию для извлечениz user_id из базы данных по токену:
 async def get_user_id_by_token(access_token: str) -> Optional[int]:
     logging.info(f"Validating token: {access_token}")
     query = select([tokens.c.user_id]).where(tokens.c.token == access_token)
@@ -426,7 +425,6 @@ def is_token_expired(access_token, SECRET_KEY):
         return True
 
 
-
 # Создание доступного токена
 def create_access_token(data: dict, expires_delta: timedelta = None):
     try:
@@ -442,6 +440,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
         logging.error(f"Error in create_access_token: {e}")
         return None
 
+
 # Создание обновленного токена
 def create_refresh_token(data: dict, expires_delta: timedelta = None):
     try:
@@ -456,6 +455,7 @@ def create_refresh_token(data: dict, expires_delta: timedelta = None):
     except Exception as e:
         logging.error(f"Error in create_refresh_token: {e}")
 
+
 # Получение токена из запроса
 async def get_token(request: Request):
     logging.info('get_token called.')
@@ -469,6 +469,7 @@ async def get_token(request: Request):
         if phone_number:
             access_token = await get_token_from_db_by_phone_number(phone_number)
     return access_token
+
 
 # Проверка и валидация токена
 async def verify_and_validate_token(access_token: str):
@@ -551,13 +552,15 @@ async def update_access_token_in_db(old_access_token: str, new_access_token: str
 
 
 # Функция для сохранения токена в базе данных
-async def save_token_to_db(db: Database, user_id: int, access_token: str, expires_at: datetime):  # Изменен аргумент с 'token' на 'access_token'
+async def save_token_to_db(db: Database, user_id: int, access_token: str,
+                           expires_at: datetime):  # Изменен аргумент с 'token' на 'access_token'
     try:
         query = tokens.insert().values(user_id=user_id, token=access_token, expires_at=expires_at)
         await db.execute(query)
     except Exception as e:
         logging.error(f"An error occurred while saving token to database: {e}")
         raise HTTPException(status_code=500, detail="Could not save token to database")
+
 
 # Функция для сохранения обновленного токена в базе данных
 async def save_refresh_token_to_db(db: Database, user_id: int, refresh_token: str, expires_at: datetime):
@@ -646,6 +649,7 @@ async def is_token_in_db(phone_number: str) -> bool:
     logging.info(f"Token for phone number {phone_number} found in database: {bool(result)}")
     return bool(result)
 
+
 async def get_refresh_token_from_db_by_user_id(user_id: int) -> Optional[str]:
     logging.info(f"Getting refresh token from database by user ID: {user_id}")
     query = select([refresh_tokens.c.token]).where(refresh_tokens.c.user_id == user_id)
@@ -658,7 +662,8 @@ async def get_refresh_token_from_db_by_user_id(user_id: int) -> Optional[str]:
         return None
 
 
-async def validate_and_refresh_token(connection: Union[WebSocket, Request], user_id: int, request_type: str = "websocket"):
+async def validate_and_refresh_token(connection: Union[WebSocket, Request], user_id: int,
+                                     request_type: str = "websocket"):
     logging.info("=== Validating and Refreshing Token ===")
     logging.info(f"Validating and possibly refreshing token.")
 
@@ -676,7 +681,8 @@ async def validate_and_refresh_token(connection: Union[WebSocket, Request], user
 
         if not is_valid:
             logging.warning(f"Token is invalid. Trying to refresh using refresh token for user {user_id}.")
-            refresh_token = await get_refresh_token_from_db_by_user_id(user_id)  # Use user_id to fetch the refresh token
+            refresh_token = await get_refresh_token_from_db_by_user_id(
+                user_id)  # Use user_id to fetch the refresh token
 
             if refresh_token:
                 phone_number, is_valid = await verify_and_validate_token(refresh_token)
@@ -758,6 +764,7 @@ async def get_current_websocket(websocket: WebSocket):
     logging.info(f"Getting current WebSocket: {websocket}")
     return websocket
 
+
 async def get_token_from_db_by_phone_number(phone_number: str) -> Optional[str]:
     logging.info(f"Getting token from database by phone number: {phone_number}")
     query = select([tokens.c.token]).join(users).where(users.c.phone_number == phone_number)
@@ -806,6 +813,7 @@ async def get_current_user_from_websocket(websocket: WebSocket) -> Optional[User
         return None
 
     return user
+
 
 # Проверяет, является ли хеш пароля действительным (соответствует формату bcrypt).
 def is_password_hash_valid(password_hash: str):
@@ -1022,7 +1030,9 @@ async def search_chat_members(request: Request, chat_id: int, search_user: str,
     members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
 
     # Возвращаем search_results только если поисковый запрос был выполнен
-    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info, "current_user": current_user,"search_results": search_results})
+    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info,
+                                                           "current_user": current_user,
+                                                           "search_results": search_results})
 
 
 # Удаляет пользователя из чата.
@@ -1063,7 +1073,6 @@ async def remove_chat_member(chat_id: int, phone_number: str,
     await send_member_count_update(chat_id, member_count)
 
     return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=status.HTTP_303_SEE_OTHER)
-
 
 
 async def create_poll(chat_id: int, creator_phone_number: str, question: str, options: List[str]):
@@ -1382,6 +1391,7 @@ async def delete_message(
 
     return RedirectResponse(url=f"/chats/{chat_id}", status_code=303)
 
+
 # БЛОК МАРШРУТЫ
 async def get_current_user_from_request(request: Request) -> Optional[UserInDB]:
     token = request.cookies.get("access_token")  # Извлечение токена из куки
@@ -1464,7 +1474,6 @@ async def login_user(request: Request, phone_number: str = Form(...), password: 
         response_redirect = RedirectResponse(url="/home", status_code=303)
         response_redirect.set_cookie(key="access_token", value=access_token, httponly=True)
         return response_redirect
-
 
 
 # Маршрут для выхода из системы
@@ -1641,7 +1650,6 @@ async def delete_profile_picture(request: Request):
 
     await update_user_profile_picture(phone_number, "images/default.jpg")
     return RedirectResponse(url="/profile", status_code=303)
-
 
 
 @app.post("/profile/update")
@@ -1863,7 +1871,10 @@ async def read_chat(request: Request, chat_id: int,
                         query="SELECT * FROM PollVotes WHERE poll_id = :poll_id AND voter_phone_number = :voter_phone_number",
                         values={"poll_id": poll_id, "voter_phone_number": current_user.phone_number}))
 
-    return templates.TemplateResponse("chat.html", {"request": request, "chat": chat, "messages": messages, "polls": polls, "poll_results": poll_results, "user_voted": user_voted,  "current_user": current_user})
+    return templates.TemplateResponse("chat.html",
+                                      {"request": request, "chat": chat, "messages": messages, "polls": polls,
+                                       "poll_results": poll_results, "user_voted": user_voted,
+                                       "current_user": current_user})
 
 
 # Маршрут к странице создания нового чата
@@ -1973,7 +1984,8 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
     file_name = None
     if file and file.filename:
         file_content = await file.read()
-        file_id = await save_file(current_user.phone_number, file.filename, file_content, os.path.splitext(file.filename)[1])
+        file_id = await save_file(current_user.phone_number, file.filename, file_content,
+                                  os.path.splitext(file.filename)[1])
         file_name = file.filename
 
     # Преобразуем None в пустую строку, если пользователь не предоставил текст сообщения
@@ -2001,11 +2013,12 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
 
     # Отправляем сообщение через WebSocket
     room = f"chat_{chat_id}"
-    #await manager.send_message_to_room(room, json.dumps({"action": "send_message", "message": new_message}))
+    # await manager.send_message_to_room(room, json.dumps({"action": "send_message", "message": new_message}))
 
     websocket = manager.get_connection(current_user.id, f"chat_{chat_id}")
     if websocket:
-        await manager.send_message_to_room(f"chat_{chat_id}", json.dumps({"type": "new_message", "message": new_message}))
+        await manager.send_message_to_room(f"chat_{chat_id}",
+                                           json.dumps({"type": "new_message", "message": new_message}))
     else:
         logging.warning(f"No active connections found for room chat_{chat_id}")
 
@@ -2672,7 +2685,8 @@ async def update_last_online(user_id: int):
 
 # Обработчик отправки сообщения в диалог
 @app.post("/dialogs/{dialog_id}/send_message")
-async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file: UploadFile = File(None), current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file: UploadFile = File(None),
+                                 current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -2722,13 +2736,15 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
 
     websocket = manager.get_connection(current_user.id, room)  # Изменил на переменную room
     if websocket and isinstance(websocket, WebSocket) and websocket.client_state == WebSocketState.CONNECTED:
-        await manager.send_message_to_room(room, json.dumps({"type": "new_message", "message": new_message}))  # Изменил на переменную room
+        await manager.send_message_to_room(room, json.dumps(
+            {"type": "new_message", "message": new_message}))  # Изменил на переменную room
     else:
         logging.warning(f"No active connections found for room {room}")  # Изменил на переменную room
 
     await update_last_online(sender_id)
 
     return JSONResponse(content={"message": "Message sent successfully", "dialog_id": dialog_id})
+
 
 @app.get("/create_dialog/{user_id}")
 @app.post("/create_dialog/{user_id}")
@@ -2891,6 +2907,7 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
 
     return messages
 
+
 async def get_dialog_history(dialog_id: int, user_id: int) -> dict:
     redirect, dialog, messages = await get_dialog_and_messages(dialog_id, user_id)
     if redirect:
@@ -3037,7 +3054,9 @@ class ConnectionManager:
 manager = ConnectionManager()
 # Запуск метода keep_alive в фоне
 asyncio.create_task(manager.keep_alive())
-#Функция, которая будет отправлять обновленное число участников:
+
+
+# Функция, которая будет отправлять обновленное число участников:
 async def send_member_count_update(chat_id: int, count: int):
     room = f"chat_{chat_id}"
     message_data = {
@@ -3045,6 +3064,7 @@ async def send_member_count_update(chat_id: int, count: int):
         "count": count
     }
     await manager.send_message_to_room(room, json.dumps(message_data))
+
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
@@ -3101,7 +3121,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         # Подключение к менеджеру
         await manager.connect(websocket, user_id, "some_room")
 
-
         # Основной цикл для приема и отправки сообщений
         while True:
             data = await websocket.receive_text()
@@ -3112,7 +3131,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             if action == "get_dialog_history":  # Новый блок кода
                 dialog_id = messageData.get("dialog_id")
                 if dialog_id:
-                    dialog_history = await get_dialog_history(dialog_id, user_id)  # предполагается, что эту функцию нужно реализовать
+                    dialog_history = await get_dialog_history(dialog_id,
+                                                              user_id)  # предполагается, что эту функцию нужно реализовать
                     await websocket.send_json({"action": "dialog_history", "history": dialog_history})
             elif action == "get_initial_messages":
                 dialog_id = messageData.get("dialog_id")
@@ -3131,6 +3151,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
         await websocket.close(code=4002)
+
 
 async def get_websocket_token(websocket: WebSocket, phone_number: Optional[str] = None):
     logging.info("=== Getting WebSocket Token ===")
@@ -3166,6 +3187,8 @@ async def get_websocket_token(websocket: WebSocket, phone_number: Optional[str] 
         logging.error(f"An error occurred while getting the WebSocket token: {e}")
         await websocket.close(code=4002)
         return None
+
+
 #
 #
 #
@@ -3195,7 +3218,8 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
         dialog_data = await database.fetch_one(dialog_query)
 
         if dialog_data:
-            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data["user2_id"]
+            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data[
+                "user2_id"]
             room = f"dialog_{dialog_id}"
 
             # Формируем данные сообщения для отправки
@@ -3218,6 +3242,7 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
     except Exception as e:
         logging.error(f"An error occurred while handling dialog message: {e}")
         logging.exception(e)
+
 
 async def handle_chat_message(chat_id: int, message_content: str, current_user: User):
     try:
@@ -3253,6 +3278,7 @@ async def handle_heartbeat(websocket: WebSocket, last_heartbeat, interval=30):
         await websocket.send_text("heartbeat")
         return current_time
     return last_heartbeat
+
 
 # В этом методе добавим автоматическое обновление токенов
 async def handle_token_refresh(websocket: WebSocket, user_id, last_token_refresh, interval=3600):
@@ -3342,19 +3368,21 @@ async def generic_websocket_endpoint(websocket: WebSocket, room_id: str, room_ty
     logging.info(f"WebSocket accepted for user {user.id} in room {room_name}")
     await common_websocket_endpoint_logic(websocket, room_name, user, manager)
 
+
 # Функция для чатов
 @app.websocket("/ws/chats/{chat_id}/")
 async def chat_websocket_endpoint(websocket: WebSocket, chat_id: str):
     await generic_websocket_endpoint(websocket, chat_id, "chat")
 
+
 @app.websocket("/ws/dialogs/{dialog_id}/")
 async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: str):
     await generic_websocket_endpoint(websocket, dialog_id, "dialog")
 
+
 @app.websocket("/ws/main_page/{user_id}/")
 async def main_page_websocket_endpoint(websocket: WebSocket, user_id: int):
     await generic_websocket_endpoint(websocket, user_id, "main_page")
-
 
 
 # Обработчик ошибок
