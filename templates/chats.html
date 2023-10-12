@@ -226,16 +226,28 @@
 // Function for loading dialog history when opening
 function loadDialogHistory(dialogId) {
     fetch(`/api/dialogs/${dialogId}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             displayInitialMessages(data.messages);
         })
-        .catch(error => console.error('Error:', error));
+        .catch(error => {
+            console.error('Error:', error);
+        });
 }
 
 // Function to append new message to dialog history
 function appendNewMessage(messageData) {
     const messagesList = document.querySelector('.list-group');
+    if (!messagesList) {
+        console.error('No messages list found');
+        return;
+    }
+
     const newMessage = document.createElement('li');
     newMessage.className = "list-group-item";
     newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}`;
@@ -254,10 +266,15 @@ function setupDialogFormHandlers() {
             e.preventDefault();
             const formData = new FormData(form);
             const message = formData.get('message');
+            const file = formData.get('file');
             let messageData = {
                 "action": "send_message",
                 "message": message
             };
+
+            if (file) {
+                messageData.file = file.name;
+            }
 
             ws.send(JSON.stringify(messageData));
 
@@ -274,7 +291,7 @@ function setupWebSocket(dialogId) {
     ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
     ws.onopen = function(event) {
-        console.log("WebSocket connection opened.");
+        console.log("WebSocket connection opened.", event);
         ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
         loadDialogHistory(dialogId);
     };
