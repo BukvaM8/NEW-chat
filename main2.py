@@ -315,6 +315,8 @@ class User(Base):
     phone_number = Column(String, unique=True, index=True)
     password = Column(String)
 
+    nickname = Column(String, primary_key=True)
+    email = Column(String)
 
 class UserInDB(BaseModel):
     id: int
@@ -351,14 +353,6 @@ class Registration(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String)
     confirmation_code = Column(String)
-
-
-class Users(Base):
-    __tablename__ = 'users'
-
-    nickname = Column(String, primary_key=True)
-    email = Column(String)
-    password = Column(String)
 
 
 class MyJinja2Templates(Jinja2Templates):
@@ -1605,12 +1599,18 @@ async def get_registration_form(request: Request):
     <head>
         <title>Регистрация пользователя</title>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <style>
+            .container {{
+                max-width: 600px;
+            }}
+        </style>
         <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     </head>
     <body>
         <div class="container mt-5">
             <h2>Регистрация пользователя</h2>
             {error_message}
+            <br>
             <form method="post" action="/confirm-code" id="form">
                 <div class="form-group">
                     <label for="email">Email:</label>
@@ -1676,6 +1676,11 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
             <head>
                 <title>Код подтверждения отправлен</title>
                 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+                <style>
+                    .container {{
+                        max-width: 600px;
+                    }}
+                </style>
             </head>
             <body>
                 <div class="container mt-5">
@@ -1710,6 +1715,11 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
     <head>
         <title>Регистрация завершена</title>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <style>
+            .container {{
+                max-width: 600px;
+            }}
+        </style>
     </head>
     <body>
          <div class="container mt-5">
@@ -1770,7 +1780,7 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
 @app.post("/complete-register", response_class=HTMLResponse)
 async def confirm_registration(nickname: str = Form(...), email: str = Form(...), password: str = Form(...),
                                db: Session = Depends(get_db)):
-    existing_user = db.query(Users).filter(Users.nickname == nickname).first()
+    existing_user = db.query(User).filter(User.nickname == nickname).first()
     if not existing_user:
         await add_user("М", "", "", "", nickname, nickname, "", email, password)
 
@@ -1779,6 +1789,11 @@ async def confirm_registration(nickname: str = Form(...), email: str = Form(...)
                 <head>
                     <title>Код подтверждения отправлен</title>
                     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+                    <style>
+                        .container {{
+                            max-width: 600px;
+                        }}
+                    </style>
                 </head>
                 <body>
                     <div class="container mt-5">
