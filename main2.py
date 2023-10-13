@@ -3033,6 +3033,7 @@ async def update_last_online(user_id: int):
 @app.post("/dialogs/{dialog_id}/send_message")
 async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file: UploadFile = File(None),
                                  current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    print(f"Preparing to send message to dialog {dialog_id} from user {current_user.id}: {message}")  # Добавлено логирование
     if isinstance(current_user, RedirectResponse):
         return current_user
 
@@ -3055,9 +3056,11 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     file_name = None
 
     if file and file.filename:
+        print(f"Preparing to process file {file.filename}")  # Добавлено логирование
         file_content = await file.read()
         file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
         file_name = file.filename
+        print(f"File processed {file.filename}")
 
     if file_id and file_name:
         file_info = f' [[FILE]]File ID: {file_id}, File Name: {file_name}[[/FILE]]'
@@ -3087,6 +3090,7 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     await update_last_online(sender_id)
 
     return JSONResponse(content={"message": "Message sent successfully", "dialog_id": dialog_id})
+    print(f"Message sent to dialog {dialog_id} from user {current_user.id}: {message}")  # Добавлено логирование
 
 
 @app.get("/create_dialog/{user_id}")
@@ -3487,16 +3491,17 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         await websocket.close(code=4002)
 
 async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User, file_id=None, file_name=None):
-    try:
-        logging.info(f"Handling dialog message from user {current_user.id} in dialog {dialog_id}: {message_content}")
+    logging.info(f"Preparing to handle dialog message in dialog {dialog_id} from user {current_user.id}: {message_content}")
 
+    try:
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Сохранение сообщения в базу данных
         query = dialog_messages.insert().values(
             dialog_id=dialog_id,
             sender_id=current_user.id,
             message=message_content,
-            file_id=file_id,  # новое поле
+            file_id=file_id,  # сохраняем информацию о файле
             timestamp=current_time
         )
         result = await database.execute(query)
@@ -3509,31 +3514,27 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
         dialog_query = dialogs.select().where(dialogs.c.id == dialog_id)
         dialog_data = await database.fetch_one(dialog_query)
 
-        if dialog_data:
-            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data["user2_id"]
-            room = f"dialog_{dialog_id}"
+        recipient_id = dialog_data['user1_id'] if current_user.id == dialog_data['user2_id'] else dialog_data['user2_id']
 
-            message_data = {
-                "action": "new_message",
-                "dialog_id": dialog_id,
-                "message": message_content,
-                "sender_id": current_user.id,
-                "timestamp": current_time
-            }
+        # Подготовка данных для отправки через вебсокет
+        message_data = {
+            "action": "new_message",
+            "dialog_id": dialog_id,
+            "message": message_content,
+            "file_id": file_id,  # добавляем информацию о файле
+            "file_name": file_name,  # добавляем информацию о файле
+            "timestamp": current_time
+        }
 
-            if file_id and file_name:
-                message_data["file_id"] = file_id
-                message_data["file_name"] = file_name
+        # Отправка сообщения получателю
+        await manager.send_message_to_room(f"user_{recipient_id}", json.dumps(message_data))
 
-            # Sending message to recipient
-            await manager.send_message_to_room(f"user_{recipient_id}", json.dumps(message_data))
-
-            # Confirmation for the sender
-            await manager.send_message_to_room(f"user_{current_user.id}", json.dumps({
-                "action": "new_message",
-                "dialog_id": dialog_id,
-                "timestamp": current_time
-            }))
+        # Подтверждение для отправителя
+        await manager.send_message_to_room(f"user_{current_user.id}", json.dumps({
+            "action": "new_message",
+            "dialog_id": dialog_id,
+            "timestamp": current_time
+        }))
 
     except Exception as e:
         logging.error(f"An error occurred while handling dialog message: {e}")

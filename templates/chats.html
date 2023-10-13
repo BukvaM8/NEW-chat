@@ -223,49 +223,63 @@
 
 
 <script>
-// Function for loading dialog history when opening
+// Функция для загрузки истории диалога
 function loadDialogHistory(dialogId) {
     fetch(`/api/dialogs/${dialogId}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                console.error(`Ошибка при загрузке диалога: ${response.status} ${response.statusText}`);
+                return;
             }
-            return response.json();
+            if (response.headers.get('Content-Type').includes('application/json')) {
+                return response.json();
+            } else {
+                throw new Error('Received non-JSON response');
+            }
         })
         .then(data => {
-            displayInitialMessages(data.messages);
+            // обработка данных
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('Ошибка при загрузке:', error);
         });
 }
 
-// Function to append new message to dialog history
+// Функция для добавления нового сообщения в чат
 function appendNewMessage(messageData) {
     const messagesList = document.querySelector('.list-group');
     if (!messagesList) {
-        console.error('No messages list found');
+        console.error('Список сообщений не найден');
         return;
     }
 
-    // Make the list visible (if needed)
-    messagesList.style.display = "block";
+    messagesList.style.display = "block";  // делаем список видимым
 
     const newMessage = document.createElement('li');
     newMessage.className = "list-group-item";
-    newMessage.innerHTML = `<strong>${messageData.sender_phone_number || messageData.sender_id}:</strong> ${messageData.message}`;
 
-    if (messageData.file_id && messageData.file_name) {
-        newMessage.innerHTML += ` <a href="/files/${messageData.file_id}" download="${messageData.file_name}">Download ${messageData.file_name}</a>`;
+    if (messageData.message.includes('[[FILE]]')) {
+        const parts = messageData.message.split('[[FILE]]');
+        const messageText = parts[0];
+        const fileInfo = parts[1].replace('[[/FILE]]', '');
+        let fileId, fileName;
+        if (fileInfo.includes(', ')) {
+            [fileId, fileName] = fileInfo.split(', ');
+        } else {
+            fileId = fileInfo;
+            fileName = "неизвестно";
+        }
+        newMessage.innerHTML = `<strong>${messageData.sender_phone_number || messageData.sender_id}:</strong> ${messageText} - <a href="/files/${fileId}">${fileName}</a>`;
+    } else {
+        newMessage.innerHTML = `<strong>${messageData.sender_phone_number || messageData.sender_id}:</strong> ${messageData.message}`;
     }
 
     newMessage.innerHTML += `<br><small>Отправлено: ${messageData.timestamp}</small>`;
     messagesList.appendChild(newMessage);
 }
 
-
-// Modified function to set up event handlers for the dialog form
-function setupDialogFormHandlers() {
+// Функция для установки обработчиков событий для формы сообщения
+function setupDialogFormHandlers(dialogId) {
     const form = document.getElementById('message-form');
     if (form) {
         form.addEventListener('submit', function(e) {
@@ -273,79 +287,106 @@ function setupDialogFormHandlers() {
             const formData = new FormData(form);
             const message = formData.get('message');
             const file = formData.get('file');
+
             let messageData = {
                 "action": "send_message",
                 "message": message
             };
 
             if (file) {
-                messageData.file = file.name;
+                formData.append('file', file);
             }
 
-            ws.send(JSON.stringify(messageData));
+            fetch(`/dialogs/${dialogId}/send_message`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    ws.send(JSON.stringify(messageData));
+                }
+            })
+            .catch(error => console.error('Error:', error));
 
-            // Clear the form
             form.reset();
         });
     }
 }
 
-// Function to initialize WebSocket
+// Функция для инициализации WebSocket
 function setupWebSocket(dialogId) {
     const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
     const access_token = cookie ? cookie.split('=')[1] : null;
     ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
     ws.onopen = function(event) {
-        console.log("WebSocket connection opened.", event);
+        console.log("WebSocket-соединение открыто.", event);
         ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
         loadDialogHistory(dialogId);
+    };
+
+    ws.onerror = function(event) {
+        console.error("Ошибка WebSocket:", event);
+    };
+
+    ws.onclose = function(event) {
+        if (event.wasClean) {
+            console.log(`Закрыто корректно, код=${event.code}, причина=${event.reason}`);
+        } else {
+            console.error(`Соединение оборвано`);
+        }
     };
 
     ws.onmessage = function(event) {
         let messageData = JSON.parse(event.data);
         const action = messageData.action;
-
         if (action === 'new_message') {
+            console.log('Получено новое сообщение:', messageData);
             appendNewMessage(messageData);
         } else if (action === 'initial_messages') {
+            console.log('Получены начальные сообщения:', messageData.messages);
             displayInitialMessages(messageData.messages);
         } else {
-            console.warn('Unexpected message format:', messageData);
+            console.warn('Неожиданное действие:', action);
         }
     };
 }
 
-// Function to display initial messages in a dialog
+// Функция для отображения начальных сообщений в диалоге
 function displayInitialMessages(messages) {
     const messagesList = document.querySelector('.list-group');
-    // Make the list visible
-    messagesList.style.display = "block";  // <-- Добавленная строка
+    messagesList.style.display = "block";
     messages.forEach(messageData => {
         appendNewMessage(messageData);
     });
 }
 
-// Code to load the dialog when clicked
+// Код для загрузки диалога при клике
 document.addEventListener('DOMContentLoaded', function() {
-    setupDialogFormHandlers();
     const dialogLinks = document.querySelectorAll('.load-dialog');
     dialogLinks.forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             const dialogId = this.getAttribute('data-dialog-id');
             fetch(`/api/dialogs/${dialogId}`)
-                .then(response => response.text())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Server responded with status: ${response.status}`);
+                    }
+                    return response.text();
+                })
                 .then(data => {
                     const dialogPanel = document.querySelector('#dialog-container');
                     dialogPanel.innerHTML = data;
-                    setupDialogFormHandlers();
+                    setupDialogFormHandlers(dialogId);
                     setupWebSocket(dialogId);
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => console.error('Ошибка:', error));
         });
     });
 });
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
