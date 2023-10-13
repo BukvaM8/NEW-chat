@@ -1618,7 +1618,7 @@ async def get_registration_form(request: Request):
                     <label for="email">Email:</label>
                     <input type="email" class="form-control" id="email" name="email" required>
                 </div>
-                <div class="g-recaptcha" data-sitekey="{SITE_KEY}"></div>
+                <div class="g-recaptcha" data-sitekey="{SITE_KEY}" required></div>
                 <br>
                 <button type="submit" class="btn btn-primary" id="submit-button">Подтвердить</button>
             </form>
