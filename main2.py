@@ -25,6 +25,7 @@ import bcrypt
 import jwt
 import pytz as pytz
 import requests
+import room
 import uvicorn
 # Сторонние библиотеки для работы с файлами, датами и временем
 from aiofile import async_open
@@ -135,19 +136,17 @@ users = Table(
     "Users",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("gender", String),
-    Column("last_name", String),
-    Column("first_name", String),
-    Column("middle_name", String),
     Column("nickname", String),
     Column("phone_number", String, unique=True),
-    Column("position", String),
     Column("email", String),
     Column("password", String),
     Column("last_online", DateTime(timezone=True)),
     Column("profile_picture", BLOB, default=None),
-    Column("status", Text, default=None)
+    Column("status", Text, default=None),
+    Column("status_visibility", Boolean, default=True),  # Новый столбец
+    Column("email_visibility", Boolean, default=True),   # Новый столбец
 )
+
 
 userchats = Table(
     "Userchats",
@@ -232,9 +231,11 @@ dialog_messages = Table(
     Column("dialog_id", Integer, ForeignKey('Dialogs.id')),
     Column("sender_id", Integer, ForeignKey('Users.id')),
     Column("message", String),
+    Column("file_id", Integer, ForeignKey('Files.id')),  # новая колонка
     Column("timestamp", DateTime(timezone=True), default=datetime.now(moscow_tz)),
     Column("delete_timestamp", DateTime),
 )
+
 
 chatmessages = Table(
     "ChatMessages",
@@ -320,18 +321,15 @@ class User(Base):
 
 class UserInDB(BaseModel):
     id: int
-    gender: str
-    last_name: str
-    first_name: str
-    middle_name: str
     nickname: str
     phone_number: str
-    position: str
     email: str
     password: str
     last_online: Optional[datetime]
     profile_picture: Optional[bytes]
     status: Optional[str]
+    status_visibility: bool  # новое поле
+    email_visibility: bool
 
     class Config:
         orm_mode = True
@@ -555,14 +553,14 @@ async def validate_and_refresh_token(connection: Union[WebSocket, Request], user
             old_access_token = connection.cookies.get("access_token")
         else:
             logging.error("Invalid request_type specified")
-            return None, False  # Added is_valid flag
+            return None, False  # Добавлен is_valid флаг
 
         phone_number, is_valid = await verify_and_validate_token(old_access_token)
 
         if not is_valid:
             logging.warning(f"Token is invalid. Trying to refresh using refresh token for user {user_id}.")
             refresh_token = await get_refresh_token_from_db_by_user_id(
-                user_id)  # Use user_id to fetch the refresh token
+                user_id)  # Используем user_id для извлечения обновленного токена
 
             if refresh_token:
                 phone_number, is_valid = await verify_and_validate_token(refresh_token)
@@ -593,8 +591,9 @@ async def validate_and_refresh_token(connection: Union[WebSocket, Request], user
     except Exception as e:
         logging.error(f"An error occurred while validating and refreshing the token: {e}")
         if request_type == "websocket":
-            await connection.close(code=4002)  # Custom close code for "internal error"
+            await connection.close(code=4002)  # Пользовательский код закрытия для "внутренней ошибки"
         return None, False
+
 
 
 # Function to delete refresh token from database
@@ -936,15 +935,21 @@ def is_password_correct(password: str, password_hash: str):
 
 
 # Добавляет нового пользователя в базу данных.
-async def add_user(gender, last_name, first_name, middle_name, nickname, phone_number, position, email, password):
+async def add_user(nickname, phone_number, email, password, status_visibility, email_visibility):
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    query = users.insert().values(gender=gender, last_name=last_name, first_name=first_name, middle_name=middle_name,
-                                  nickname=nickname,
-                                  phone_number=phone_number, position=position, email=email, password=hashed_password)
+    query = users.insert().values(
+        nickname=nickname,
+        phone_number=phone_number,
+        email=email,
+        password=hashed_password,
+        status_visibility=status_visibility,
+        email_visibility=email_visibility
+    )
     logging.info(f"Executing query: {query}")  # Debug info
     result = await database.execute(query)
     logging.info(f"Result: {result}")  # Debug info
     return result
+
 
 
 # Возвращает всех пользователей из базы данных.
@@ -952,21 +957,22 @@ async def get_all_users(search_query: str = "") -> List[dict]:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     if search_query:
-        search_query = "%" + search_query + "%"  # Форматируем запрос для использования в операторе LIKE
+        search_query = "%" + search_query + "%"  # Formatting query for LIKE operator
         await cur.execute(
-            "SELECT id, first_name, last_name, phone_number FROM Users WHERE first_name LIKE %s OR last_name LIKE %s OR phone_number LIKE %s",
-            (search_query, search_query, search_query),
+            "SELECT id, nickname, phone_number FROM Users WHERE nickname LIKE %s OR phone_number LIKE %s",
+            (search_query, search_query),
         )
     else:
         await cur.execute(
-            "SELECT id, first_name, last_name, phone_number FROM Users",
+            "SELECT id, nickname, phone_number FROM Users",
         )
     result = []
     async for row in cur:
-        result.append({"id": row[0], "first_name": row[1], "last_name": row[2], "phone_number": row[3]})
+        result.append({"id": row[0], "nickname": row[1], "phone_number": row[2]})
     await cur.close()
     conn.close()
     return result
+
 
 
 # Получает все сообщения из указанного чата.
@@ -1101,30 +1107,26 @@ async def add_chat_member(request: Request, chat_id: int, phone_number: str,
     return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=303)
 
 
-@app.get("/chat/{chat_id}/members/search", response_class=HTMLResponse)
 async def search_chat_members(request: Request, chat_id: int, search_user: str,
                               current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-    chat = await get_chat(chat_id)
-    members = await get_chat_members(chat_id)
-    members_info = [await get_user(member['user_phone_number']) for member in members]
+    try:
+        # Получение всех участников чата
+        members_info = await get_chat_members(chat_id)
+        search_results = []
 
-    search_results = None
-    if search_user:  # Проверка, что поисковый запрос не пустой
-        # Поиск среди участников чата
-        search_results = list(filter(
-            lambda member: search_user.lower() in member['first_name'].lower() or search_user.lower() in member[
-                'last_name'].lower() or search_user.lower() in member['nickname'].lower() or search_user in member[
-                               'phone_number'], members_info))
+        # Фильтрация результатов поиска, если предоставлен search_user
+        if search_user:
+            search_results = list(filter(
+                lambda member: search_user.lower() in member['nickname'].lower() or search_user in member['phone_number'],
+                members_info))
+        else:
+            search_results = members_info
 
-    # Отсортировать список участников так, чтобы владелец был первым
-    members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
+        return search_results
 
-    # Возвращаем search_results только если поисковый запрос был выполнен
-    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info,
-                                                           "current_user": current_user,
-                                                           "search_results": search_results})
+    except Exception as e:
+        logging.error(f"An error occurred in search_chat_members: {e}")
+        return []
 
 
 # Удаляет пользователя из чата.
@@ -1669,8 +1671,8 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
         db.add(new_registration)
         db.commit()
 
-        send_email(email, code)
-
+        # send_email(email, code)
+        print(code)
         response = f"""
             <html>
             <head>
@@ -1868,28 +1870,6 @@ def send_email(to_email, code):
         server.quit()
     except Exception as e:
         print(f"Ошибка отправки письма: {str(e)}")
-
-
-# Маршрут для регистрации пользователя
-# @app.post("/register")
-# async def register_user(gender: str = Form(...),
-#                         last_name: str = Form(...),
-#                         first_name: str = Form(...),
-#                         middle_name: str = Form(...),
-#                         nickname: str = Form(...),
-#                         phone_number: str = Form(...),
-#                         position: str = Form(...),
-#                         email: str = Form(...),
-#                         password: str = Form(...)):
-#     user_by_nickname = await get_user(nickname)
-#     user_by_phone = await get_user_by_phone(phone_number)
-#     if user_by_nickname:
-#         raise HTTPException(status_code=400, detail="Username already registered")
-#     if user_by_phone:
-#         raise HTTPException(status_code=400, detail="Phone number already registered")
-#     await add_user(gender, last_name, first_name, middle_name, nickname, phone_number, position, email, password)
-#     token = create_access_token(data={"sub": phone_number})
-#     return {"access_token": token, "token_type": "bearer"}
 
 
 @app.get("/profile", response_class=HTMLResponse)
@@ -2384,7 +2364,7 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
 
     # Отправляем сообщение через WebSocket
     room = f"chat_{chat_id}"
-    # await manager.send_message_to_room(room, json.dumps({"action": "send_message", "message": new_message}))
+    await manager.send_message_to_room(room, json.dumps({"action": "send_message", "message": new_message}))
 
     websocket = manager.get_connection(current_user.id, f"chat_{chat_id}")
     if websocket:
@@ -2598,15 +2578,12 @@ async def search_subscribers(channel_id: int, search_user: str):
         users.join(channel_members, users.c.phone_number == channel_members.c.user_phone_number)
     ).where(
         (channel_members.c.channel_id == channel_id) &
-        (or_(
-            users.c.first_name.ilike(f"%{search_user}%"),
-            users.c.last_name.ilike(f"%{search_user}%"),
-            users.c.phone_number.ilike(f"%{search_user}%")
-        ))
+        (users.c.nickname.ilike(f"%{search_user}%") |
+        users.c.phone_number.ilike(f"%{search_user}%"))
     )
-
     search_results = await database.fetch_all(query)
     return search_results
+
 
 
 @app.get("/channels/{channel_id}/subscribers", response_class=HTMLResponse)
@@ -2901,18 +2878,16 @@ async def search_users(query: str) -> List[dict]:
     cur = await conn.cursor()
     query = '%' + query + '%'
     await cur.execute(
-        "SELECT id, first_name, last_name, phone_number FROM Users WHERE first_name LIKE %s OR last_name LIKE %s OR nickname LIKE %s OR phone_number LIKE %s",
-        (query, query, query, query),
+        "SELECT id, nickname, phone_number FROM Users WHERE nickname LIKE %s OR phone_number LIKE %s",
+        (query, query),
     )
     result = []
     async for row in cur:
-        result.append({"id": row[0], "first_name": row[1], "last_name": row[2], "phone_number": row[3]})
-
-    print(f"Результаты поиска: {result}")  # Логируем результаты поиска
-
+        result.append({"id": row[0], "nickname": row[1], "phone_number": row[2]})
     await cur.close()
     conn.close()
     return result
+
 
 
 # Возвращает информацию о диалоге по его идентификатору. Если диалог не найден, возникает исключение
@@ -3064,9 +3039,7 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     sender_id = current_user.id
     dialog = await get_dialog_by_id(dialog_id, sender_id, check_user_deleted=False)
 
-    # Добавил эту строку для определения room
     room = f"dialog_{dialog_id}"
-
     await manager.send_message_to_room(room, f"New message in dialog {dialog_id} from user {sender_id}: {message}")
 
     if sender_id not in [dialog['user1_id'], dialog['user2_id']]:
@@ -3105,12 +3078,11 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     }
     print(f"Sending message to dialog {dialog_id} from user {sender_id}: {message}")
 
-    websocket = manager.get_connection(current_user.id, room)  # Изменил на переменную room
+    websocket = manager.get_connection(current_user.id, room)
     if websocket and isinstance(websocket, WebSocket) and websocket.client_state == WebSocketState.CONNECTED:
-        await manager.send_message_to_room(room, json.dumps(
-            {"type": "new_message", "message": new_message}))  # Изменил на переменную room
+        await manager.send_message_to_room(room, json.dumps({"type": "new_message", "message": new_message}))
     else:
-        logging.warning(f"No active connections found for room {room}")  # Изменил на переменную room
+        logging.warning(f"No active connections found for room {room}")
 
     await update_last_online(sender_id)
 
@@ -3240,8 +3212,6 @@ async def update_dialog_deleted_status(dialog_id: int, deleted_by_user1: bool = 
 async def get_dialog_messages(dialog_id: int) -> List[dict]:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
-
-    # Выполнение SQL запроса
     await cur.execute("""
         SELECT 
             DialogMessages.id,
@@ -3250,18 +3220,14 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
             DialogMessages.message,
             DialogMessages.timestamp,
             DialogMessages.delete_timestamp,
-            Users.first_name,
-            Users.last_name
+            Users.nickname
         FROM DialogMessages
         JOIN Users ON DialogMessages.sender_id = Users.id
         WHERE DialogMessages.dialog_id = %s
         ORDER BY DialogMessages.timestamp ASC
     """, (dialog_id,))
-
-    # Получение всех строк и преобразование их в список словарей
-    rows = await cur.fetchall()
     messages = []
-    for row in rows:
+    async for row in cur:
         messages.append({
             "id": row[0],
             "dialog_id": row[1],
@@ -3269,13 +3235,10 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
             "message": row[3],
             "timestamp": row[4],
             "delete_timestamp": row[5],
-            "sender_first_name": row[6],
-            "sender_last_name": row[7],
+            "sender_nickname": row[6]
         })
-
     await cur.close()
     conn.close()
-
     return messages
 
 
@@ -3523,23 +3486,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         logging.error(f"An unexpected error occurred: {e}")
         await websocket.close(code=4002)
 
-
-#
-#
-#
-async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User):
+async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User, file_id=None, file_name=None):
     try:
         logging.info(f"Handling dialog message from user {current_user.id} in dialog {dialog_id}: {message_content}")
 
-        # Получаем текущее время в формате строки
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Вставляем сообщение в базу данных
         query = dialog_messages.insert().values(
             dialog_id=dialog_id,
             sender_id=current_user.id,
             message=message_content,
-            timestamp=current_time  # Убедитесь, что у вас есть поле timestamp в таблице dialog_messages
+            file_id=file_id,  # новое поле
+            timestamp=current_time
         )
         result = await database.execute(query)
 
@@ -3548,30 +3506,33 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
         else:
             logging.warning("Message was not saved in the database.")
 
-        # Получаем информацию о диалоге
         dialog_query = dialogs.select().where(dialogs.c.id == dialog_id)
         dialog_data = await database.fetch_one(dialog_query)
 
         if dialog_data:
-            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data[
-                "user2_id"]
+            recipient_id = dialog_data["user1_id"] if dialog_data["user2_id"] == current_user.id else dialog_data["user2_id"]
             room = f"dialog_{dialog_id}"
 
-            # Формируем данные сообщения для отправки
             message_data = {
                 "action": "new_message",
                 "dialog_id": dialog_id,
                 "message": message_content,
                 "sender_id": current_user.id,
-                "timestamp": current_time  # Добавляем время
+                "timestamp": current_time
             }
 
-            # Отправляем сообщение
+            if file_id and file_name:
+                message_data["file_id"] = file_id
+                message_data["file_name"] = file_name
+
+            # Sending message to recipient
             await manager.send_message_to_room(f"user_{recipient_id}", json.dumps(message_data))
+
+            # Confirmation for the sender
             await manager.send_message_to_room(f"user_{current_user.id}", json.dumps({
                 "action": "new_message",
                 "dialog_id": dialog_id,
-                "timestamp": current_time  # Добавляем время
+                "timestamp": current_time
             }))
 
     except Exception as e:

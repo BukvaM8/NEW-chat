@@ -248,15 +248,21 @@ function appendNewMessage(messageData) {
         return;
     }
 
+    // Make the list visible (if needed)
+    messagesList.style.display = "block";
+
     const newMessage = document.createElement('li');
     newMessage.className = "list-group-item";
-    newMessage.innerHTML = `<strong>${messageData.sender_id || messageData.sender_phone_number}:</strong> ${messageData.message}`;
-    if (messageData.file) {
-        newMessage.innerHTML += `<br><a href="/files/${messageData.file}">${messageData.file}</a>`;
+    newMessage.innerHTML = `<strong>${messageData.sender_phone_number || messageData.sender_id}:</strong> ${messageData.message}`;
+
+    if (messageData.file_id && messageData.file_name) {
+        newMessage.innerHTML += ` <a href="/files/${messageData.file_id}" download="${messageData.file_name}">Download ${messageData.file_name}</a>`;
     }
+
     newMessage.innerHTML += `<br><small>Отправлено: ${messageData.timestamp}</small>`;
     messagesList.appendChild(newMessage);
 }
+
 
 // Modified function to set up event handlers for the dialog form
 function setupDialogFormHandlers() {
@@ -313,6 +319,8 @@ function setupWebSocket(dialogId) {
 // Function to display initial messages in a dialog
 function displayInitialMessages(messages) {
     const messagesList = document.querySelector('.list-group');
+    // Make the list visible
+    messagesList.style.display = "block";  // <-- Добавленная строка
     messages.forEach(messageData => {
         appendNewMessage(messageData);
     });
