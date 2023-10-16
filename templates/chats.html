@@ -214,178 +214,125 @@
             </div>
         </div>
 </div>
-
-<div id="message-form" style="display: none;">
-    <input type="text" id="message-input" name="message" placeholder="Введите ваше сообщение">
-    <input type="file" id="file-input" name="file"> <!-- Добавлено -->
-    <button id="send-button">Отправить</button>
-</div>
-
-
 <script>
-// Функция для загрузки истории диалога
-function loadDialogHistory(dialogId) {
-    fetch(`/api/dialogs/${dialogId}`)
+// Инициализация кода для dialogs.html
+function initializeDialogJS(dialogId) {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+    const access_token = cookie ? cookie.split('=')[1] : null;
+    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+
+    ws.onopen = function(event) {
+        console.log("WebSocket connection opened.");
+        ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
+    };
+
+    const form = document.getElementById('message-form');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(form);
+        fetch(`/dialogs/${dialogId}/send_message`, {
+            method: 'POST',
+            body: formData
+        })
         .then(response => {
-            if (!response.ok) {
-                console.error(`Ошибка при загрузке диалога: ${response.status} ${response.statusText}`);
-                return;
-            }
-            if (response.headers.get('Content-Type').includes('application/json')) {
+            if (response.ok) {
                 return response.json();
             } else {
-                throw new Error('Received non-JSON response');
+                throw new Error('Failed to send message');
             }
         })
         .then(data => {
-            // обработка данных
+            form.querySelector('textarea[name="message"]').value = '';
         })
         .catch(error => {
-            console.error('Ошибка при загрузке:', error);
+            console.error('Error:', error);
         });
-}
-
-// Функция для добавления нового сообщения в чат
-function appendNewMessage(messageData) {
-    const messagesList = document.querySelector('.list-group');
-    if (!messagesList) {
-        console.error('Список сообщений не найден');
-        return;
-    }
-
-    messagesList.style.display = "block";  // делаем список видимым
-
-    const newMessage = document.createElement('li');
-    newMessage.className = "list-group-item";
-
-    if (messageData.message.includes('[[FILE]]')) {
-        const parts = messageData.message.split('[[FILE]]');
-        const messageText = parts[0];
-        const fileInfo = parts[1].replace('[[/FILE]]', '');
-        let fileId, fileName;
-        if (fileInfo.includes(', ')) {
-            [fileId, fileName] = fileInfo.split(', ');
-        } else {
-            fileId = fileInfo;
-            fileName = "неизвестно";
-        }
-        newMessage.innerHTML = `<strong>${messageData.sender_phone_number || messageData.sender_id}:</strong> ${messageText} - <a href="/files/${fileId}">${fileName}</a>`;
-    } else {
-        newMessage.innerHTML = `<strong>${messageData.sender_phone_number || messageData.sender_id}:</strong> ${messageData.message}`;
-    }
-
-    newMessage.innerHTML += `<br><small>Отправлено: ${messageData.timestamp}</small>`;
-    messagesList.appendChild(newMessage);
-}
-
-// Функция для установки обработчиков событий для формы сообщения
-function setupDialogFormHandlers(dialogId) {
-    const form = document.getElementById('message-form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(form);
-            const message = formData.get('message');
-            const file = formData.get('file');
-
-            let messageData = {
-                "action": "send_message",
-                "message": message
-            };
-
-            if (file) {
-                formData.append('file', file);
-            }
-
-            fetch(`/dialogs/${dialogId}/send_message`, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    ws.send(JSON.stringify(messageData));
-                }
-            })
-            .catch(error => console.error('Error:', error));
-
-            form.reset();
-        });
-    }
-}
-
-// Функция для инициализации WebSocket
-function setupWebSocket(dialogId) {
-    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-    const access_token = cookie ? cookie.split('=')[1] : null;
-    ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
-
-    ws.onopen = function(event) {
-        console.log("WebSocket-соединение открыто.", event);
-        ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
-        loadDialogHistory(dialogId);
-    };
-
-    ws.onerror = function(event) {
-        console.error("Ошибка WebSocket:", event);
-    };
-
-    ws.onclose = function(event) {
-        if (event.wasClean) {
-            console.log(`Закрыто корректно, код=${event.code}, причина=${event.reason}`);
-        } else {
-            console.error(`Соединение оборвано`);
-        }
-    };
+    });
 
     ws.onmessage = function(event) {
-        let messageData = JSON.parse(event.data);
+        let messageData;
+        try {
+            messageData = JSON.parse(event.data);
+        } catch (e) {
+            console.error("Invalid JSON", e);
+            return;
+        }
+
         const action = messageData.action;
-        if (action === 'new_message') {
-            console.log('Получено новое сообщение:', messageData);
-            appendNewMessage(messageData);
-        } else if (action === 'initial_messages') {
-            console.log('Получены начальные сообщения:', messageData.messages);
-            displayInitialMessages(messageData.messages);
+
+        if (action === 'new_token') {
+            document.cookie = "access_token=" + messageData.token;
         } else {
-            console.warn('Неожиданное действие:', action);
+            const messagesList = document.querySelector('.list-group');
+    if (messageData.message && messageData.message.sender_id) {
+        const newMessage = document.createElement('li');
+        newMessage.className = "message-item";
+
+        const messageContent = document.createElement('div');
+        messageContent.className = "message-content";
+
+        const senderId = messageData.message.sender_id;
+        const rawMessage = messageData.message.message;
+
+        const senderElement = document.createElement('strong');
+        senderElement.innerText = senderId + ":";
+        messageContent.appendChild(senderElement);
+
+        const messageTextElement = document.createElement('div');
+        if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+            const [text, fileInfo] = rawMessage.split('[[FILE]]');
+            const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+            const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+            const fileId = fileIdInfo.split(': ')[1];
+            const fileName = fileNameInfo.split(': ')[1];
+
+            messageTextElement.appendChild(document.createTextNode(" " + text));
+            messageContent.appendChild(messageTextElement);
+
+            const fileLink = document.createElement('div');
+            const fileAnchor = document.createElement('a');
+            fileAnchor.href = `/files/${fileId}`;
+            fileAnchor.innerText = fileName;
+            fileLink.appendChild(fileAnchor);
+            messageContent.appendChild(fileLink);
+        } else {
+            messageTextElement.appendChild(document.createTextNode(" " + rawMessage));
+            messageContent.appendChild(messageTextElement);
+        }
+
+        const timeElement = document.createElement('div');
+        timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "undefined")));
+        messageContent.appendChild(timeElement);
+
+        newMessage.appendChild(messageContent);
+        messagesList.appendChild(newMessage);
+
+            } else {
+                console.warn('Неожиданный формат сообщения: ', messageData);
+            }
         }
     };
 }
 
-// Функция для отображения начальных сообщений в диалоге
-function displayInitialMessages(messages) {
-    const messagesList = document.querySelector('.list-group');
-    messagesList.style.display = "block";
-    messages.forEach(messageData => {
-        appendNewMessage(messageData);
-    });
-}
-
-// Код для загрузки диалога при клике
+// Загрузка dialogs.html в правую панель
 document.addEventListener('DOMContentLoaded', function() {
-    const dialogLinks = document.querySelectorAll('.load-dialog');
-    dialogLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            const dialogId = this.getAttribute('data-dialog-id');
-            fetch(`/api/dialogs/${dialogId}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Server responded with status: ${response.status}`);
-                    }
-                    return response.text();
+    document.querySelectorAll('.load-dialog').forEach(function(button) {
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            const dialogId = event.target.getAttribute('data-dialog-id');
+            fetch(`/dialogs/${dialogId}`)
+                .then(response => response.text())
+                .then(html => {
+                    document.querySelector('#dialog-panel').innerHTML = html;
+                    initializeDialogJS(dialogId);
                 })
-                .then(data => {
-                    const dialogPanel = document.querySelector('#dialog-container');
-                    dialogPanel.innerHTML = data;
-                    setupDialogFormHandlers(dialogId);
-                    setupWebSocket(dialogId);
-                })
-                .catch(error => console.error('Ошибка:', error));
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
         });
     });
 });
+
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>

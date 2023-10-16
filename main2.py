@@ -3056,15 +3056,17 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     file_name = None
 
     if file and file.filename:
-        print(f"Preparing to process file {file.filename}")  # Добавлено логирование
+        print(f"Preparing to process file {file.filename}")
         file_content = await file.read()
         file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
-        file_name = file.filename
+        file_path = file.filename  # Изменим на file_path
         print(f"File processed {file.filename}")
 
-    if file_id and file_name:
-        file_info = f' [[FILE]]File ID: {file_id}, File Name: {file_name}[[/FILE]]'
+    print("Before processing file info...")
+    if file_id and file_path:  # Изменим на file_path
+        file_info = f' [[FILE]]File ID: {file_id}, File Path: {file_path}[[/FILE]]'  # Изменим на file_path
         message = file_info if message is None else message + file_info
+    print("After processing file info:", message)
 
     if message is None:
         raise HTTPException(status_code=400, detail="No message or file to send")
@@ -3316,8 +3318,8 @@ class ConnectionManager:
                     logging.error(f"An error occurred: {e}")
 
     async def send_message_to_room(self, room: str, message: str):
-        # Добавленное логирование
-        logging.info(f"Sending message to room {room}: {message}")
+        truncated_message = message[:50]  # Возьмите первые 50 символов
+        logging.info(f"Sending message to room {room}: {truncated_message}...")
 
         if room in self.global_active_connections:
             for websocket in self.global_active_connections[room]:
@@ -3387,7 +3389,6 @@ class ConnectionManager:
             if websocket.client_state == WebSocketState.CONNECTED:
                 message_json = json.dumps({"action": "refresh_token", "new_token": new_token})
                 await websocket.send_text(message_json)
-
 
 manager = ConnectionManager()
 # Запуск метода keep_alive в фоне
@@ -3490,7 +3491,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         logging.error(f"An unexpected error occurred: {e}")
         await websocket.close(code=4002)
 
-async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User, file_id=None, file_name=None):
+async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User, file_id=None, file_path=None):  # Изменим на file_path
     logging.info(f"Preparing to handle dialog message in dialog {dialog_id} from user {current_user.id}: {message_content}")
 
     try:
@@ -3522,12 +3523,13 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
             "dialog_id": dialog_id,
             "message": message_content,
             "file_id": file_id,  # добавляем информацию о файле
-            "file_name": file_name,  # добавляем информацию о файле
+             "file_path": file_path,  # добавляем информацию о файле
             "timestamp": current_time
         }
 
         # Отправка сообщения получателю
         await manager.send_message_to_room(f"user_{recipient_id}", json.dumps(message_data))
+        logging.info(f"Sent message data to room user_{recipient_id}: {json.dumps(message_data)}")
 
         # Подтверждение для отправителя
         await manager.send_message_to_room(f"user_{current_user.id}", json.dumps({
@@ -3625,27 +3627,23 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
 
             elif action == 'send_message':
                 message = received_data.get('message')
-                logging.info(f"Received message from user {user.id}: {message}")
+                file_name = received_data.get('file')  # получаем прикрепленный файл, если он есть
 
-                if "dialog" in room_name:
-                    dialog_id = int(room_name.split("_")[1])
-                    await handle_dialog_message(dialog_id, message, user)
+                file_content = None  # Здесь вы должны получить содержимое файла
+                file_extension = None  # Здесь вы должны получить расширение файла
 
-                elif "chat" in room_name:
-                    chat_id = int(room_name.split("_")[1])
-                    await handle_chat_message(chat_id, message, user)
+                file_id = None
+                if file_name and file_content and file_extension:
+                    file_id = await save_file(user.phone_number, file_name, file_content, file_extension)
 
-                await manager.send_message_to_room(
-                    room_name,
-                    json.dumps({
-                        "action": "new_message",
-                        "message": message,
-                        "sender_phone_number": user.phone_number,
-                        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-                    })
-                )
+                # Вызов функции handle_dialog_message
+                dialog_id = int(room_name.split('_')[1])  # Предполагается, что room_name имеет формат 'dialog_{dialog_id}'
+                current_user = user  # Текущий пользователь уже определен в этой функции
+                await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
+
             else:
                 logging.warning("Unsupported action or user is not the author or the chat admin")
+
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)
         logging.warning(f"WebSocket disconnected for user {user.id}")
