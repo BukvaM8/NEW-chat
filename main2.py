@@ -229,7 +229,7 @@ dialog_messages = Table(
     metadata,
     Column("id", Integer, primary_key=True),
     Column("dialog_id", Integer, ForeignKey('Dialogs.id')),
-    Column("sender_id", Integer, ForeignKey('Users.id')),
+    Column("sender_id", Integer, ForeignKey('Users.nickname')),
     Column("message", String),
     Column("file_id", Integer, ForeignKey('Files.id')),  # новая колонка
     Column("timestamp", DateTime(timezone=True), default=datetime.now(moscow_tz)),
@@ -793,6 +793,21 @@ async def get_user_by_phone(phone_number: str):
         return UserInDB(**user)
     logging.info(f'No user found for phone: {phone_number}')
     return None
+
+# Функция для извлечения nickname по user_id
+async def get_nickname_by_user_id(user_id: int) -> Optional[str]:
+    query = select([users.c.nickname]).where(users.c.id == user_id)
+    try:
+        result = await database.fetch_one(query)
+        if result:
+            logging.info(f"Nickname found: {result.nickname}")
+            return result.nickname
+        else:
+            logging.warning(f"No nickname found for user ID: {user_id}")
+            return None
+    except Exception as e:
+        logging.error(f"An error occurred while fetching the nickname: {e}")
+        return None
 
 
 # Извлекает текущего пользователя из сессии.
@@ -3033,11 +3048,13 @@ async def update_last_online(user_id: int):
 @app.post("/dialogs/{dialog_id}/send_message")
 async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file: UploadFile = File(None),
                                  current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    print(f"Preparing to send message to dialog {dialog_id} from user {current_user.id}: {message}")  # Добавлено логирование
     if isinstance(current_user, RedirectResponse):
         return current_user
 
+    # Извлекаем id и nickname текущего пользователя
     sender_id = current_user.id
+    sender_nickname = await get_nickname_by_user_id(sender_id)
+
     dialog = await get_dialog_by_id(dialog_id, sender_id, check_user_deleted=False)
 
     room = f"dialog_{dialog_id}"
@@ -3056,17 +3073,13 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     file_name = None
 
     if file and file.filename:
-        print(f"Preparing to process file {file.filename}")
         file_content = await file.read()
         file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
-        file_path = file.filename  # Изменим на file_path
-        print(f"File processed {file.filename}")
+        file_path = file.filename
 
-    print("Before processing file info...")
-    if file_id and file_path:  # Изменим на file_path
-        file_info = f' [[FILE]]File ID: {file_id}, File Path: {file_path}[[/FILE]]'  # Изменим на file_path
+    if file_id and file_path:
+        file_info = f' [[FILE]]File ID: {file_id}, File Path: {file_path}[[/FILE]]'
         message = file_info if message is None else message + file_info
-    print("After processing file info:", message)
 
     if message is None:
         raise HTTPException(status_code=400, detail="No message or file to send")
@@ -3078,10 +3091,10 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     new_message = {
         "dialog_id": dialog_id,
         "sender_id": sender_id,
+        "sender_nickname": sender_nickname,  # Добавлено поле
         "message": message,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     }
-    print(f"Sending message to dialog {dialog_id} from user {sender_id}: {message}")
 
     websocket = manager.get_connection(current_user.id, room)
     if websocket and isinstance(websocket, WebSocket) and websocket.client_state == WebSocketState.CONNECTED:
@@ -3092,7 +3105,6 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     await update_last_online(sender_id)
 
     return JSONResponse(content={"message": "Message sent successfully", "dialog_id": dialog_id})
-    print(f"Message sent to dialog {dialog_id} from user {current_user.id}: {message}")  # Добавлено логирование
 
 
 @app.get("/create_dialog/{user_id}")
@@ -3237,7 +3249,7 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
         messages.append({
             "id": row[0],
             "dialog_id": row[1],
-            "sender_id": row[2],
+            "sender_id": row[5],
             "message": row[3],
             "timestamp": row[4],
             "delete_timestamp": row[5],
@@ -3491,47 +3503,47 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         logging.error(f"An unexpected error occurred: {e}")
         await websocket.close(code=4002)
 
-async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User, file_id=None, file_path=None):  # Изменим на file_path
+async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User, file_id=None, file_path=None):
     logging.info(f"Preparing to handle dialog message in dialog {dialog_id} from user {current_user.id}: {message_content}")
 
     try:
-        current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        # Получаем никнейм текущего пользователя
+        sender_nickname = await get_nickname_by_user_id(current_user.id)
+        if sender_nickname is None:
+            logging.warning(f"No nickname found for user {current_user.id}")
+            sender_nickname = "Unknown"
 
-        # Сохранение сообщения в базу данных
+        current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         query = dialog_messages.insert().values(
             dialog_id=dialog_id,
             sender_id=current_user.id,
             message=message_content,
-            file_id=file_id,  # сохраняем информацию о файле
+            file_id=file_id,
             timestamp=current_time
         )
         result = await database.execute(query)
 
         if result:
             logging.info(f"Message successfully saved in the database with result: {result}")
-        else:
-            logging.warning("Message was not saved in the database.")
 
         dialog_query = dialogs.select().where(dialogs.c.id == dialog_id)
         dialog_data = await database.fetch_one(dialog_query)
-
         recipient_id = dialog_data['user1_id'] if current_user.id == dialog_data['user2_id'] else dialog_data['user2_id']
 
-        # Подготовка данных для отправки через вебсокет
+        # Добавляем sender_nickname в message_data
         message_data = {
             "action": "new_message",
             "dialog_id": dialog_id,
             "message": message_content,
-            "file_id": file_id,  # добавляем информацию о файле
-             "file_path": file_path,  # добавляем информацию о файле
+            "sender_nickname": sender_nickname,  # новое поле
+            "file_id": file_id,
+            "file_path": file_path,
             "timestamp": current_time
         }
 
-        # Отправка сообщения получателю
         await manager.send_message_to_room(f"user_{recipient_id}", json.dumps(message_data))
         logging.info(f"Sent message data to room user_{recipient_id}: {json.dumps(message_data)}")
 
-        # Подтверждение для отправителя
         await manager.send_message_to_room(f"user_{current_user.id}", json.dumps({
             "action": "new_message",
             "dialog_id": dialog_id,

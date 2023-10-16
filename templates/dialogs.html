@@ -67,7 +67,7 @@
     {% if not message.delete_timestamp %}
         <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}">
             <div class="message-content">
-                <strong>{{ message.sender_id }}:</strong>
+                <strong>{{ message.sender_nickname or 'Unknown' }}:</strong>
                 {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
                     {% set raw_message = message.message.split('[[FILE]]') %}
                     {{ raw_message[0] }}
@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const messageContent = document.createElement('div');
                 messageContent.className = "message-content";
 
-                const senderId = messageData.message.sender_id;
+                const senderNickname = messageData.message.sender_nickname || "Unknown";
                 const rawMessage = messageData.message.message;
                 const strongElement = document.createElement('strong');
                 strongElement.innerText = senderId + ":";

@@ -242,7 +242,14 @@ function initializeDialogJS(dialogId) {
             }
         })
         .then(data => {
-            form.querySelector('textarea[name="message"]').value = '';
+        // Очищаем поле для текстового сообщения
+        form.querySelector('textarea[name="message"]').value = '';
+
+        // Очищаем поле для выбора файлов
+        const fileInput = form.querySelector('input[type="file"]');
+        if (fileInput) {
+            fileInput.value = '';
+        }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -271,11 +278,11 @@ function initializeDialogJS(dialogId) {
         const messageContent = document.createElement('div');
         messageContent.className = "message-content";
 
-        const senderId = messageData.message.sender_id;
+        const senderNickname = messageData.message.sender_nickname;
         const rawMessage = messageData.message.message;
 
         const senderElement = document.createElement('strong');
-        senderElement.innerText = senderId + ":";
+        senderElement.innerText = senderNickname + ":";
         messageContent.appendChild(senderElement);
 
         const messageTextElement = document.createElement('div');
@@ -333,6 +340,30 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Загрузка chat.html в правую панель
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.load-chat').forEach(function(button) {
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            const chatId = event.target.getAttribute('data-chat-id');
+            fetch(`/chat/${chatId}`)
+                .then(response => response.text())
+                .then(html => {
+                    document.querySelector('.right-panel').innerHTML = html;
+                    initializeChatJS(chatId);  // Эта функция должна содержать весь JS-код, который сейчас в chat.html
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
+        });
+    });
+});
+
+// Инициализация кода для chat.html (весь ваш текущий JS-код для chat.html)
+function initializeChatJS(chatId) {
+    // Весь ваш текущий JS-код из chat.html должен быть здесь.
+    // Убедитесь, что вы заменили все статические ссылки на chatId и другие переменные, которые могут изменяться.
+}
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
