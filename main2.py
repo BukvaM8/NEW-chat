@@ -2388,7 +2388,7 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
     else:
         logging.warning(f"No active connections found for room chat_{chat_id}")
 
-    return RedirectResponse(url=f"/chats/{chat_id}", status_code=303)
+    return JSONResponse(content={"success": True, "message": new_message})
 
 
 # Этот маршрут обрабатывает действие "покинуть чат"
@@ -3652,6 +3652,19 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                 dialog_id = int(room_name.split('_')[1])  # Предполагается, что room_name имеет формат 'dialog_{dialog_id}'
                 current_user = user  # Текущий пользователь уже определен в этой функции
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
+
+                # Проверьте, отправляется ли сообщение от текущего пользователя.
+                if user.id != received_data.get('sender_id'):
+                    new_message = {
+                        "chat_id": chat_id,
+                        "sender_id": current_user.id,
+                        "message": message_text,
+                        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        "file_id": file_id,
+                        "file_name": file_name
+                    }
+                    # Отправляем сообщение через WebSocket
+                    await manager.send_message_to_room(room_name, json.dumps({"type": "new_message", "message": new_message}))
 
             else:
                 logging.warning("Unsupported action or user is not the author or the chat admin")

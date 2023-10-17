@@ -12,7 +12,7 @@ const access_token = cookie ? cookie.split('=')[1] : null;
 var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
 ws.onopen = function(event) {
-    console.log("WebSocket connection opened.");
+    console.log("WebSocket connection opened.", event);
     ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
 };
 
