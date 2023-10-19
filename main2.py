@@ -2255,16 +2255,13 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
 
 
 # Маршрут для создания нового чата
-@app.post("/create_chat", response_class=HTMLResponse)
+@app.post("/create_chat", response_class=JSONResponse)
 async def create_chat(request: Request, chat_name: str = Form(...), user_phone: str = Form(...),
                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
-
-    # Используем .phone_number вместо ['phone_number']
     chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phone)
-
-    return RedirectResponse(url=f"/chat/{chat_id}", status_code=303)  # перенаправление на страницу чата
+    return JSONResponse(content={"chat_id": chat_id, "status": "created"})
 
 
 # Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
@@ -3341,7 +3338,7 @@ class ConnectionManager:
                     except RuntimeError as e:
                         logging.error(f"An error occurred: {e}")
 
-    async def broadcast(self, message: str):
+    async def broadcast(self, message: str, room_name: str):
         for user_rooms in self.active_connections.values():
             for data in user_rooms.values():
                 websocket = data['websocket']
@@ -3639,40 +3636,52 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
 
             elif action == 'send_message':
                 message = received_data.get('message')
-                file_name = received_data.get('file')  # получаем прикрепленный файл, если он есть
+                file_name = received_data.get('file')
 
-                file_content = None  # Здесь вы должны получить содержимое файла
-                file_extension = None  # Здесь вы должны получить расширение файла
+                file_content = None
+                file_extension = None
 
                 file_id = None
                 if file_name and file_content and file_extension:
                     file_id = await save_file(user.phone_number, file_name, file_content, file_extension)
 
-                # Вызов функции handle_dialog_message
-                dialog_id = int(room_name.split('_')[1])  # Предполагается, что room_name имеет формат 'dialog_{dialog_id}'
-                current_user = user  # Текущий пользователь уже определен в этой функции
+                dialog_id = int(room_name.split('_')[1])
+                current_user = user
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
 
-                # Проверьте, отправляется ли сообщение от текущего пользователя.
-                if user.id != received_data.get('sender_id'):
-                    new_message = {
-                        "chat_id": chat_id,
-                        "sender_id": current_user.id,
-                        "message": message_text,
-                        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                        "file_id": file_id,
-                        "file_name": file_name
-                    }
-                    # Отправляем сообщение через WebSocket
-                    await manager.send_message_to_room(room_name, json.dumps({"type": "new_message", "message": new_message}))
+            elif action == 'delete_message':
+                message_id = int(received_data.get('message_id'))
 
-            else:
-                logging.warning("Unsupported action or user is not the author or the chat admin")
+                message_info = await get_message_by_id(message_id)
+                if message_info is None:
+                    logging.error(f"Message with ID {message_id} not found.")
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "error", "message": "Message not found"})
+                    )
+                    continue
+
+                if user.phone_number != message_info['sender_phone_number']:
+                    logging.error("User is not authorized to delete this message.")
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "error", "message": "Not authorized"})
+                    )
+                    continue
+
+                delete_status = await delete_message_from_db(message_id)
+                if delete_status:
+                    logging.info(f"Successfully deleted message with ID {message_id}.")
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "message_deleted", "message_id": message_id})
+                    )
+                else:
+                    logging.error("Failed to delete message.")
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "error", "message": "Failed to delete message"})
+                    )
 
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)
         logging.warning(f"WebSocket disconnected for user {user.id}")
-
 
 async def generic_websocket_endpoint(websocket: WebSocket, room_id: str, room_type: str):
     logging.info(f"=== WebSocket Endpoint: {room_type.capitalize()} ===")

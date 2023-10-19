@@ -4,101 +4,7 @@
     <meta charset="UTF-8">
     <title>{{ chat.chat_name }}</title>
     <link rel="stylesheet" type="text/css" href="/static/GroupStyle.css">
-    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-<script>
-var chatId = "{{ chat.id }}";
-const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-const access_token = cookie ? cookie.split('=')[1] : null;
-var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
-ws.onopen = function(event) {
-    console.log("WebSocket connection opened.", event);
-    ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
-};
-
-ws.onclose = function(event) {
-    console.log("WebSocket connection closed:", event);
-};
-
-ws.onerror = function(error) {
-    console.log(`WebSocket Error: ${error}`);
-};
-
-ws.onmessage = function(event) {
-    const messageData = JSON.parse(event.data);
-    const action = messageData.action;
-
-    if (action === 'new_token') {
-        document.cookie = "access_token=" + messageData.token;
-    } else if (action === 'update_member_count') {
-        console.log("Received update_member_count:", messageData.count);
-        document.getElementById('member-count').textContent = messageData.count + " участников";
-    } else {
-        if (messageData.message && messageData.sender_phone_number) {
-            const messagesList = document.getElementById('chat-history');
-            const newMessage = document.createElement('div');
-
-            const senderElement = document.createElement("h4");
-            senderElement.innerText = messageData.sender_phone_number || "Unknown";
-            newMessage.appendChild(senderElement);
-
-            const rawMessage = messageData.message;
-
-            if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-                const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-                const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-                const fileId = fileIdInfo.split(': ')[1];
-                const fileName = fileNameInfo.split(': ')[1];
-
-                if (fileId && fileName) {
-                    newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
-                }
-            } else {
-                newMessage.innerHTML += `${rawMessage}<br>`;
-            }
-
-            const timeElement = document.createElement("small");
-            timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-            newMessage.appendChild(timeElement);
-
-            messagesList.appendChild(newMessage);
-
-            // Автоматически прокручиваем чат вниз
-            setTimeout(() => {
-                messagesList.scrollTop = messagesList.scrollHeight;
-            }, 0);
-        } else {
-            console.warn('Неожиданный формат сообщения: ', messageData);
-        }
-    }
-};
-
-function addOption() {
-    const newOption = document.createElement('input');
-    newOption.type = 'text';
-    newOption.name = 'options';
-    newOption.placeholder = 'New poll option';
-    document.getElementById('poll-options').appendChild(newOption);
-}
-
-function createPoll() {
-    const question = document.getElementById("poll-question").value;
-    const optionsNodes = document.getElementsByName("options");
-    const options = Array.from(optionsNodes).map(node => node.value);
-    if (question === '' || options.some(option => option === '')) {
-        alert('Вопрос и варианты ответа не должны быть пустыми.');
-        return;
-    }
-    const pollData = {
-        "action": "create_poll",
-        "question": question,
-        "options": options,
-        "creator_phone_number": "{{ current_user.phone_number }}"
-    };
-    ws.send(JSON.stringify(pollData));
-}
-</script>
 </head>
 <body>
 <div id="container">
@@ -216,5 +122,99 @@ function createPoll() {
             {% endif %}
     </div>
 </div>
+<script>
+var chatId = "{{ chat.id }}";
+const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+const access_token = cookie ? cookie.split('=')[1] : null;
+var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+
+ws.onopen = function(event) {
+    console.log("WebSocket connection opened.", event);
+    ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
+};
+
+ws.onclose = function(event) {
+    console.log("WebSocket connection closed:", event);
+};
+
+ws.onerror = function(error) {
+    console.log(`WebSocket Error: ${error}`);
+};
+
+ws.onmessage = function(event) {
+    const messageData = JSON.parse(event.data);
+    const action = messageData.action;
+
+    if (action === 'new_token') {
+        document.cookie = "access_token=" + messageData.token;
+    } else if (action === 'update_member_count') {
+        console.log("Received update_member_count:", messageData.count);
+        document.getElementById('member-count').textContent = messageData.count + " участников";
+    } else {
+        if (messageData.message && messageData.sender_phone_number) {
+            const messagesList = document.getElementById('chat-history');
+            const newMessage = document.createElement('div');
+
+            const senderElement = document.createElement("h4");
+            senderElement.innerText = messageData.sender_phone_number || "Unknown";
+            newMessage.appendChild(senderElement);
+
+            const rawMessage = messageData.message;
+
+            if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
+                const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
+                const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
+                const fileId = fileIdInfo.split(': ')[1];
+                const fileName = fileNameInfo.split(': ')[1];
+
+                if (fileId && fileName) {
+                    newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
+                }
+            } else {
+                newMessage.innerHTML += `${rawMessage}<br>`;
+            }
+
+            const timeElement = document.createElement("small");
+            timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
+            newMessage.appendChild(timeElement);
+
+            messagesList.appendChild(newMessage);
+
+            // Автоматически прокручиваем чат вниз
+            setTimeout(() => {
+                messagesList.scrollTop = messagesList.scrollHeight;
+            }, 0);
+        } else {
+            console.warn('Неожиданный формат сообщения: ', messageData);
+        }
+    }
+};
+
+function addOption() {
+    const newOption = document.createElement('input');
+    newOption.type = 'text';
+    newOption.name = 'options';
+    newOption.placeholder = 'New poll option';
+    document.getElementById('poll-options').appendChild(newOption);
+}
+
+function createPoll() {
+    const question = document.getElementById("poll-question").value;
+    const optionsNodes = document.getElementsByName("options");
+    const options = Array.from(optionsNodes).map(node => node.value);
+    if (question === '' || options.some(option => option === '')) {
+        alert('Вопрос и варианты ответа не должны быть пустыми.');
+        return;
+    }
+    const pollData = {
+        "action": "create_poll",
+        "question": question,
+        "options": options,
+        "creator_phone_number": "{{ current_user.phone_number }}"
+    };
+    ws.send(JSON.stringify(pollData));
+}
+</script>
 </body>
 </html>
