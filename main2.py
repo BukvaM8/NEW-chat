@@ -3110,16 +3110,12 @@ async def create_dialog_handler(user_id: int, current_user: Union[str, RedirectR
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    # Используем .id вместо ['id']
     dialog_id = await check_dialog_exists(current_user.id, user_id)
 
     if dialog_id is None:
-        # Если диалог не существует, создаем новый диалог
         dialog_id = await create_new_dialog(current_user.id, user_id)
 
-    # Перенаправляем пользователя на страницу диалога (нового или уже существующего)
-    return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=status.HTTP_303_SEE_OTHER)
-
+    return JSONResponse(content={"dialog_id": dialog_id})
 
 # Удаление сообщения из диалога
 @app.post("/dialogs/{dialog_id}/delete_message/{message_id}")

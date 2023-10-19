@@ -87,7 +87,7 @@
                                 <li><a class="dropdown-item" href="/profile">Личный профиль</a></li>
                                 <li><a class="dropdown-item create-chat-link" href="#">Создать новый чат</a></li>
                                 <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>
-                                <li><a class="dropdown-item" href="/create_dialog">Создать новый диалог</a></li>
+                                <li><a class="dropdown-item create-dialog-link" href="/create_dialog">Создать новый диалог</a></li>
                                 <li><a class="dropdown-item" href="/favorites">Избранное</a></li>
                                 <li><hr class="dropdown-divider"></li> <!-- Разделитель -->
                                 <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>
@@ -357,6 +357,65 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Инициализация кода для create_dialog.html
+function initializeCreateDialogJS() {
+    document.querySelectorAll('.start-dialog-form').forEach(function(form) {
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const userId = form.action.split('/').pop();
+
+            // Здесь мы отправляем AJAX-запрос на сервер для создания диалога
+            fetch(`/create_dialog/${userId}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                const dialogId = data.dialog_id;
+
+                // Загружаем содержимое dialogs.html в правую панель
+                fetch(`/dialogs/${dialogId}`)
+                .then(response => response.text())
+                .then(html => {
+                    document.querySelector('.right-panel').innerHTML = html;
+
+                    // Инициализация JS для dialogs.html
+                    initializeDialogJS(dialogId);
+                });
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+            });
+        });
+    });
+}
+
+
+// Добавление обработчика для кнопки "Создать новый диалог"
+document.addEventListener('DOMContentLoaded', function() {
+    const createDialogLink = document.querySelector('.create-dialog-link');
+    if (createDialogLink) {
+        createDialogLink.addEventListener('click', function(event) {
+            event.preventDefault();  // Отменяем стандартное поведение перехода по ссылке
+
+            // Загружаем содержимое create_dialog.html
+            fetch('/create_dialog')
+                .then(response => response.text())
+                .then(html => {
+                    // Вставляем HTML в правую панель
+                    document.querySelector('.right-panel').innerHTML = html;
+
+                    // Инициализируем JS для create_dialog.html (если необходимо)
+                    initializeCreateDialogJS();
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
+        });
+    }
+});
+
+
 
 // Инициализация кода для dialogs.html
 // ... (ваш текущий код для dialogs)

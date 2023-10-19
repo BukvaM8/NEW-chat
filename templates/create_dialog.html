@@ -38,7 +38,7 @@
                 <h3>{{ user['first_name'] }} {{ user['last_name'] }}</h3>
                 <p>Телефон: {{ user['phone_number'] }}</p>
                 <!-- Форма для начала диалога -->
-                <form action="/create_dialog/{{ user['id'] }}" method="post">
+                <form action="/create_dialog/{{ user['id'] }}" method="post" class="start-dialog-form">
                     <input type="submit" value="Начать диалог">
                 </form>
             </div>
