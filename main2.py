@@ -3048,61 +3048,58 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    # Извлекаем id и nickname текущего пользователя
+    # Добавлено логирование
+    logging.info(f"Processing new message for dialog: {dialog_id}")
+
+    # Извлечение данных отправителя
     sender_id = current_user.id
     sender_nickname = await get_nickname_by_user_id(sender_id)
 
     dialog = await get_dialog_by_id(dialog_id, sender_id, check_user_deleted=False)
 
-    room = f"dialog_{dialog_id}"
-    await manager.send_message_to_room(room, f"New message in dialog {dialog_id} from user {sender_id}: {message}")
-
     if sender_id not in [dialog['user1_id'], dialog['user2_id']]:
         raise HTTPException(status_code=400, detail="User not in this dialog")
 
+    room = f"dialog_{dialog_id}"
+    await manager.send_message_to_room(room, f"New message in dialog {dialog_id} from user {sender_id}: {message}")
+
+    # Извлечение данных получателя
     receiver_id = dialog['user1_id'] if sender_id == dialog['user2_id'] else dialog['user2_id']
-    if receiver_id == dialog['user1_id']:
-        await update_dialog_deleted_status(dialog_id, deleted_by_user1=False)
-    else:
-        await update_dialog_deleted_status(dialog_id, deleted_by_user2=False)
+    receiver_nickname = await get_nickname_by_user_id(receiver_id)
+
+    if message is None and file is None:
+        raise HTTPException(status_code=400, detail="No message or file to send")
 
     file_id = None
-    file_name = None
-
     if file and file.filename:
         file_content = await file.read()
         file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
-        file_path = file.filename
 
-    if file_id and file_path:
-        file_info = f' [[FILE]]File ID: {file_id}, File Path: {file_path}[[/FILE]]'
-        message = file_info if message is None else message + file_info
-
-    if message is None:
-        raise HTTPException(status_code=400, detail="No message or file to send")
+    if file_id:
+        message = f' [[FILE]]File ID: {file_id}, File Path: {file.filename}[[/FILE]]'
 
     await send_message(dialog_id, sender_id, message)
-    participants = [sender_id, receiver_id]
-    await manager.broadcast(f"New message in dialog {dialog_id} from user {sender_id}: {message}")
 
     new_message = {
         "dialog_id": dialog_id,
         "sender_id": sender_id,
-        "sender_nickname": sender_nickname,  # Добавлено поле
+        "sender_nickname": sender_nickname,
+        "receiver_nickname": receiver_nickname,
         "message": message,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     }
 
     websocket = manager.get_connection(current_user.id, room)
     if websocket and isinstance(websocket, WebSocket) and websocket.client_state == WebSocketState.CONNECTED:
-        await manager.send_message_to_room(room, json.dumps({"type": "new_message", "message": new_message}))
+        # Экранирование JSON-строки
+        safe_json_data = json.dumps({"type": "new_message", "message": new_message})
+        await manager.send_message_to_room(room, safe_json_data)
     else:
         logging.warning(f"No active connections found for room {room}")
 
     await update_last_online(sender_id)
 
     return JSONResponse(content={"message": "Message sent successfully", "dialog_id": dialog_id})
-
 
 @app.get("/create_dialog/{user_id}")
 @app.post("/create_dialog/{user_id}")
@@ -3117,7 +3114,6 @@ async def create_dialog_handler(user_id: int, current_user: Union[str, RedirectR
 
     return JSONResponse(content={"dialog_id": dialog_id})
 
-# Удаление сообщения из диалога
 @app.post("/dialogs/{dialog_id}/delete_message/{message_id}")
 async def delete_message(
         dialog_id: int,
@@ -3126,33 +3122,37 @@ async def delete_message(
 ):
     messages = await get_messages_from_dialog(dialog_id, message_id)
     if not messages:
-        raise HTTPException(status_code=404, detail="Message not found")
+        return JSONResponse(content={"detail": "Message not found"}, status_code=status.HTTP_404_NOT_FOUND)
 
     message = messages[0]
 
-    # Проверяем, есть ли у пользователя права на удаление этого сообщения
     if message["sender_id"] != current_user.id:
-        raise HTTPException(status_code=403, detail="You do not have permission to delete this message")
+        return JSONResponse(content={"detail": "You do not have permission to delete this message"}, status_code=status.HTTP_403_FORBIDDEN)
 
-    await delete_message_by_id(message_id)
-
-    return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=303)
+    delete_status = await delete_message_by_id(message_id)
+    if delete_status:
+        return JSONResponse(content={"detail": "Message deleted successfully"}, status_code=status.HTTP_200_OK)
+    else:
+        return JSONResponse(content={"detail": "Failed to delete message"}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # Функция полностью удаляет сообщение из базы данных.
-async def delete_message_by_id(message_id: int):
+async def delete_message_by_id(message_id: int) -> bool:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
-
-    # Полностью удаляем сообщение из базы данных
-    await cur.execute("""
-        DELETE FROM DialogMessages
-        WHERE id = %s
-    """, (message_id,))
-
-    await conn.commit()
-    await cur.close()
-    conn.close()
+    try:
+        await cur.execute("""
+            DELETE FROM DialogMessages
+            WHERE id = %s
+        """, (message_id,))
+        await conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Failed to delete message: {e}")
+        return False
+    finally:
+        await cur.close()
+        conn.close()
 
 
 # Маршрут, который обрабатывает удаление диалога.
@@ -3358,7 +3358,8 @@ class ConnectionManager:
             if not self.global_active_connections[room]:
                 del self.global_active_connections[room]
 
-    async def auto_reconnect(self, user_id: int, room: str, max_retries=5):
+    async def auto_reconnect(self, user_id: int, room: str, max_retries=5, max_delay=60):
+        delay = 5  # начальная задержка в секундах
         retries = 0
         websocket_info = self.get_connection(user_id, room)
         if not websocket_info:
@@ -3374,8 +3375,9 @@ class ConnectionManager:
                 self.active_connections[user_id][room]['state'] = WebSocketState.CONNECTED
                 break
             except Exception as e:
-                await asyncio.sleep(5)
+                await asyncio.sleep(delay)
                 retries += 1
+                delay = min(delay * 2, max_delay)  # Экспоненциальная задержка с максимальным лимитом
 
     async def keep_alive(self):
         while True:
@@ -3645,9 +3647,10 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                 current_user = user
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
 
-            elif action == 'delete_message':
-                message_id = int(received_data.get('message_id'))
 
+            elif action == 'delete_message':
+                logging.info("Delete message action triggered.")
+                message_id = int(received_data.get('message_id'))
                 message_info = await get_message_by_id(message_id)
                 if message_info is None:
                     logging.error(f"Message with ID {message_id} not found.")
@@ -3658,17 +3661,19 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
 
                 if user.phone_number != message_info['sender_phone_number']:
                     logging.error("User is not authorized to delete this message.")
+
                     await manager.send_message_to_room(
                         room_name, json.dumps({"type": "error", "message": "Not authorized"})
                     )
                     continue
 
-                delete_status = await delete_message_from_db(message_id)
+                delete_status = await delete_message_by_id(message_id)  # Здесь произошла замена
                 if delete_status:
                     logging.info(f"Successfully deleted message with ID {message_id}.")
                     await manager.send_message_to_room(
                         room_name, json.dumps({"type": "message_deleted", "message_id": message_id})
                     )
+
                 else:
                     logging.error("Failed to delete message.")
                     await manager.send_message_to_room(

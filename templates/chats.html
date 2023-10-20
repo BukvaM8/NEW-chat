@@ -14,7 +14,6 @@
             border-right: 1px solid #ccc;
             min-height: 100vh;
             padding: 20px;
-
         }
         .right-panel {
             /* Изменим цвет фона на бежевый */
@@ -54,14 +53,18 @@
             flex-grow: 1;
         }
         .fixed-bottom-panel {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-    }
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
         #logout-button {
-        background-color: #075E54 !important;
-        color: white !important;
-    }
+            background-color: #075E54 !important;
+            color: white !important;
+        }
+        .message-sent {
+            text-align: right;
+            background-color: green;
+        }
     </style>
 </head>
 <body>
@@ -234,13 +237,13 @@
 
 <script>
 // Инициализация кода для dialogs.html
-function initializeDialogJS(dialogId) {
+function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
     const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
     const access_token = cookie ? cookie.split('=')[1] : null;
     const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
     ws.onopen = function(event) {
-        console.log("WebSocket connection opened.");
+        console.log("WebSocket connection opened.", event);
         ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
     };
 
@@ -260,14 +263,11 @@ function initializeDialogJS(dialogId) {
             }
         })
         .then(data => {
-        // Очищаем поле для текстового сообщения
-        form.querySelector('textarea[name="message"]').value = '';
-
-        // Очищаем поле для выбора файлов
-        const fileInput = form.querySelector('input[type="file"]');
-        if (fileInput) {
-            fileInput.value = '';
-        }
+            form.querySelector('textarea[name="message"]').value = '';
+            const fileInput = form.querySelector('input[type="file"]');
+            if (fileInput) {
+                fileInput.value = '';
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -289,55 +289,61 @@ function initializeDialogJS(dialogId) {
             document.cookie = "access_token=" + messageData.token;
         } else {
             const messagesList = document.querySelector('.list-group');
-    if (messageData.message && messageData.message.sender_id) {
-        const newMessage = document.createElement('li');
-        newMessage.className = "message-item";
+            if (messageData.message && messageData.message.sender_id) {
+                const newMessage = document.createElement('li');
+                newMessage.className = "message-item";
 
-        const messageContent = document.createElement('div');
-        messageContent.className = "message-content";
+                if (messageData.message.sender_id === currentUserId) {
+                    newMessage.classList.add('message-sent');  // Добавлен класс для отправленных сообщений
+                    }
 
-        const senderNickname = messageData.message.sender_nickname;
-        const rawMessage = messageData.message.message;
+                const messageContent = document.createElement('div');
+                messageContent.className = "message-content";
 
-        const senderElement = document.createElement('strong');
-        senderElement.innerText = senderNickname + ":";
-        messageContent.appendChild(senderElement);
+                const senderNickname = messageData.message.sender_nickname || "";  // Исправление "undefined"
+                const rawMessage = messageData.message.message;
 
-        const messageTextElement = document.createElement('div');
-        if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-            const [text, fileInfo] = rawMessage.split('[[FILE]]');
-            const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
-            const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
-            const fileId = fileIdInfo.split(': ')[1];
-            const fileName = fileNameInfo.split(': ')[1];
+                if (senderNickname) {  // Проверка наличия senderNickname
+                    const senderElement = document.createElement('strong');
+                    senderElement.innerText = senderNickname + ":";
+                    messageContent.appendChild(senderElement);
+                }
 
-            messageTextElement.appendChild(document.createTextNode(" " + text));
-            messageContent.appendChild(messageTextElement);
+                const messageTextElement = document.createElement('div');
+                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                    const [text, fileInfo] = rawMessage.split('[[FILE]]');
+                    const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+                    const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+                    const fileId = fileIdInfo.split(': ')[1];
+                    const fileName = fileNameInfo.split(': ')[1];
 
-            const fileLink = document.createElement('div');
-            const fileAnchor = document.createElement('a');
-            fileAnchor.href = `/files/${fileId}`;
-            fileAnchor.innerText = fileName;
-            fileLink.appendChild(fileAnchor);
-            messageContent.appendChild(fileLink);
-        } else {
-            messageTextElement.appendChild(document.createTextNode(" " + rawMessage));
-            messageContent.appendChild(messageTextElement);
-        }
+                    messageTextElement.appendChild(document.createTextNode(" " + text));
+                    messageContent.appendChild(messageTextElement);
 
-        const timeElement = document.createElement('div');
-        timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "undefined")));
-        messageContent.appendChild(timeElement);
+                    const fileLink = document.createElement('div');
+                    const fileAnchor = document.createElement('a');
+                    fileAnchor.href = `/files/${fileId}`;
+                    fileAnchor.innerText = fileName;
+                    fileLink.appendChild(fileAnchor);
+                    messageContent.appendChild(fileLink);
+                } else {
+                    messageTextElement.appendChild(document.createTextNode(" " + rawMessage));
+                    messageContent.appendChild(messageTextElement);
+                }
 
-        newMessage.appendChild(messageContent);
-        messagesList.appendChild(newMessage);
+                const timeElement = document.createElement('div');
+                timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "")));  // Исправление "undefined"
+                messageContent.appendChild(timeElement);
 
+                newMessage.appendChild(messageContent);
+                messagesList.appendChild(newMessage);
             } else {
                 console.warn('Неожиданный формат сообщения: ', messageData);
             }
         }
     };
 }
+
 
 // Загрузка dialogs.html в правую панель
 document.addEventListener('DOMContentLoaded', function() {
@@ -365,7 +371,6 @@ function initializeCreateDialogJS() {
             event.preventDefault();
             const userId = form.action.split('/').pop();
 
-            // Здесь мы отправляем AJAX-запрос на сервер для создания диалога
             fetch(`/create_dialog/${userId}`, {
                 method: 'POST'
             })
@@ -378,9 +383,7 @@ function initializeCreateDialogJS() {
                 .then(response => response.text())
                 .then(html => {
                     document.querySelector('.right-panel').innerHTML = html;
-
-                    // Инициализация JS для dialogs.html
-                    initializeDialogJS(dialogId);
+                    initializeDialogJS(dialogId);  // Инициализация JS для нового диалога
                 });
             })
             .catch(error => {
@@ -389,7 +392,6 @@ function initializeCreateDialogJS() {
         });
     });
 }
-
 
 // Добавление обработчика для кнопки "Создать новый диалог"
 document.addEventListener('DOMContentLoaded', function() {
@@ -615,8 +617,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-
-
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>

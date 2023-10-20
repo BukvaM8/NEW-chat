@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Диалог</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
     <style>
         body {
@@ -14,48 +14,58 @@
         .container {
             height: 100%;
         }
+
         .messages-container {
             height: calc(50vh - 100px);
             overflow-y: auto;
         }
 
         .interlocutor-info {
-        background-color: white;
-        border-radius: 8px;
-        padding: 10px;
-        display: flex;
-        align-items: center;
+            background-color: white;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
         }
+
         .interlocutor-info img {
-        border-radius: 50%;
+            border-radius: 50%;
         }
+
         .interlocutor-details {
-        margin-left: 10px;
+            margin-left: 10px;
         }
+
         .message-item {
-        display: flex;
-        justify-content: flex-start;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-    .message-item.user {
-        justify-content: flex-end;
-    }
-    .message-item .message-content {
-        background-color: #f1f1f1;
-        padding: 10px;
-        border-radius: 10px;
-    }
-    .message-item.user .message-content {
-        background-color: #4CAF50;
-        color: white;
-    }
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .message-item .message-content {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .message-item.user {
+            justify-content: flex-end;
+        }
+
+        .message-item.user .message-content {
+            background-color: #4CAF50;
+            color: white;
+            text-align: right;
+        / / Выравнивание текста по правому краю
+        }
     </style>
 </head>
 <body>
 <div class="container mt-5">
     <div class="interlocutor-info mb-4">
-        <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}" alt="Interlocutor's profile picture" width="50" height="50">
+        <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}" alt="Interlocutor's profile picture"
+             width="50" height="50">
         <div class="interlocutor-details">
             <h5>{{ dialog.interlocutor_phone_number }}</h5>
             <small>Онлайн: {{ dialog.last_online }}</small>
@@ -64,11 +74,13 @@
     <div class="mt-4 messages-container">
         <ul class="list-group">
             {% for message in messages %}
-    {% if not message.delete_timestamp %}
-        <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}">
-            <div class="message-content">
-                <strong>{{ message.sender_nickname or 'Unknown' }}:</strong>
-                {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+            {% if not message.delete_timestamp %}
+            <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}">
+                <div class="message-content">
+                    {% if message.sender_nickname %}
+                    <strong>{{ message.sender_nickname }}</strong>
+                    {% endif %}
+                    {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
                     {% set raw_message = message.message.split('[[FILE]]') %}
                     {{ raw_message[0] }}
                     {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
@@ -76,27 +88,26 @@
                     {% set file_id = file_id_info.split(': ')[1] %}
                     {% set file_name = file_name_info.split(': ')[1] %}
                     <a href="/files/{{ file_id }}">{{ file_name }}</a>
-                {% elif message.message %}
+                    {% elif message.message %}
                     {{ message.message }}
-                {% else %}
+                    {% else %}
                     <!-- Сообщение пустое или удалено -->
-                {% endif %}
-                <br>
+                    {% endif %}
+                    <br>
 
-                <small>Отправлено: {{ message.timestamp }}</small>
-            </div>
-
-                        {% if message.sender_id == current_user.id %}
-                            <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post" class="d-inline">
-                                <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-                                <input type="hidden" name="message_id" value="{{ message.id }}">
-                                <button type="submit" class="btn btn-link btn-sm p-0 ml-2">
-                                    <img src="/static/trash-icon.png" alt="Delete" width="20" height="20">
-                                </button>
-                            </form>
-                        {% endif %}
-                    </li>
+                    <small>Отправлено: {{ message.timestamp }}</small>
+                </div>
+                {% if message.sender_id == current_user.id %}
+                <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post" class="d-inline">
+                    <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+                    <input type="hidden" name="message_id" value="{{ message.id }}">
+                    <button type="submit" class="btn btn-link btn-sm p-0 ml-2">
+                        <img src="/static/trash-icon.png" alt="Delete" width="20" height="20">
+                    </button>
+                </form>
                 {% endif %}
+            </li>
+            {% endif %}
             {% endfor %}
         </ul>
     </div>
@@ -115,111 +126,113 @@
         </form>
     </div>
     <div class="mt-4">
-            <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
-        </div>
+        <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
     </div>
-    <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const dialogId = "{{ dialog.id }}";
-    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-    const access_token = cookie ? cookie.split('=')[1] : null;
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const dialogId = "{{ dialog.id }}";
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+        const access_token = cookie ? cookie.split('=')[1] : null;
+        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
-    ws.onopen = function(event) {
-        console.log("WebSocket connection opened.");
-        ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
-    };
+        ws.onopen = function (event) {
+            console.log("WebSocket connection opened.", event);
+            ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
+        };
 
-    const form = document.getElementById('message-form');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(form);
-        fetch(`/dialogs/${dialogId}/send_message`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (response.ok) {
-                return response.json();
-            } else {
-                throw new Error('Failed to send message');
+        function appendMessage(messageData) {
+            const messagesList = document.querySelector('.list-group');
+            const newMessage = document.createElement('li');
+            newMessage.className = "message-item";
+            newMessage.setAttribute('data-message-id', messageData.message.id);
+
+            if (String(messageData.message.sender_id) === String("{{ current_user.id }}")) {
+                newMessage.classList.add("user");
             }
-        })
-        .then(data => {
-            form.querySelector('textarea[name="message"]').value = '';
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
-    });
 
-    ws.onmessage = function(event) {
-        let messageData;
-        try {
-            messageData = JSON.parse(event.data);
-        } catch (e) {
-            console.error("Invalid JSON", e);
-            return;
+            const messageContent = document.createElement('div');
+            messageContent.className = "message-content";
+
+            const senderNickname = messageData.message.sender_nickname;
+            if (senderNickname) {
+                const strongElement = document.createElement('strong');
+                strongElement.innerText = senderNickname;
+                messageContent.appendChild(strongElement);
+            }
+
+            const textNode = document.createTextNode(" " + messageData.message.message);
+            messageContent.appendChild(textNode);
+
+            const timeElement = document.createElement("small");
+            timeElement.innerText = "Отправлено: " + (messageData.message.timestamp || "undefined");
+            messageContent.appendChild(timeElement);
+
+            const deleteButton = document.createElement('img');
+            deleteButton.src = "/static/trash-icon.png";
+            deleteButton.width = 20;
+            deleteButton.height = 20;
+            deleteButton.addEventListener('click', function () {
+                ws.send(JSON.stringify({
+                    "action": "delete_message",
+                    "message_id": messageData.message.id
+                }));
+            });
+            messageContent.appendChild(deleteButton);
+
+            newMessage.appendChild(messageContent);
+            messagesList.appendChild(newMessage);
         }
 
-        const action = messageData.action;
+        const form = document.getElementById('message-form');
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(form);
+            fetch(`/dialogs/${dialogId}/send_message`, {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error('Failed to send message');
+                    }
+                })
+                .then(data => {
+                    form.querySelector('textarea[name="message"]').value = '';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        });
 
-        if (action === 'new_token') {
-            document.cookie = "access_token=" + messageData.token;
-        } else if (action === 'initial_messages') {
-            // Handle initial messages
-        } else if (action === 'refresh_token') {
-            // Handle token refresh
-        } else {
-            const messagesList = document.querySelector('.list-group');
-            if (messageData.message && messageData.message.sender_id) {
-                const newMessage = document.createElement('li');
-                newMessage.className = "message-item";
+        ws.onmessage = function (event) {
+            let messageData;
+            try {
+                messageData = JSON.parse(event.data);
+            } catch (e) {
+                console.error("Invalid JSON", e);
+                return;
+            }
 
-                if (messageData.message.sender_id === "{{ current_user.id }}") {
-                    newMessage.classList.add("user");
+            const action = messageData.action;
+
+            if (action === 'new_token') {
+                document.cookie = "access_token=" + messageData.token;
+            } else if (action === 'new_message') {
+                appendMessage(messageData);
+            } else if (action === 'message_deleted') {
+                const messageId = messageData.message_id;
+                const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    messageElement.remove();
                 }
-
-                const messageContent = document.createElement('div');
-                messageContent.className = "message-content";
-
-                const senderNickname = messageData.message.sender_nickname || "Unknown";
-                const rawMessage = messageData.message.message;
-                const strongElement = document.createElement('strong');
-                strongElement.innerText = senderId + ":";
-                messageContent.appendChild(strongElement);
-
-                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                    const [text, fileInfo] = rawMessage.split('[[FILE]]');
-                    const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
-                    const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
-                    const fileId = fileIdInfo.split(': ')[1];
-                    const fileName = fileNameInfo.split(': ')[1];
-
-                    const textNode = document.createTextNode(" " + text);
-                    messageContent.appendChild(textNode);
-
-                    const fileLink = document.createElement('a');
-                    fileLink.href = `/files/${fileId}`;
-                    fileLink.innerText = fileName;
-                    messageContent.appendChild(fileLink);
-                } else {
-                    const textNode = document.createTextNode(" " + rawMessage);
-                    messageContent.appendChild(textNode);
-                }
-
-                const timeElement = document.createElement("small");
-                timeElement.innerText = "Отправлено: " + (messageData.message.timestamp || "undefined");
-                messageContent.appendChild(timeElement);
-
-                newMessage.appendChild(messageContent);
-                messagesList.appendChild(newMessage);
             } else {
                 console.warn('Неожиданный формат сообщения: ', messageData);
             }
-        }
-    };
-});
+        };
+    });
 
 </script>
 </body>

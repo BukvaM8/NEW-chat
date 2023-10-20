@@ -1,58 +1,115 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>{{ chat.chat_name }}</title>
-    <link rel="stylesheet" type="text/css" href="/static/GroupStyle.css">
-
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #ECE5DD;
+            font-family: Times New Roman, sans-serif;
+        }
+        .container {
+            height: 100%;
+        }
+        #messages-container {
+            height: calc(70vh - 100px);
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: #ce8334;
+        }
+        .message-item {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .message-item.user {
+            justify-content: flex-end;
+        }
+        .message-item .message-content {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .message-item.user .message-content {
+            background-color: #4CAF50;
+            color: white;
+        }
+        /* Закрепляем поле ввода сообщения в подвале */
+    #message-form-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #fff;
+        padding: 10px;
+        border-top: 1px solid #ccc;
+    }
+</style>
 </head>
 <body>
-<div id="container">
-        <h1>{{ chat.chat_name }}</h1>
-        <a href="/home">Вернуться назад</a>
-        <a href="/chat/{{ chat.id }}/members" id="member-count">{{ members|length }} участников</a>
+    <div class="container">
+        <!-- Header -->
+        <div class="bg-white rounded p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1>{{ chat.chat_name }}</h1>
+                <div>
+                    <a href="/home" class="btn btn-secondary">Вернуться назад</a>
+                    <a href="/chat/{{ chat.id }}/members" id="member-count" class="btn btn-info">{{ members|length }} участников</a>
+                </div>
+            </div>
+        </div>
 
-        {% if chat.owner_phone_number == current_user.phone_number %}
-        <a href="/chat/{{ chat.id }}/members/add">Пригласить</a>
-        <form action="/chats/{{chat.id}}/delete" method="post">
-            <button type="submit">Удалить чат</button>
-        </form>
-        {% else %}
-        <form action="/chats/{{chat.id}}/leave" method="post">
-            <button type="submit">Покинуть чат</button>
-        </form>
-        {% endif %}
-    <div id="messages-container">
-        <ul class="messages-list" id="chat-history">
-            {% for message in messages %}
-<div>
-    {% if message.sender_phone_number == "deleted" %}
-    <h4>Deleted message</h4>
-    {% else %}
-    <h4>{{ message.sender_phone_number }}</h4>
-    {% endif %}
-    <p>
-        {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
-            {% set raw_message = message.message.split('[[FILE]]') %}
-            {{ raw_message[0] }}
-            {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
-            {% set file_id_info, file_name_info = file_info.split(', ') %}
-            {% set file_id = file_id_info.split(': ')[1] %}
-            {% set file_name = file_name_info.split(': ')[1] %}
-            <a href="/files/{{ file_id.split(': ')[1] }}">{{ file_name }}</a>
-        {% else %}
-            {{ message.message }}
-        {% endif %}
-    </p>
-    <small>Отправлено: {{ message.timestamp }}</small>
+        <!-- Chat actions -->
+        <div class="my-2">
+            {% if chat.owner_phone_number == current_user.phone_number %}
+                <a href="/chat/{{ chat.id }}/members/add" class="btn btn-primary">Пригласить</a>
+                <form action="/chats/{{chat.id}}/delete" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-danger">Удалить чат</button>
+                </form>
+            {% else %}
+                <form action="/chats/{{chat.id}}/leave" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-warning">Покинуть чат</button>
+                </form>
+            {% endif %}
+        </div>
+
+<div id="messages-container" class="bg-white rounded p-3">
+    <ul class="messages-list" id="chat-history">
+        {% for message in messages %}
+            <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}">
+                {% if message.sender_phone_number == "deleted" %}
+                    <h4>Deleted message</h4>
+                {% else %}
+                    <h4>{{ message.sender_nickname }}</h4>
+                {% endif %}
+                <div class="message-content">
+                    <p>
+                        {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+                            {% set raw_message = message.message.split('[[FILE]]') %}
+                            {{ raw_message[0] }}
+                            {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
+                            {% set file_id_info, file_name_info = file_info.split(', ') %}
+                            {% set file_id = file_id_info.split(': ')[1] %}
+                            {% set file_name = file_name_info.split(': ')[1] %}
+                            <a href="/files/{{ file_id.split(': ')[1] }}">{{ file_name }}</a>
+                        {% else %}
+                            {{ message.message }}
+                        {% endif %}
+                    </p>
+                    <small>Отправлено: {{ message.timestamp }}</small>
+                </div>
                 {% if message.sender_phone_number != "deleted" and (message.sender_phone_number ==
                 current_user.phone_number or chat.owner_phone_number == current_user.phone_number) %}
-                <form action="/chats/{{ chat.id }}/messages/{{ message.id }}/delete" method="post">
-                    <button type="submit">Delete message</button>
-                </form>
+                    <form action="/chats/{{ chat.id }}/messages/{{ message.id }}/delete" method="post">
+                        <button type="submit">Delete message</button>
+                    </form>
                 {% endif %}
             </div>
-            {% endfor %}
+        {% endfor %}
         </ul>
     </div>
     <!-- Добавленная секция для отображения опросов -->
@@ -106,6 +163,8 @@
                 <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
                 <button type="submit">Отправить</button>
             </form>
+
+
             <!-- Poll creation form -->
             <button onclick="document.getElementById('poll-form').style.display='block'">Создать опрос</button>
             <div id="poll-form" style="display: none;">
@@ -154,11 +213,18 @@ ws.onmessage = function(event) {
         if (messageData.message && messageData.sender_phone_number) {
             const messagesList = document.getElementById('chat-history');
             const newMessage = document.createElement('div');
+            newMessage.className = "message-item";  // Задаем базовый класс
+
+            // Добавляем класс .user, если сообщение от текущего пользователя
+            if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
+                newMessage.className += " user";
+            }
 
             const senderElement = document.createElement("h4");
             senderElement.innerText = messageData.sender_phone_number || "Unknown";
             newMessage.appendChild(senderElement);
 
+            console.log(messageData.message);
             const rawMessage = messageData.message;
 
             if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
@@ -190,6 +256,7 @@ ws.onmessage = function(event) {
         }
     }
 };
+
 
 function addOption() {
     const newOption = document.createElement('input');
