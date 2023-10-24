@@ -154,7 +154,9 @@ userchats = Table(
     Column("id", Integer, primary_key=True),
     Column("chat_name", String),
     Column("owner_phone_number", String, ForeignKey('Users.phone_number')),
+    Column("chat_image", LargeBinary)  # Измененный тип данных
 )
+
 
 tokens = Table(
     "Tokens",
@@ -1380,16 +1382,17 @@ async def create_message(chat_id: int, message_text: str, sender_phone_number: s
         raise HTTPException(status_code=500, detail="Error creating message")
 
 
-# Создает новый чат.
-async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: str):
+async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: str, image_data: bytes):  # добавлено
     try:
-        query = userchats.insert().values(chat_name=chat_name, owner_phone_number=owner_phone_number)
+        query = userchats.insert().values(
+            chat_name=chat_name, 
+            owner_phone_number=owner_phone_number,
+            chat_image=image_data  # добавлено
+        )
         last_record_id = await database.execute(query)
 
-        # Add the owner as a member of the chat
+        # Добавление участников чата
         await add_chat_member_db(last_record_id, owner_phone_number)
-
-        # Add the user_phone as a member of the chat
         await add_chat_member_db(last_record_id, user_phone)
 
         return last_record_id
@@ -2257,12 +2260,17 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
 # Маршрут для создания нового чата
 @app.post("/create_chat", response_class=JSONResponse)
 async def create_chat(request: Request, chat_name: str = Form(...), user_phone: str = Form(...),
+                      chat_image: UploadFile = File(...),  # добавлено
                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
-    chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phone)
-    return JSONResponse(content={"chat_id": chat_id, "status": "created"})
 
+    # Чтение и сохранение изображения
+    image_data = await chat_image.read()
+
+    chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phone, image_data)  # добавлено
+
+    return JSONResponse(content={"chat_id": chat_id, "status": "created"})
 
 # Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
 @app.get("/chats/{chat_id}", response_class=HTMLResponse)
