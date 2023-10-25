@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        body {
+            font-family: Roboto, sans-serif;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 400;
+        }
+
+        .text-blue {
+            font-family: Roboto, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 400;
+            color: #2A88B9 /* Пример цвета для текста "text-blue" */
+        }
+
+        .form-check-label {
+            font-family: Roboto, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 400;
+            color: #928F8F /* Пример цвета для текста "text-blue" */
+        }
+
+        .profile-container {
+            width: 413px;
+            margin: 0 auto;
+            text-align: left;
+        }
+
+        .profile-picture-overlay {
+            position: relative;
+            display: inline-block;
+        }
+
+        .edit-photo-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .edit-photo-label:hover {
+            opacity: 1;
+        }
+
+        .profile-picture-overlay:hover .edit-photo-label {
+            opacity: 1;
+        }
+
+        .edit-button {
+            border: none;
+            background: none;
+            font-size: 12px;
+            font-weight: 400;
+            color: #2A88B9;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .edit-button:hover {
+            text-decoration: underline;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .code-input {
+            display: flex;
+            align-items: center;
+        }
+
+        .code-box {
+            width: 0;
+            height: 0;
+            opacity: 0;
+        }
+
+        .code-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .code-digit {
+            width: 30px;
+            height: 40px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 24px;
+            line-height: 38px;
+        }
+
+        .code-digit-new-email {
+            width: 30px;
+            height: 40px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 24px;
+            line-height: 38px;
+        }
+
+        .code-digit-old-email {
+            width: 30px;
+            height: 40px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 24px;
+            line-height: 38px;
+        }
+
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <div class="profile-container text-center" style="width: 413px; margin: 0 auto; text-align: left;">
+        <h3 class="text-left"><a href="/home" class="text-left">
+            <i class="fas fa-arrow-left"></i> </a>Профиль</h3>
+        <div class="profile-picture-overlay">
+            <label class="edit-photo-label" id="change-photo-button">Изменить фото</label>
+            <img id="profile-image" src="../profile_pictures/selfie.jpg" alt="Ваше изображение"
+                 class="rounded-circle mt-3" width="150" height="150">
+            <input type="file" id="photo-upload" accept="image/*" style="display: none">
+        </div>
+        <div class="mt-3">
+            <div class="d-flex flex-column">
+                <div class="text-left text-blue mb-2"><strong>Никнейм:</strong></div>
+                <div class="text-left" id="nickname">{{ user.nickname }}</div>
+            </div>
+            <br>
+            <div class="d-flex flex-column align-items-start">
+                <div class="text-left text-blue mb-2"><strong>Статус:</strong></div>
+                <div class="text-left mb-2" id="user-status">{{ user.status }}</div>
+                <button class="btn btn-primary edit-button" id="edit-status-button">Редактировать статус</button>
+                <div class="form-group" style="display: none;" id="status-edit-fields">
+                    <input type="text" class="form-control" id="new-status">
+                    <button class="btn btn-success mt-2 edit-button" id="confirm-status">Подтвердить</button>
+                </div>
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" id="showStatus"
+                           {% if user.status_visibility %}checked{% endif %}>
+                    <label class="form-check-label" for="showStatus">Показывать мой статус другим
+                        пользователям</label>
+                </div>
+            </div>
+            <br>
+            <div class="d-flex flex-column align-items-start">
+                <div class="text-left text-blue mb-2"><strong>Пароль:</strong></div>
+                <div class="text-left" id="password">{{ user.password }}</div>
+                <button class="btn btn-primary edit-button" id="changePassword">Изменить пароль</button>
+                <div class="form-group" style="display: none;" id="password-change-fields">
+                    <input type="password" class="form-control" id="new-password">
+                    <input type="text" class="form-control" id="show-password" style="display: none;">
+                    <button class="btn btn-success mt-2 edit-button" id="toggle-password">Показать пароль</button>
+                    <button class="btn btn-success mt-2 edit-button" id="confirm-password">Подтвердить</button>
+                </div>
+                <div class="form-group" style="display: none;" id="confirmation-code-password">
+                    <div class="code-input">
+                        <input type="text" maxlength="6" id="code" class="code-box"/>
+                        <div class="code-container">
+                            <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                        </div>
+                    </div>
+                    <button class="btn btn-success mt-2 edit-button" id="confirm-code">Подтвердить изменения
+                    </button>
+                </div>
+            </div>
+
+            <br>
+            <div class="d-flex flex-column align-items-start">
+                <div class="text-left text-blue mb-2"><strong>Почта:</strong></div>
+                <div class="text-left mb-2" id="email">{{ user.email }}</div>
+                <!-- Добавляем кнопку для изменения почты -->
+                <button class="btn btn-primary edit-button" id="changeEmail">Изменить почту</button>
+                <div class="form-group" style="display: none;" id="email-change-fields">
+                    <input type="email" class="form-control" id="new-email">
+                    <button class="btn btn-success mt-2 edit-button" id="confirm-email">Подтвердить</button>
+                </div>
+                <div class="form-group" style="display: none;" id="confirmation-code-newemail">
+                    <label for="newemail-confirmation-code">Код подтверждения (придет на новую почту)</label>
+                    <div class="code-input">
+                        <input type="text" maxlength="6" id="newcode-email" class="code-box"/>
+                        <div class="code-container">
+                            <input type="text" maxlength="1" class="code-digit-new-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-new-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-new-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-new-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-new-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-new-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group" style="display: none;" id="confirmation-code-email">
+                    <label for="email-confirmation-code">Код подтверждения (придет на старую почту)</label>
+                    <div class="code-input">
+                        <input type="text" maxlength="6" id="oldcode-email" class="code-box"/>
+                        <div class="code-container">
+                            <input type="text" maxlength="1" class="code-digit-old-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-old-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-old-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-old-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-old-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                            <input type="text" maxlength="1" class="code-digit-old-email"
+                                   oninput="moveToNextOrPrevious(this)"
+                                   onkeydown="moveToPrevious(this)"/>
+                        </div>
+                    </div>
+                    <button class="btn btn-success mt-2 edit-button" id="confirm-email-code">Подтвердить изменения
+                    </button>
+                </div>
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" id="showEmail"
+                           {% if user.email_visibility %}checked{% endif %}>
+                    <label class="form-check-label" for="showEmail">Показывать мою почту другим
+                        пользователям</label>
+                </div>
+            </div>
+        </div>
+        <br>
+        <button class="btn btn-outline-primary" id="logout-button">Выйти</button>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+    const codeDigits = document.querySelectorAll('.code-digit');
+    const codeDigitsNewEmail = document.querySelectorAll('.code-digit-new-email');
+    const codeDigitsOldEmail = document.querySelectorAll('.code-digit-old-email');
+    const changePhotoButton = document.getElementById("change-photo-button");
+    const photoUpload = document.getElementById("photo-upload");
+    const profileImage = document.getElementById("profile-image");
+
+    document.addEventListener("DOMContentLoaded", function () {
+        let userPassword = "{{ user.password }}"; // Здесь подставьте значение реального пароля
+
+        let passwordDisplay = document.getElementById("password");
+        let hiddenPassword = userPassword.substring(0, 8).replace(/./g, "&#8226; "); // Заменяем каждый символ на точку с пробелом
+
+        passwordDisplay.innerHTML = hiddenPassword;
+    });
+
+    function moveToNextOrPrevious(input) {
+        var maxLength = input.maxLength;
+        var currentLength = input.value.length;
+
+        if (currentLength === maxLength) {
+            var nextInput = input.nextElementSibling;
+            if (nextInput) {
+                nextInput.focus();
+            }
+        } else if (currentLength === 0) {
+            var previousInput = input.previousElementSibling;
+            if (previousInput) {
+                previousInput.focus();
+            }
+        }
+    }
+
+    function moveToPrevious(input) {
+        if (input.value.length === 0 && event.key === "Backspace") {
+            var previousInput = input.previousElementSibling;
+            if (previousInput) {
+                previousInput.focus();
+            }
+        }
+    }
+
+    document.getElementById('toggle-password').addEventListener('click', function () {
+        var newPasswordInput = document.getElementById('new-password');
+        var showPasswordInput = document.getElementById('show-password');
+
+        if (newPasswordInput.style.display === 'none') {
+            newPasswordInput.style.display = 'block';
+            showPasswordInput.style.display = 'none';
+            this.textContent = 'Показать пароль';
+        } else {
+            newPasswordInput.style.display = 'none';
+            showPasswordInput.style.display = 'block';
+            showPasswordInput.value = newPasswordInput.value;
+            this.textContent = 'Скрыть пароль';
+        }
+    });
+
+    $(document).ready(function () {
+        $("#changePassword").click(function () {
+            $("#changePassword").hide();
+            $("#password-change-fields").show();
+        });
+        $("#changeEmail").click(function () {
+            $("#changeEmail").hide();
+            $("#email-change-fields").show();
+        });
+        $("#edit-status-button").click(function () {
+            $("#edit-status-button").hide();
+            $("#status-edit-fields").show();
+        });
+    });
+
+    changePhotoButton.addEventListener("click", function () {
+// Запускаем выбор файла
+        photoUpload.click();
+    });
+
+    photoUpload.addEventListener("change", function () {
+        if (photoUpload.files && photoUpload.files[0]) {
+            let nickname = document.getElementById("nickname").innerHTML;
+            const formData = new FormData();
+            formData.append("photo", photoUpload.files[0]);
+
+            fetch("/upload-photo", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({"photo": photoUpload.files[0].name, "nickname": nickname}),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+// Обновляем изображение и сохраняем имя
+                        profileImage.src = data.photo_url;
+                        alert("Имя изображения: " + data.photo_name);
+                    } else {
+                        alert("Ошибка загрузки изображения.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Ошибка при выполнении запроса: " + error);
+                });
+        }
+    });
+
+    document.getElementById('logout-button').addEventListener('click', function () {
+// Выполнение AJAX-запроса к серверу для вызова функции logout
+        fetch('/logout', {
+            method: 'GET', // или другой HTTP метод, который ваш сервер ожидает
+// Может потребоваться добавить заголовки или токен аутентификации, если они требуются
+        })
+            .then(response => {
+                if (response.status === 200) {
+// Обработка успешного выхода
+                    window.location.href = '/login'; // Перенаправление пользователя на страницу входа
+                } else {
+// Обработка ошибки
+                    console.error('Не удалось выполнить выход');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при выполнении запроса:', error);
+            });
+    });
+
+    document.getElementById("confirm-status").addEventListener("click", function () {
+        let newStatus = document.getElementById("new-status").value;
+        let nickname = document.getElementById("nickname").innerHTML;
+
+        fetch("/update-status", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({nickname: nickname, showStatus: newStatus}),
+        })
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById("status-edit-fields").style.display = "none";
+                    document.getElementById("edit-status-button").style.display = "block";
+                    document.getElementById("user-status").innerHTML = newStatus;
+                } else {
+                    throw new Error("Network response was not ok");
+                }
+            })
+            .then(data => {
+
+            })
+            .catch(error => {
+// Обработка ошибки, если необходимо
+                console.error("Ошибка: " + error.message);
+            });
+    });
+
+
+    document.getElementById("confirm-password").addEventListener("click", function () {
+        let nickname = document.getElementById("nickname").innerHTML;
+        let email = document.getElementById("email").innerHTML;
+        fetch("/send-code", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({nickname: nickname, email: email})
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("Network response was not ok");
+                }
+            })
+            .then(data => {
+            })
+            .catch(error => {
+                console.error("Ошибка: " + error.message);
+            });
+
+        document.getElementById("confirmation-code-password").style.display = "block";
+        document.getElementById("confirm-password").style.display = "none";
+    });
+
+    document.getElementById("confirm-code").addEventListener("click", function () {
+        const codeValues = Array.from(codeDigits).map(input => input.value);
+        let newPassword = document.getElementById("new-password").value;
+        let confirmationCode = codeValues.join('');
+        let nickname = document.getElementById("nickname").innerHTML;
+
+        fetch("/change_password", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                new_password: newPassword,
+                confirmation_code: confirmationCode,
+                nickname: nickname
+            })
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("Network response was not ok");
+                }
+            })
+            .then(data => {
+                alert(data.message);
+                console.log(document.getElementById("password").value)
+                document.getElementById("password-change-fields").style.display = "none";
+                document.getElementById("confirmation-code-password").style.display = "none";
+                document.getElementById("changePassword").style.display = "block";
+                document.getElementById("password").innerHTML = data.password.substring(0, 8).replace(/./g, "&#8226; ");
+            })
+            .catch(error => {
+                alert(error.message);
+            });
+    });
+    document.getElementById("confirm-email").addEventListener("click", function () {
+        let email = document.getElementById("email").innerHTML;
+        let newEmail = document.getElementById("new-email").value;
+        let nickname = document.getElementById("nickname").innerHTML;
+
+// Отправить запрос на отправку кода подтверждения для email
+        fetch("/send-email-code", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({nickname: nickname, email: email, new_email: newEmail})
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("Network response was not ok");
+                }
+            })
+            .then(data => {
+            })
+            .catch(error => {
+                console.error("Ошибка: " + error.message);
+            });
+
+        document.getElementById("confirmation-code-email").style.display = "block";
+        document.getElementById("confirmation-code-newemail").style.display = "block";
+    });
+
+    document.getElementById("confirm-email-code").addEventListener("click", function () {
+        let email = document.getElementById("email").innerHTML;
+        let newEmail = document.getElementById("new-email").value;
+        const codeValuesNew = Array.from(codeDigitsNewEmail).map(input => input.value);
+        const codeValuesOld = Array.from(codeDigitsOldEmail).map(input => input.value);
+        let emailConfirmationCode = codeValuesOld.join('');
+        let newEmailConfirmationCode = codeValuesNew.join('');
+        let nickname = document.getElementById("nickname").innerHTML;
+
+// Отправить запрос для изменения email с помощью кода подтверждения
+        fetch("/change_email", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email: email,
+                new_email: newEmail,
+                confirmation_code: emailConfirmationCode,
+                new_confirmation_code: newEmailConfirmationCode,
+                nickname: nickname
+            })
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("Network response was not ok");
+                }
+            })
+            .then(data => {
+                alert(data.message);
+                document.getElementById("confirmation-code-email").style.display = "none";
+                document.getElementById("confirmation-code-newemail").style.display = "none";
+                document.getElementById("email-change-fields").style.display = "none";
+                document.getElementById("changeEmail").style.display = "block";
+                document.getElementById("email").innerHTML = data.email
+            })
+            .catch(error => {
+                alert(error.message);
+            });
+    });
+
+    document.getElementById("showStatus").addEventListener("change", function () {
+        const isChecked = this.checked;
+        const nickname = document.getElementById("nickname").textContent;
+
+// Отправляем запрос к FastAPI бэкенду с использованием fetch
+        fetch("/update-status-visibility", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({nickname: nickname, showStatus: isChecked}),
+        })
+            .then(response => {
+                if (response.ok) {
+// Обработка успешного ответа от сервера, если необходимо
+                } else {
+                    throw new Error("Network response was not ok");
+                }
+            })
+            .catch(error => {
+// Обработка ошибки, если необходимо
+                console.error("Ошибка: " + error.message);
+            });
+    });
+
+    document.getElementById("showEmail").addEventListener("change", function () {
+        const isChecked = this.checked;
+        const nickname = document.getElementById("nickname").textContent;
+
+// Отправляем запрос к FastAPI бэкенду с использованием fetch
+        fetch("/update-email-visibility", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({nickname: nickname, showEmail: isChecked}),
+        })
+            .then(response => {
+                if (response.ok) {
+// Обработка успешного ответа от сервера, если необходимо
+                } else {
+                    throw new Error("Network response was not ok");
+                }
+            })
+            .catch(error => {
+// Обработка ошибки, если необходимо
+                console.error("Ошибка: " + error.message);
+            });
+    });
+</script>
+
+</body>
+</html>

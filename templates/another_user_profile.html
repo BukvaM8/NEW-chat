@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        body {
+            font-family: Roboto, sans-serif;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 400;
+        }
+
+        .text-blue {
+            font-family: Roboto, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 400;
+            color: #2A88B9 /* Пример цвета для текста "text-blue" */
+        }
+
+        .form-check-label {
+            font-family: Roboto, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 400;
+            color: #928F8F /* Пример цвета для текста "text-blue" */
+        }
+
+        .profile-container {
+            width: 413px;
+            margin: 0 auto;
+            text-align: left;
+        }
+
+        .profile-picture-overlay {
+            position: relative;
+            display: inline-block;
+        }
+
+        .edit-photo-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .edit-photo-label:hover {
+            opacity: 1;
+        }
+
+        .profile-picture-overlay:hover .edit-photo-label {
+            opacity: 1;
+        }
+
+        .edit-button {
+            border: none;
+            background: none;
+            font-size: 12px;
+            font-weight: 400;
+            color: #2A88B9;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .edit-button:hover {
+            text-decoration: underline;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .code-input {
+            display: flex;
+            align-items: center;
+        }
+
+        .code-box {
+            width: 0;
+            height: 0;
+            opacity: 0;
+        }
+
+        .code-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .code-digit {
+            width: 30px;
+            height: 40px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 24px;
+            line-height: 38px;
+        }
+
+        .code-digit-new-email {
+            width: 30px;
+            height: 40px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 24px;
+            line-height: 38px;
+        }
+
+        .code-digit-old-email {
+            width: 30px;
+            height: 40px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 24px;
+            line-height: 38px;
+        }
+
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <div class="profile-container text-center" style="width: 413px; margin: 0 auto; text-align: left;">
+        <h3 class="text-left"><a href="/home" class="text-left">
+            <i class="fas fa-arrow-left"></i> </a>Профиль</h3>
+        <div class="profile-picture-overlay">
+            <img id="profile-image" src="../profile_pictures/selfie.jpg" alt="Ваше изображение"
+                 class="rounded-circle mt-3" width="150" height="150">
+            <input type="file" id="photo-upload" accept="image/*" style="display: none">
+        </div>
+        <div class="mt-3">
+            <div class="d-flex flex-column">
+                <div class="text-left text-blue mb-2"><strong>Никнейм:</strong></div>
+                <div class="text-left" id="nickname">{{ user.nickname }}</div>
+            </div>
+            <br>
+            <div class="d-flex flex-column align-items-start">
+                <div class="text-left text-blue mb-2"><strong>Статус:</strong></div>
+                <div class="text-left mb-2" id="user-status">
+                    {% if user.status_visibility %}
+                        {{ user.status }}
+                    {% endif %}
+                </div>
+            </div>
+            <br>
+            <div class="d-flex flex-column align-items-start">
+                <div class="text-left text-blue mb-2"><strong>Почта:</strong></div>
+                <div class="text-left mb-2" id="email">
+                    {% if user.email_visibility %}
+                        {{ user.email }}
+                    {% endif %}
+                </div>
+                <!-- Добавляем кнопку для изменения почты -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+</script>
+
+</body>
+</html>

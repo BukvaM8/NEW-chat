@@ -25,7 +25,7 @@ import bcrypt
 import jwt
 import pytz as pytz
 import requests
-import room
+# import room
 import uvicorn
 # Сторонние библиотеки для работы с файлами, датами и временем
 from aiofile import async_open
@@ -47,7 +47,7 @@ from pydantic.json import Union
 from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
-    Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete, create_engine
+    Table, func, LargeBinary, desc, Boolean, BLOB, Text, Float, JSON, delete, create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -136,6 +136,11 @@ users = Table(
     "Users",
     metadata,
     Column("id", Integer, primary_key=True),
+    Column("gender", String, default="М"),
+    Column("last_name", String, default=""),
+    Column("first_name", String, default=""),
+    Column("middle_name", String, default=""),
+    Column("position", String, default=""),
     Column("nickname", String),
     Column("phone_number", String, unique=True),
     Column("email", String),
@@ -144,9 +149,8 @@ users = Table(
     Column("profile_picture", BLOB, default=None),
     Column("status", Text, default=None),
     Column("status_visibility", Boolean, default=True),  # Новый столбец
-    Column("email_visibility", Boolean, default=True),   # Новый столбец
+    Column("email_visibility", Boolean, default=True),  # Новый столбец
 )
-
 
 userchats = Table(
     "Userchats",
@@ -236,7 +240,6 @@ dialog_messages = Table(
     Column("delete_timestamp", DateTime),
 )
 
-
 chatmessages = Table(
     "ChatMessages",
     metadata,
@@ -318,6 +321,11 @@ class User(Base):
 
     nickname = Column(String, primary_key=True)
     email = Column(String)
+    status = Column(String)
+
+    status_visibility = Column(Boolean)
+    email_visibility = Column(Boolean)
+
 
 class UserInDB(BaseModel):
     id: int
@@ -595,7 +603,6 @@ async def validate_and_refresh_token(connection: Union[WebSocket, Request], user
         return None, False
 
 
-
 # Function to delete refresh token from database
 async def delete_refresh_token_from_db(refresh_token: str):
     query = delete(refresh_tokens).where(refresh_tokens.c.token == refresh_token)
@@ -794,6 +801,7 @@ async def get_user_by_phone(phone_number: str):
     logging.info(f'No user found for phone: {phone_number}')
     return None
 
+
 # Функция для извлечения nickname по user_id
 async def get_nickname_by_user_id(user_id: int) -> Optional[str]:
     query = select([users.c.nickname]).where(users.c.id == user_id)
@@ -953,6 +961,10 @@ def is_password_correct(password: str, password_hash: str):
 async def add_user(nickname, phone_number, email, password, status_visibility, email_visibility):
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     query = users.insert().values(
+        last_name="",
+        first_name="",
+        middle_name="",
+        position="",
         nickname=nickname,
         phone_number=phone_number,
         email=email,
@@ -964,7 +976,6 @@ async def add_user(nickname, phone_number, email, password, status_visibility, e
     result = await database.execute(query)
     logging.info(f"Result: {result}")  # Debug info
     return result
-
 
 
 # Возвращает всех пользователей из базы данных.
@@ -987,7 +998,6 @@ async def get_all_users(search_query: str = "") -> List[dict]:
     await cur.close()
     conn.close()
     return result
-
 
 
 # Получает все сообщения из указанного чата.
@@ -1132,7 +1142,8 @@ async def search_chat_members(request: Request, chat_id: int, search_user: str,
         # Фильтрация результатов поиска, если предоставлен search_user
         if search_user:
             search_results = list(filter(
-                lambda member: search_user.lower() in member['nickname'].lower() or search_user in member['phone_number'],
+                lambda member: search_user.lower() in member['nickname'].lower() or search_user in member[
+                    'phone_number'],
                 members_info))
         else:
             search_results = members_info
@@ -1746,6 +1757,7 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
                 <div class="form-group">
                     <label for="nickname">Логин:</label>
                     <input type="text" id="nickname" name="nickname" class="form-control" required>
+                    <p id="nicknameError" style="color: red; display: none;">Ваш никнейм должен быть уникальным!.</p>
                 </div>
                 <div class="form-group">
                     <label for="password">Пароль:</label>
@@ -1762,7 +1774,8 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
         var passwordInput = document.getElementById("password");
         var loginButton = document.getElementById("loginButton");
         var passwordError = document.getElementById("passwordError");
-        
+        var nicknameInput = document.getElementById("nickname"); // Добавлено
+
         // Добавьте обработчик события для ввода пароля
         passwordInput.addEventListener("input", function () {{
             // Получите значение введенного пароля
@@ -1787,11 +1800,51 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
                 loginButton.setAttribute("disabled", "disabled");
                 passwordError.style.display = "block";
             }}
-        }});7
+        }});
+
+        // Добавьте обработчик события для отправки формы
+        var form = document.getElementById("form");
+        form.addEventListener("submit", function (event) {{
+            event.preventDefault(); // Отмена действия по умолчанию
+
+            // Получите значение введенного nickname
+            var nickname = nicknameInput.value;
+
+            // Отправьте данные на сервер
+            fetch("/check-login", {{
+                method: "POST",
+                body: new URLSearchParams({{
+                    nickname: nickname
+                }}),
+                headers: {{
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }}
+            }})
+            .then(response => {{
+            console.log(response);
+                // Обработка ответа от сервера
+                if (response.ok) {{
+                    form.submit();
+                }} else {{
+                    nicknameError.style.display = "block";
+                }}
+            }})
+            .catch(error => {{
+                console.error("Ошибка:", error);
+            }});
+        }});
     </script>
     </html>
     """
     return response
+
+
+@app.post("/check-login", response_class=HTMLResponse)
+async def check_login(nickname: str = Form(...), db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.nickname == nickname).first()
+    if existing_user:
+        return JSONResponse(content={"message": "Nickname already exists"}, status_code=400)
+    return JSONResponse(content={"message": "Nickname is available"}, status_code=200)
 
 
 @app.post("/complete-register", response_class=HTMLResponse)
@@ -1799,7 +1852,7 @@ async def confirm_registration(nickname: str = Form(...), email: str = Form(...)
                                db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.nickname == nickname).first()
     if not existing_user:
-        await add_user("М", "", "", "", nickname, nickname, "", email, password)
+        await add_user(nickname, nickname, email, password, 1, 1)
 
     response = f"""
                 <html>
@@ -1890,7 +1943,7 @@ def send_email(to_email, code):
 @app.get("/profile", response_class=HTMLResponse)
 async def user_profile(request: Request):
     # Получаем токен из куки
-    access_token = request.cookies.get("access_token")
+    # access_token = request.cookies.get("access_token")
 
     # Проверяем и обновляем токен, если нужно
     new_token, is_valid = await validate_and_refresh_token(request, None, request_type="http")
@@ -1901,7 +1954,6 @@ async def user_profile(request: Request):
     # Извлекаем phone_number из токена
     payload = jwt.decode(new_token, SECRET_KEY, algorithms=[ALGORITHM])
     phone_number = payload.get("sub")
-
     # Извлекаем информацию о пользователе из базы данных
     user = await get_user_by_phone(phone_number)
 
@@ -1909,7 +1961,7 @@ async def user_profile(request: Request):
         raise HTTPException(status_code=404, detail="User not found")
 
     # Передаем информацию о пользователе в шаблон
-    return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+    return templates.TemplateResponse("profile2.html", {"request": request, "user": user})
 
 
 @app.get("/profile/{phone_number}", response_class=HTMLResponse)
@@ -1917,7 +1969,176 @@ async def profile(request: Request, phone_number: str):
     user = await get_user_by_phone(phone_number)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+    return templates.TemplateResponse("another_user_profile.html", {"request": request, "user": user})
+
+
+class ChangePasswordRequest(BaseModel):
+    new_password: str
+    confirmation_code: str
+    nickname: str
+
+
+class ChangeEmailRequest(BaseModel):
+    email: str
+    new_email: str
+    confirmation_code: str
+    new_confirmation_code: str
+    nickname: str
+
+
+class NicknameRequest(BaseModel):
+    nickname: str
+    email: str
+
+
+class EmailRequest(BaseModel):
+    nickname: str
+    email: str
+    new_email: str
+
+
+class StatusRequest(BaseModel):
+    nickname: str
+    showStatus: str
+
+
+class EmailVisibilityRequest(BaseModel):
+    nickname: str
+    showEmail: str
+
+
+class PhotoRequest(BaseModel):
+    photo: str
+    nickname: str
+
+
+@app.post("/send-code")
+def change_password(request: NicknameRequest, db: Session = Depends(get_db)):
+    nickname = request.nickname
+    email = request.email
+    code = str(randint(100000, 999999))
+
+    existing_registration = db.query(Registration).filter(Registration.email == nickname).first()
+    if existing_registration:
+        db.delete(existing_registration)
+
+    new_registration = Registration(email=nickname, confirmation_code=code)
+    db.add(new_registration)
+    db.commit()
+
+    send_email(email, code)
+    print(code)
+
+
+@app.post("/change_password")
+def change_password(request: ChangePasswordRequest, db: Session = Depends(get_db)):
+    new_password = request.new_password
+    confirmation_code = request.confirmation_code
+    nickname = request.nickname
+
+    results = db.query(Registration).filter(Registration.email == nickname).first()
+
+    if results is None or confirmation_code != results.confirmation_code:
+        return {"message": "Неверный код подтверждения!"}
+
+    hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    user = db.query(User).filter(User.nickname == nickname).first()
+    user.password = hashed_password
+    db.commit()
+
+    return {"message": "Пароль успешно изменен", "password": hashed_password}
+
+
+@app.post("/send-email-code")
+def send_email_code(request: EmailRequest, db: Session = Depends(get_db)):
+    nickname = request.nickname
+    email = request.email
+    new_email = request.new_email
+
+    for email in [email, new_email]:
+        code = str(randint(100000, 999999))
+
+        existing_registration = db.query(Registration).filter(Registration.email == email).first()
+        if existing_registration:
+            db.delete(existing_registration)
+
+        new_registration = Registration(email=email, confirmation_code=code)
+        db.add(new_registration)
+        db.commit()
+
+        send_email(email, code)
+
+        print(code)
+
+
+# BukvaWork@yandex.ru
+@app.post("/change_email")
+def change_email(request: ChangeEmailRequest, db: Session = Depends(get_db)):
+    email = request.email
+    new_email = request.new_email
+    confirmation_code = request.confirmation_code
+    new_confirmation_code = request.new_confirmation_code
+    nickname = request.nickname
+
+    results = db.query(Registration).filter(Registration.email == email).first()
+    new_results = db.query(Registration).filter(Registration.email == new_email).first()
+
+    if (results is None or confirmation_code != results.confirmation_code) and (
+            new_results is None or new_confirmation_code != new_results.confirmation_code):
+        return {"message": "Неверный код подтверждения!"}
+
+    user = db.query(User).filter(User.nickname == nickname).first()
+    user.email = new_email
+    db.commit()
+
+    return {"message": "Почта успешно изменена", "email": new_email}
+
+
+@app.post("/update-status-visibility")
+def change_status_visibility(request: StatusRequest, db: Session = Depends(get_db)):
+    nickname = request.nickname
+    showStatus = request.showStatus
+
+    user = db.query(User).filter(User.nickname == nickname).first()
+    if showStatus == 'False':
+        user.status_visibility = False
+    else:
+        user.status_visibility = True
+    db.commit()
+
+
+@app.post("/update-email-visibility")
+def change_email_visibility(request: EmailVisibilityRequest, db: Session = Depends(get_db)):
+    nickname = request.nickname
+    showEmail = request.showEmail
+
+    user = db.query(User).filter(User.nickname == nickname).first()
+
+    if showEmail == 'False':
+        user.email_visibility = False
+    else:
+        user.email_visibility = True
+    db.commit()
+
+
+@app.post("/update-status")
+def change_status_visibility(request: StatusRequest, db: Session = Depends(get_db)):
+    nickname = request.nickname
+    user_status = request.showStatus
+
+    user = db.query(User).filter(User.nickname == nickname).first()
+    user.status = user_status
+    db.commit()
+
+    return {"message": user_status}
+
+
+@app.post("/upload-photo")
+async def upload_photo(request: PhotoRequest):
+    print(request)
+    print(request.photo)
+    print(request.nickname)
+    await update_user_profile_picture(request.nickname, request.photo)
 
 
 async def update_user_profile(phone_number, nickname, profile_picture, status):
@@ -2594,11 +2815,10 @@ async def search_subscribers(channel_id: int, search_user: str):
     ).where(
         (channel_members.c.channel_id == channel_id) &
         (users.c.nickname.ilike(f"%{search_user}%") |
-        users.c.phone_number.ilike(f"%{search_user}%"))
+         users.c.phone_number.ilike(f"%{search_user}%"))
     )
     search_results = await database.fetch_all(query)
     return search_results
-
 
 
 @app.get("/channels/{channel_id}/subscribers", response_class=HTMLResponse)
@@ -2902,7 +3122,6 @@ async def search_users(query: str) -> List[dict]:
     await cur.close()
     conn.close()
     return result
-
 
 
 # Возвращает информацию о диалоге по его идентификатору. Если диалог не найден, возникает исключение
@@ -3402,6 +3621,7 @@ class ConnectionManager:
                 message_json = json.dumps({"action": "refresh_token", "new_token": new_token})
                 await websocket.send_text(message_json)
 
+
 manager = ConnectionManager()
 # Запуск метода keep_alive в фоне
 asyncio.create_task(manager.keep_alive())
@@ -3503,8 +3723,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         logging.error(f"An unexpected error occurred: {e}")
         await websocket.close(code=4002)
 
+
 async def handle_dialog_message(dialog_id: int, message_content: str, current_user: User, file_id=None, file_path=None):
-    logging.info(f"Preparing to handle dialog message in dialog {dialog_id} from user {current_user.id}: {message_content}")
+    logging.info(
+        f"Preparing to handle dialog message in dialog {dialog_id} from user {current_user.id}: {message_content}")
 
     try:
         # Получаем никнейм текущего пользователя
@@ -3528,7 +3750,8 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
 
         dialog_query = dialogs.select().where(dialogs.c.id == dialog_id)
         dialog_data = await database.fetch_one(dialog_query)
-        recipient_id = dialog_data['user1_id'] if current_user.id == dialog_data['user2_id'] else dialog_data['user2_id']
+        recipient_id = dialog_data['user1_id'] if current_user.id == dialog_data['user2_id'] else dialog_data[
+            'user2_id']
 
         # Добавляем sender_nickname в message_data
         message_data = {
@@ -3649,7 +3872,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                     file_id = await save_file(user.phone_number, file_name, file_content, file_extension)
 
                 # Вызов функции handle_dialog_message
-                dialog_id = int(room_name.split('_')[1])  # Предполагается, что room_name имеет формат 'dialog_{dialog_id}'
+                dialog_id = int(
+                    room_name.split('_')[1])  # Предполагается, что room_name имеет формат 'dialog_{dialog_id}'
                 current_user = user  # Текущий пользователь уже определен в этой функции
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
 
@@ -3664,7 +3888,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                         "file_name": file_name
                     }
                     # Отправляем сообщение через WebSocket
-                    await manager.send_message_to_room(room_name, json.dumps({"type": "new_message", "message": new_message}))
+                    await manager.send_message_to_room(room_name,
+                                                       json.dumps({"type": "new_message", "message": new_message}))
 
             else:
                 logging.warning("Unsupported action or user is not the author or the chat admin")
