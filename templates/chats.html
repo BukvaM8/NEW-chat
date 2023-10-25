@@ -189,8 +189,15 @@
                 <h2 class="small-header">Ваши чаты</h2>
                 <div class="chat-list">
                     {% for chat in chats %}
-                    <div class="container border-bottom mb-2 clickable-chat" data-chat-id="{{ chat.id }}">
-                        <div class="chat-item small-title">
+                    <div class="container border-bottom mb-2 clickable-chat flex-container"
+                         data-chat-id="{{ chat.id }}">
+                        <!-- Фото чата -->
+                        <div class="profile-picture-container"> <!-- использован тот же класс контейнера -->
+                            <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
+                                 class="profile-picture"> <!-- использован тот же класс для изображения -->
+                        </div>
+                        <!-- Информация о чате -->
+                        <div class="chat-item small-title flex-grow">
                             <h3>{{ chat['chat_name'] }}</h3>
                             {% if chat['id'] in left_chats %}
                             <p>Вы покинули чат</p>
@@ -246,6 +253,24 @@
         </div>
         <!-- Правая панель -->
         <div class="col-md-6 right-panel">
+            <!-- добавленные стили для "шторки" -->
+            <style>
+                .drawer {
+                    position: fixed;
+                    top: 0;
+                    right: -400px;
+                    width: 400px;
+                    height: 100vh;
+                    background-color: #ECE5DD;
+                    border-left: 1px solid #ce8334;
+                    padding: 15px;
+                    transition: right 0.3s ease;
+                }
+
+                .drawer.open {
+                    right: 0;
+                }
+            </style>
             <div id="dialog-panel">
                 <!-- The selected dialog will be displayed here -->
                 <div id="dialog-container">
@@ -451,7 +476,6 @@
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.clickable-chat').forEach(function (container) {
             container.addEventListener('click', function (event) {
-                // Не выполняем действие, если клик был по кнопке "Перейти в чат"
                 if (event.target.classList.contains('load-chat')) return;
 
                 const chatId = event.currentTarget.getAttribute('data-chat-id');
@@ -459,7 +483,7 @@
                     .then(response => response.text())
                     .then(html => {
                         document.querySelector('.right-panel').innerHTML = html;
-                        initializeChatJS(chatId);
+                        initializeChatJS(chatId);  // Инициализация JS для чата
                     })
                     .catch(error => {
                         console.error('Ошибка:', error);
@@ -566,31 +590,67 @@
             }
         };
 
-        function addOption() {
-            const newOption = document.createElement('input');
-            newOption.type = 'text';
-            newOption.name = 'options';
-            newOption.placeholder = 'New poll option';
-            document.getElementById('poll-options').appendChild(newOption);
+        // Обработчик для формы изменения фотографии
+        const changePictureForm = document.querySelector('form[action*="change_picture"]');
+        if (changePictureForm) {
+            changePictureForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                const formData = new FormData(changePictureForm);
+                fetch(changePictureForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`
+                    },
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'picture updated') {
+                            const chatImage = document.querySelector('img[src*="/chat/picture/"]');
+                            const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
+                            chatImage.setAttribute('src', newSrc);
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            });
         }
 
-        function createPoll() {
-            const question = document.getElementById("poll-question").value;
-            const optionsNodes = document.getElementsByName("options");
-            const options = Array.from(optionsNodes).map(node => node.value);
-            if (question === '' || options.some(option => option === '')) {
-                alert('Вопрос и варианты ответа не должны быть пустыми.');
-                return;
-            }
-            const pollData = {
-                "action": "create_poll",
-                "question": question,
-                "options": options,
-                "creator_phone_number": "{{ current_user.phone_number }}"
-            };
-            ws.send(JSON.stringify(pollData));
+        // Код для управления "шторкой"
+        const interlocutorInfo = document.querySelector('.interlocutor-info');
+        if (interlocutorInfo) {
+            interlocutorInfo.addEventListener('click', function () {
+                const drawer = document.querySelector('.drawer');
+                drawer.classList.toggle('open');
+            });
         }
     }
+
+
+    function addOption() {
+        const newOption = document.createElement('input');
+        newOption.type = 'text';
+        newOption.name = 'options';
+        newOption.placeholder = 'New poll option';
+        document.getElementById('poll-options').appendChild(newOption);
+    }
+
+    function createPoll() {
+        const question = document.getElementById("poll-question").value;
+        const optionsNodes = document.getElementsByName("options");
+        const options = Array.from(optionsNodes).map(node => node.value);
+        if (question === '' || options.some(option => option === '')) {
+            alert('Вопрос и варианты ответа не должны быть пустыми.');
+            return;
+        }
+        const pollData = {
+            "action": "create_poll",
+            "question": question,
+            "options": options,
+            "creator_phone_number": "{{ current_user.phone_number }}"
+        };
+        ws.send(JSON.stringify(pollData));
+    }
+
 
     // Инициализация кода для create_chat.html
     function initializeCreateChatJS() {

@@ -47,12 +47,11 @@ from pydantic.json import Union
 from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
-    Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete, create_engine
+    Table, func, LargeBinary, desc, or_, Boolean, BLOB, Text, Float, JSON, delete, create_engine, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.sync import update
 from sqlalchemy.sql import select
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
@@ -95,6 +94,7 @@ app = FastAPI()
 
 # Монтируем статические файлы
 app.mount("/profile_pictures", StaticFiles(directory="profile_pictures"), name="profile_pictures")
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Создаем сессию для взаимодействия с базой данных
@@ -146,6 +146,7 @@ users = Table(
     Column("status_visibility", Boolean, default=True),  # Новый столбец
     Column("email_visibility", Boolean, default=True),   # Новый столбец
 )
+
 
 
 userchats = Table(
@@ -992,198 +993,6 @@ async def get_all_users(search_query: str = "") -> List[dict]:
 
 
 
-# Получает все сообщения из указанного чата.
-async def get_chat_messages(chat_id: int):
-    try:
-        query = chatmessages.select().where(chatmessages.c.chat_id == chat_id).order_by(chatmessages.c.timestamp)
-        chat_messages = await database.fetch_all(query)
-        return chat_messages
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error getting chat messages")
-
-
-async def get_user_chats(phone_number: str):
-    try:
-        # Выбираем идентификаторы чатов, в которых участвует пользователь
-        query = ChatMembers.select().where(ChatMembers.c.user_phone_number == phone_number)
-        user_chat_ids = await database.fetch_all(query)
-
-        updated_user_chats = []  # Список для обновленных данных чатов
-
-        # Для каждого идентификатора чата, получить информацию о чате
-        for chat_id in user_chat_ids:
-            query = userchats.select().where(userchats.c.id == chat_id['chat_id'])
-            chat = await database.fetch_one(query)
-
-            # Для каждого чата, получить последнее сообщение
-            query = chatmessages.select().where(chatmessages.c.chat_id == chat_id['chat_id']).order_by(
-                chatmessages.c.timestamp.desc()).limit(1)
-            last_message = await database.fetch_one(query)
-
-            updated_chat = dict(chat)  # Создаем новый словарь из данных chat
-            if last_message:
-                updated_chat['last_message'] = last_message['message']
-                updated_chat['last_message_sender_phone'] = last_message[
-                    'sender_phone_number']  # добавляем номер отправителя последнего сообщения
-                updated_chat['last_message_timestamp'] = last_message['timestamp']
-
-            updated_user_chats.append(updated_chat)  # Добавляем обновленный чат в список
-
-        return updated_user_chats
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error getting user chats")
-
-
-# Получает чат по идентификатору.
-async def get_chat(chat_id: int):
-    query = userchats.select().where(userchats.c.id == chat_id)
-    chat = await database.fetch_one(query)
-    return chat
-
-
-# Получает всех участников определенного чата
-async def get_chat_members(chat_id: int):
-    try:
-        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
-        chat_members = await database.fetch_all(query)
-
-        # Преобразование результатов в словари
-        chat_members = [dict(row) for row in chat_members]
-
-        return chat_members
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error getting chat members")
-
-
-# Маршрут к странице участников чата
-@app.get("/chat/{chat_id}/members", response_class=HTMLResponse)
-async def read_chat_members(request: Request, chat_id: int,
-                            current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    # Этот маршрут отображает всех участников конкретного чата
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-    chat = await get_chat(chat_id)
-    members = await get_chat_members(chat_id)
-    members_info = [await get_user(member['user_phone_number']) for member in members]
-    # Отсортировать список участников так, чтобы владелец был первым
-    members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
-    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info,
-                                                           "current_user": current_user})
-
-
-# Исправленная функция, обращающаяся к БД
-async def add_chat_member_db(chat_id: int, phone_number: str):
-    try:
-        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
-        members = await database.fetch_all(query)
-
-        if len(members) >= 200:
-            raise HTTPException(status_code=400, detail="The chat has reached the maximum number of members")
-
-        query = ChatMembers.insert().values(chat_id=chat_id, user_phone_number=phone_number)
-        await database.execute(query)
-
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error adding chat member")
-
-
-@app.get("/chat/{chat_id}/members/add", response_class=HTMLResponse)
-async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[str] = None,
-                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-
-    print(f"Поисковый запрос: {search_query}")  # Логируем поисковый запрос
-
-    chat = await get_chat(chat_id)
-    members = await get_chat_members(chat_id)
-    members_phone_numbers = [member['user_phone_number'] for member in members]
-
-    if search_query:
-        all_users = await search_users(search_query)
-    else:
-        all_users = await get_all_users()
-
-    # Используем .phone_number вместо ['phone_number']
-    inviteable_users = [user for user in all_users if
-                        user['phone_number'] not in members_phone_numbers and user[
-                            'phone_number'] != current_user.phone_number]
-
-    return templates.TemplateResponse("addtochat.html", {"request": request, "chat": chat, "users": inviteable_users,
-                                                         "current_user": current_user})
-
-
-@app.post("/chat/{chat_id}/members/{phone_number}/add", response_class=RedirectResponse)
-async def add_chat_member(request: Request, chat_id: int, phone_number: str,
-                          current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-    await add_chat_member_db(chat_id, phone_number)  # Исправленный вызов функции
-    member_count = len(await get_chat_members(chat_id))
-    await send_member_count_update(chat_id, member_count)
-    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=303)
-
-
-async def search_chat_members(request: Request, chat_id: int, search_user: str,
-                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    try:
-        # Получение всех участников чата
-        members_info = await get_chat_members(chat_id)
-        search_results = []
-
-        # Фильтрация результатов поиска, если предоставлен search_user
-        if search_user:
-            search_results = list(filter(
-                lambda member: search_user.lower() in member['nickname'].lower() or search_user in member['phone_number'],
-                members_info))
-        else:
-            search_results = members_info
-
-        return search_results
-
-    except Exception as e:
-        logging.error(f"An error occurred in search_chat_members: {e}")
-        return []
-
-
-# Удаляет пользователя из чата.
-async def delete_chat_member(chat_id: int, phone_number: str):
-    try:
-        query = ChatMembers.delete().where(
-            and_(ChatMembers.c.chat_id == chat_id, ChatMembers.c.user_phone_number == phone_number))
-        result = await database.execute(query)
-        return result
-    except SQLAlchemyError as e:
-        print(str(e))  # line for debug
-        raise HTTPException(status_code=500, detail="Error deleting chat member")
-
-
-# Маршрут для удлаения частника из чата
-@app.post("/chats/{chat_id}/members/{phone_number}/delete")
-async def remove_chat_member(chat_id: int, phone_number: str,
-                             current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-
-    phone_number = unquote(phone_number)  # decode the phone number
-
-    chat = await get_chat(chat_id)
-    if not chat:
-        print(f"Chat {chat_id} not found")  # line for debug
-        raise HTTPException(status_code=404, detail="Chat not found")
-
-    if chat.owner_phone_number != current_user.phone_number:
-        raise HTTPException(status_code=403, detail="Only the chat owner can remove members")
-
-    result = await delete_chat_member(chat_id, phone_number)
-    if not result:
-        print(f"Member {phone_number} not found in chat {chat_id}")  # line for debug
-        raise HTTPException(status_code=404, detail="Member not found")
-
-    member_count = len(await get_chat_members(chat_id))
-    await send_member_count_update(chat_id, member_count)
-
-    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=status.HTTP_303_SEE_OTHER)
 
 
 async def create_poll(chat_id: int, creator_phone_number: str, question: str, options: List[str]):
@@ -2111,6 +1920,199 @@ async def get_user_dialogs(current_user_id: int) -> list:
             })
     return dialogs
 
+# Получает все сообщения из указанного чата.
+async def get_chat_messages(chat_id: int):
+    try:
+        query = chatmessages.select().where(chatmessages.c.chat_id == chat_id).order_by(chatmessages.c.timestamp)
+        chat_messages = await database.fetch_all(query)
+        return chat_messages
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error getting chat messages")
+
+
+async def get_user_chats(phone_number: str):
+    try:
+        # Выбираем идентификаторы чатов, в которых участвует пользователь
+        query = ChatMembers.select().where(ChatMembers.c.user_phone_number == phone_number)
+        user_chat_ids = await database.fetch_all(query)
+
+        updated_user_chats = []  # Список для обновленных данных чатов
+
+        # Для каждого идентификатора чата, получить информацию о чате
+        for chat_id in user_chat_ids:
+            query = userchats.select().where(userchats.c.id == chat_id['chat_id'])
+            chat = await database.fetch_one(query)
+
+            # Для каждого чата, получить последнее сообщение
+            query = chatmessages.select().where(chatmessages.c.chat_id == chat_id['chat_id']).order_by(
+                chatmessages.c.timestamp.desc()).limit(1)
+            last_message = await database.fetch_one(query)
+
+            updated_chat = dict(chat)  # Создаем новый словарь из данных chat
+            if last_message:
+                updated_chat['last_message'] = last_message['message']
+                updated_chat['last_message_sender_phone'] = last_message[
+                    'sender_phone_number']  # добавляем номер отправителя последнего сообщения
+                updated_chat['last_message_timestamp'] = last_message['timestamp']
+
+            updated_user_chats.append(updated_chat)  # Добавляем обновленный чат в список
+
+        return updated_user_chats
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error getting user chats")
+
+
+# Получает чат по идентификатору.
+async def get_chat(chat_id: int):
+    query = userchats.select().where(userchats.c.id == chat_id)
+    chat = await database.fetch_one(query)
+    return chat
+
+
+# Получает всех участников определенного чата
+async def get_chat_members(chat_id: int):
+    try:
+        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
+        chat_members = await database.fetch_all(query)
+
+        # Преобразование результатов в словари
+        chat_members = [dict(row) for row in chat_members]
+
+        return chat_members
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error getting chat members")
+
+
+# Маршрут к странице участников чата
+@app.get("/chat/{chat_id}/members", response_class=HTMLResponse)
+async def read_chat_members(request: Request, chat_id: int,
+                            current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    # Этот маршрут отображает всех участников конкретного чата
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    chat = await get_chat(chat_id)
+    members = await get_chat_members(chat_id)
+    members_info = [await get_user(member['user_phone_number']) for member in members]
+    # Отсортировать список участников так, чтобы владелец был первым
+    members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
+    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info,
+                                                           "current_user": current_user})
+
+
+# Исправленная функция, обращающаяся к БД
+async def add_chat_member_db(chat_id: int, phone_number: str):
+    try:
+        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
+        members = await database.fetch_all(query)
+
+        if len(members) >= 200:
+            raise HTTPException(status_code=400, detail="The chat has reached the maximum number of members")
+
+        query = ChatMembers.insert().values(chat_id=chat_id, user_phone_number=phone_number)
+        await database.execute(query)
+
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error adding chat member")
+
+
+@app.get("/chat/{chat_id}/members/add", response_class=HTMLResponse)
+async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[str] = None,
+                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    print(f"Поисковый запрос: {search_query}")  # Логируем поисковый запрос
+
+    chat = await get_chat(chat_id)
+    members = await get_chat_members(chat_id)
+    members_phone_numbers = [member['user_phone_number'] for member in members]
+
+    if search_query:
+        all_users = await search_users(search_query)
+    else:
+        all_users = await get_all_users()
+
+    # Используем .phone_number вместо ['phone_number']
+    inviteable_users = [user for user in all_users if
+                        user['phone_number'] not in members_phone_numbers and user[
+                            'phone_number'] != current_user.phone_number]
+
+    return templates.TemplateResponse("addtochat.html", {"request": request, "chat": chat, "users": inviteable_users,
+                                                         "current_user": current_user})
+
+
+@app.post("/chat/{chat_id}/members/{phone_number}/add", response_class=RedirectResponse)
+async def add_chat_member(request: Request, chat_id: int, phone_number: str,
+                          current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    await add_chat_member_db(chat_id, phone_number)  # Исправленный вызов функции
+    member_count = len(await get_chat_members(chat_id))
+    await send_member_count_update(chat_id, member_count)
+    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=303)
+
+
+async def search_chat_members(request: Request, chat_id: int, search_user: str,
+                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    try:
+        # Получение всех участников чата
+        members_info = await get_chat_members(chat_id)
+        search_results = []
+
+        # Фильтрация результатов поиска, если предоставлен search_user
+        if search_user:
+            search_results = list(filter(
+                lambda member: search_user.lower() in member['nickname'].lower() or search_user in member['phone_number'],
+                members_info))
+        else:
+            search_results = members_info
+
+        return search_results
+
+    except Exception as e:
+        logging.error(f"An error occurred in search_chat_members: {e}")
+        return []
+
+
+# Удаляет пользователя из чата.
+async def delete_chat_member(chat_id: int, phone_number: str):
+    try:
+        query = ChatMembers.delete().where(
+            and_(ChatMembers.c.chat_id == chat_id, ChatMembers.c.user_phone_number == phone_number))
+        result = await database.execute(query)
+        return result
+    except SQLAlchemyError as e:
+        print(str(e))  # line for debug
+        raise HTTPException(status_code=500, detail="Error deleting chat member")
+
+
+# Маршрут для удлаения частника из чата
+@app.post("/chats/{chat_id}/members/{phone_number}/delete")
+async def remove_chat_member(chat_id: int, phone_number: str,
+                             current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    phone_number = unquote(phone_number)  # decode the phone number
+
+    chat = await get_chat(chat_id)
+    if not chat:
+        print(f"Chat {chat_id} not found")  # line for debug
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if chat.owner_phone_number != current_user.phone_number:
+        raise HTTPException(status_code=403, detail="Only the chat owner can remove members")
+
+    result = await delete_chat_member(chat_id, phone_number)
+    if not result:
+        print(f"Member {phone_number} not found in chat {chat_id}")  # line for debug
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    member_count = len(await get_chat_members(chat_id))
+    await send_member_count_update(chat_id, member_count)
+
+    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=status.HTTP_303_SEE_OTHER)
+
 
 async def get_subscribed_channels(user_phone_number: str):
     # Выборка из таблицы channel_members, где user_phone_number равен номеру телефона пользователя
@@ -2199,7 +2201,6 @@ async def read_chats(request: Request, current_user: Union[str, RedirectResponse
         "left_chats": left_chats  # передаем список в шаблон
     })
 
-
 async def is_member_of_chat(chat_id: int, phone_number: str):
     try:
         logging.info(f"Checking if user with phone_number {phone_number} is a member of chat {chat_id}")
@@ -2244,6 +2245,52 @@ async def read_chat(request: Request, chat_id: int,
                                       {"request": request, "chat": chat, "messages": messages, "polls": polls,
                                        "poll_results": poll_results, "user_voted": user_voted,
                                        "current_user": current_user})
+
+@app.get("/chat/picture/{chat_id}")
+async def get_chat_picture(chat_id: int):
+    chat = await get_chat(chat_id)
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if chat.chat_image is None:
+        default_image_path = os.path.join('images', 'default_chat.jpg')
+        if os.path.exists(default_image_path):
+            return FileResponse(default_image_path)
+        else:
+            raise HTTPException(status_code=404, detail="Default chat image not found")
+
+    return StreamingResponse(io.BytesIO(chat.chat_image), media_type="image/jpeg")
+
+async def update_chat_picture(chat_id: int, new_image_data: bytes):
+    try:
+        query = update(userchats).where(userchats.c.id == chat_id).values(chat_image=new_image_data)
+        await database.execute(query)
+    except Exception as e:
+        print("Error in update_chat_picture:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/chats/{chat_id}/change_picture", response_class=JSONResponse)
+async def change_chat_picture(chat_id: int, new_picture: UploadFile = File(...),
+                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    chat = await get_chat(chat_id)
+
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if chat['owner_phone_number'] != current_user.phone_number:
+        raise HTTPException(status_code=403, detail="Only the admin can change the picture")
+
+    image_data = await new_picture.read()
+
+    try:
+        await update_chat_picture(chat_id, image_data)
+    except HTTPException as e:
+        return PlainTextResponse(content="failed", status_code=e.status_code)
+
+    return JSONResponse(content={"status": "picture updated"})
 
 
 # Маршрут к странице создания нового чата
@@ -2330,7 +2377,7 @@ async def delete_chat(request: Request, chat_id: int,
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error deleting the chat")
 
-    return RedirectResponse(url="/chats", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 async def get_chat_participants(chat_id: int):
