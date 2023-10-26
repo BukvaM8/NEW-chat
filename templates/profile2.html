@@ -132,12 +132,14 @@
 </head>
 <body>
 <div class="container mt-5">
+    {#    <input type="text" class="form-control" id="user_id" name="user_id" value="{{ user.id }}" style="display: None">#}
     <div class="profile-container text-center" style="width: 413px; margin: 0 auto; text-align: left;">
+        <input id="user_id" value="{{ user.id }}" style="display: none">
         <h3 class="text-left"><a href="/home" class="text-left">
             <i class="fas fa-arrow-left"></i> </a>Профиль</h3>
         <div class="profile-picture-overlay">
             <label class="edit-photo-label" id="change-photo-button">Изменить фото</label>
-            <img id="profile-image" src="../profile_pictures/selfie.jpg" alt="Ваше изображение"
+            <img id="profile-image" src="/get/{{ user.id }}/profile_picture/" alt="Ваше изображение"
                  class="rounded-circle mt-3" width="150" height="150">
             <input type="file" id="photo-upload" accept="image/*" style="display: none">
         </div>
@@ -284,8 +286,12 @@
     const changePhotoButton = document.getElementById("change-photo-button");
     const photoUpload = document.getElementById("photo-upload");
     const profileImage = document.getElementById("profile-image");
+    const userId = document.getElementById("user_id").value;
 
     document.addEventListener("DOMContentLoaded", function () {
+        let img = document.getElementById('profile-image');
+        img.src = `/get/${userId}/profile_picture/`;
+
         let userPassword = "{{ user.password }}"; // Здесь подставьте значение реального пароля
 
         let passwordDisplay = document.getElementById("password");
@@ -356,31 +362,30 @@
         photoUpload.click();
     });
 
-    photoUpload.addEventListener("change", function () {
-        if (photoUpload.files && photoUpload.files[0]) {
-            let nickname = document.getElementById("nickname").innerHTML;
-            const formData = new FormData();
-            formData.append("photo", photoUpload.files[0]);
+    document.getElementById("photo-upload").addEventListener("change", function (event) {
+        const fileInput = event.target;
 
-            fetch("/upload-photo", {
+        if (fileInput.files && fileInput.files[0]) {
+            const formData = new FormData();
+            formData.append("image", fileInput.files[0]);
+
+            fetch(`/upload/${userId}/profile_picture/`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({"photo": photoUpload.files[0].name, "nickname": nickname}),
+                body: formData,
             })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-// Обновляем изображение и сохраняем имя
-                        profileImage.src = data.photo_url;
-                        alert("Имя изображения: " + data.photo_name);
-                    } else {
-                        alert("Ошибка загрузки изображения.");
+                    const selectedFile = event.target.files[0];
+
+                    if (selectedFile) {
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            profileImage.src = e.target.result;
+                        };
+                        reader.readAsDataURL(selectedFile);
                     }
                 })
                 .catch(error => {
-                    console.error("Ошибка при выполнении запроса: " + error);
                 });
         }
     });

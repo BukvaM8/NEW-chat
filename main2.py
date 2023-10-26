@@ -1,5 +1,6 @@
 # Встроенные модули Python
 import asyncio
+import tempfile
 import configparser
 import io
 import json
@@ -326,6 +327,8 @@ class User(Base):
 
     status_visibility = Column(Boolean)
     email_visibility = Column(Boolean)
+
+    profile_picture = Column(BLOB, default=None)
 
 
 class UserInDB(BaseModel):
@@ -1740,7 +1743,7 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
             <form method="post" action="/complete-register" id="form" style="width: 540px">
                 <div class="form-group">
                     <input type="text" id="nickname" name="nickname" class="form-control" placeholder="Никнейм" required>
-                    <p id="nicknameError" style="color: red; display: none;">Ваш никнейм должен быть уникальным!.</p>
+                    <p id="nicknameError" style="color: red; display: none;">Этот никнейм уже занят</p>
                 </div>
                 <div class="form-group">
                     <input type="password" id="password" name="password" class="form-control" placeholder="Пароль" required>
@@ -1970,7 +1973,6 @@ async def user_profile(request: Request):
     phone_number = payload.get("sub")
     # Извлекаем информацию о пользователе из базы данных
     user = await get_user_by_phone(phone_number)
-
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -2147,12 +2149,33 @@ def change_status_visibility(request: StatusRequest, db: Session = Depends(get_d
     return {"message": user_status}
 
 
-@app.post("/upload-photo")
-async def upload_photo(request: PhotoRequest):
-    print(request)
-    print(request.photo)
-    print(request.nickname)
-    await update_user_profile_picture(request.nickname, request.photo)
+@app.post("/upload/{user_id}/profile_picture/")
+async def upload_profile_picture(user_id: int, image: UploadFile, db: Session = Depends(get_db)):
+    image_data = await image.read()
+    await database.execute(users.update().where(users.c.id == user_id).values(profile_picture=image_data))
+    return {"message": "Image uploaded successfully"}
+
+
+@app.get("/get/{user_id}/profile_picture/")
+async def get_profile_picture(user_id: int, db: Session = Depends(get_db)):
+    result = db.execute("SELECT profile_picture FROM users WHERE id = :user_id", {"user_id": user_id}).fetchone()
+
+    if result[0] is None:
+        default_image_path = os.path.join('images', 'default.jpg')
+        if os.path.exists(default_image_path):
+            response = FileResponse(default_image_path, media_type="image/jpeg")
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            return response
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+        temp_file.write(result[0])
+
+    try:
+        response = FileResponse(temp_file.name, media_type="image/jpeg")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+    finally:
+        temp_file.close()
 
 
 async def update_user_profile(phone_number, nickname, profile_picture, status):
@@ -4173,6 +4196,7 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)
         logging.warning(f"WebSocket disconnected for user {user.id}")
+
 
 async def generic_websocket_endpoint(websocket: WebSocket, room_id: str, room_type: str):
     logging.info(f"=== WebSocket Endpoint: {room_type.capitalize()} ===")
