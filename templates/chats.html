@@ -171,9 +171,17 @@
                             </div>
                             <div>
                                 <!-- Последнее сообщение -->
+                                {% if '[[FILE]]' in dialog.last_message %}
+                                {% set file_message_parts = dialog.last_message.split('[[FILE]]') %}
+                                {% if ', ' in file_message_parts[1] %}
+                                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                                <small>{{ file_info_parts[1].split(': ')[1] }}</small>
+                                {% endif %}
+                                {% else %}
                                 {% set short_message = dialog.last_message[:25] + "..." if dialog.last_message|length >
                                 25 else dialog.last_message %}
-                                <small> {{ short_message }}</small>
+                                <small>{{ short_message }}</small>
+                                {% endif %}
                             </div>
                         </div>
                         <!-- Действия с диалогом -->
@@ -192,29 +200,33 @@
                     <div class="container border-bottom mb-2 clickable-chat flex-container"
                          data-chat-id="{{ chat.id }}">
                         <!-- Фото чата -->
-                        <div class="profile-picture-container"> <!-- использован тот же класс контейнера -->
+                        <div class="profile-picture-container">
                             <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
-                                 class="profile-picture"> <!-- использован тот же класс для изображения -->
+                                 class="profile-picture">
                         </div>
                         <!-- Информация о чате -->
-                        <div class="chat-item small-title flex-grow">
-                            <h3>{{ chat['chat_name'] }}</h3>
-                            {% if chat['id'] in left_chats %}
-                            <p>Вы покинули чат</p>
-                            {% endif %}
-
-                            {% if '[[FILE]]' in chat['last_message'] %}
-                            {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
-                            {% if ', ' in file_message_parts[1] %}
-                            {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                            <p>{{ chat['last_message_sender_phone'] }}</p>
-                            <p>{{ file_info_parts[1].split(': ')[1] }}</p>
-                            <p>Отправлено: {{ chat['last_message_timestamp'] }}</p>
-                            {% endif %}
-                            {% else %}
-                            <p>{{ chat['last_message_sender_phone'] }} : {{ chat['last_message'] }} - Время: {{
-                                chat['last_message_timestamp'] }}</p>
-                            {% endif %}
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column;">
+                            <div style="flex: 1;">
+                                <strong><h3>{{ chat['chat_name'] }}</h3></strong>
+                                <!-- Название группы жирным текстом -->
+                                {% if chat['id'] in left_chats %}
+                                <p>Вы покинули чат</p>
+                                {% endif %}
+                            </div>
+                            <div style="flex: 1;">
+                                {% if '[[FILE]]' in chat['last_message'] %}
+                                {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
+                                {% if ', ' in file_message_parts[1] %}
+                                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                                <p><strong>{{ chat['last_message_sender_phone'] }}</strong>: {{
+                                    file_info_parts[1].split(': ')[1] }}</p>
+                                <!-- Никнейм пользователя жирным текстом -->
+                                {% endif %}
+                                {% else %}
+                                <p><strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ chat['last_message'] }}
+                                </p> <!-- Никнейм пользователя жирным текстом -->
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}

@@ -24,9 +24,9 @@ import aiomysql
 import bcrypt
 # Сторонние библиотеки для безопасности и хеширования паролей
 import jwt
-import pytz as pytz
+import pytz
 import requests
-# import room
+import room
 import uvicorn
 # Сторонние библиотеки для работы с файлами, датами и временем
 from aiofile import async_open
@@ -35,7 +35,6 @@ from databases import Database
 from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, UploadFile, File
 # Сторонние библиотеки для работы с файлами, датами и временем
 # Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
-# import room
 from fastapi.params import Path
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer
@@ -132,6 +131,7 @@ revoked_tokens = []
 metadata = MetaData()
 moscow_tz = timezone('Europe/Moscow')
 MSK_TZ = timezone('Europe/Moscow')
+
 
 users = Table(
     "Users",

@@ -45,15 +45,22 @@
             height: 50%;
         }
 
-        /* Стиль для контейнера сообщений */
         .messages-container {
             height: calc(70vh - 100px);
             overflow-y: auto;
-            border: 1px solid #ce8334;
+            border: 1px solid rgba(206, 131, 52, 0.02);
             border-radius: 8px;
             padding: 15px;
-            background-color: #ce8334;
+            background-color: #F5ECE5;
+            scrollbar-width: thin; /* Firefox */
+            scrollbar-color: transparent transparent; /* Firefox */
         }
+
+        /* Chrome, Safari и другие веб-китовые браузеры */
+        .messages-container::-webkit-scrollbar {
+            display: none;
+        }
+
 
         /* Стиль для элемента сообщения */
         .message-item {
@@ -99,9 +106,22 @@
             transition: right 0.3s ease;
         }
 
+        /* Стили для фотографии в шторке */
+        .drawer img {
+            border-radius: 50%;
+            display: block;
+            margin: auto;
+        }
+
         .drawer.open {
             right: 0;
         }
+
+        /* Стиль для плейсхолдера */
+        input::placeholder {
+            opacity: 0.5; /* Прозрачность */
+        }
+
     </style>
 </head>
 <body>
@@ -150,9 +170,8 @@
 </div>
 
 
-
 <!-- Контейнер для сообщений -->
-<div id="messages-container" class="bg-white rounded p-3">
+<div class="messages-container">
     <!-- Список сообщений -->
     <ul class="messages-list" id="chat-history">
         {% for message in messages %}
@@ -184,13 +203,16 @@
             {% if message.sender_phone_number != "deleted" and (message.sender_phone_number ==
             current_user.phone_number or chat.owner_phone_number == current_user.phone_number) %}
             <form action="/chats/{{ chat.id }}/messages/{{ message.id }}/delete" method="post">
-                <button type="submit">Delete message</button>
+                <button type="submit" class="btn btn-link btn-sm p-0 ml-2">
+                    <img src="/static/trash-icon.png" alt="Delete" width="20" height="20">
+                </button>
             </form>
             {% endif %}
         </div>
         {% endfor %}
     </ul>
 </div>
+
 
 <!-- Форма для отправки сообщения -->
 <div id="message-form-container">
@@ -201,7 +223,8 @@
     {% else %}
     <form action="/chats/{{ chat.id }}/send_message" method="post" enctype="multipart/form-data">
         <label for="message-input" class="form-label">Сообщение:</label>
-        <input type="text" id="message-input" name="message_text" class="form-control" for="message-input"><br>
+        <input type="text" id="message-input" name="message_text" class="form-control"
+               placeholder="Введите текст сообщения" for="message-input"><br>
         <label for="file-input" class="form-label">Файл:</label>
         <input type="file" id="file-input" name="file" class="form-control" for="file-input"><br>
         <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
