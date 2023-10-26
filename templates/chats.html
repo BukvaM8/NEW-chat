@@ -9,456 +9,622 @@
             background-color: #ECE5DD;
             font-family: Times New Roman, sans-serif;
         }
+
         .left-panel {
             background-color: #FFFFFF;
             border-right: 1px solid #ccc;
             min-height: 100vh;
             padding: 20px;
-
         }
+
         .right-panel {
             /* Изменим цвет фона на бежевый */
             background-color: #F5ECE5;
             height: 100vh;
             padding: 20px;
         }
+
         .scrollable-content {
             /* Создаем прокручиваемый список */
             max-height: 85vh;
             overflow-y: auto;
         }
+
         .profile-pic {
             border-radius: 50%;
         }
+
         .small-title {
             font-size: 0.9em;
         }
+
         .small-header {
             font-size: 1.2em;
         }
+
         .btn-custom {
             background-color: #075E54;
             color: white;
         }
+
         .btn-custom:hover {
             background-color: #128C7E;
         }
+
         .chat-item h3, .channel-item h3 {
             font-size: 1.2em;
             text-transform: none;
         }
+
         .flex-container {
             display: flex;
+            align-items: center;
         }
+
         .flex-grow {
             flex-grow: 1;
         }
-        .fixed-bottom-panel {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-    }
-        #logout-button {
-        background-color: #075E54 !important;
-        color: white !important;
-    }
+
+
+        .logout-button {
+            background-color: #075E54 !important;
+            color: white !important;
+        }
+
+        .message-sent {
+            text-align: right;
+            background-color: green;
+        }
+
+        .profile-picture {
+            border-radius: 50%;
+        }
+
+        .profile-picture-container {
+            margin-right: 20px; /* Увеличено с 10px до 20px */
+        }
+
+        .dialog-actions {
+            margin-left: auto;
+        }
+
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Left Panel -->
-            <div class="col-md-6 left-panel">
-                <!-- Profile Section -->
-                <div class="d-flex align-items-center mb-4">
-                    <!-- Profile Picture -->
-                    <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic" width="50" height="50">
-                    <!-- User Info -->
-                    <div class="ms-3">
-                        <h1 style="font-size: 1.5em;">SpiritCHAT</h1>
-                        <small>{{ current_user.nickname }}</small>
-                    </div>
-                    <div class="ms-auto">
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-custom dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                Menu
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/profile">Личный профиль</a></li>
-                                <li><a class="dropdown-item" href="/create_chat">Создать новый чат</a></li>
-                                <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>
-                                <li><a class="dropdown-item" href="/create_dialog">Создать новый диалог</a></li>
-                                <li><a class="dropdown-item" href="/favorites">Избранное</a></li>
-                                <li><hr class="dropdown-divider"></li> <!-- Разделитель -->
-                                <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>
-                            </ul>
-                        </div>
+<div class="container-fluid">
+    <div class="row">
+        <!-- Left Panel -->
+        <div class="col-md-6 left-panel">
+            <!-- Profile Section -->
+            <div class="d-flex align-items-center mb-4">
+                <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic"
+                     width="50" height="50">
+                <div class="ms-3">
+                    <h1 style="font-size: 1.5em;">SpiritCHAT</h1>
+                    <small>{{ current_user.nickname }}</small>
+                </div>
+                <div class="ms-auto">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-custom dropdown-toggle" data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                            Menu
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/profile">Личный профиль</a></li>
+                            <li><a class="dropdown-item create-chat-link" href="#">Создать новый чат</a></li>
+                            <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>
+                            <li><a class="dropdown-item create-dialog-link" href="/create_dialog">Создать новый
+                                диалог</a></li>
+                            <li><a class="dropdown-item" href="/favorites">Избранное</a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>
+                        </ul>
                     </div>
                 </div>
-                <form action="/home" method="get" class="mt-3">
-                    <input type="text" id="search_query" name="search_query" class="form-control" placeholder="Search">
-                </form>
-                  <!-- Блок для отображения результатов поиска -->
-                {% if search_query %}
-                <h2 class="small-header">Результаты поиска</h2>
-                <div class="search-results-list">
-                    {% for chat in search_results_chats %}
+            </div>
+            <form action="/home" method="get" class="mt-3">
+                <input type="text" id="search_query" name="search_query" class="form-control" placeholder="Search">
+            </form>
+            <!-- Блок для отображения результатов поиска -->
+            {% if search_query %}
+            <h2 class="small-header">Результаты поиска</h2>
+            <div class="search-results-list">
+                {% for chat in search_results_chats %}
+                <div class="container border-bottom mb-2">
                     <div class="search-results-item small-title">
                         <h3>{{ chat['chat_name'] }}</h3>
                         <p>Владелец: {{ chat['owner_phone_number'] }}</p>
                         <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
                     </div>
-                    {% endfor %}
-                    {% for channel in search_results_channels %}
+                </div>
+                {% endfor %}
+                {% for channel in search_results_channels %}
+                <div class="container border-bottom mb-2">
                     <div class="search-results-item small-title">
                         <h3>{{ channel['name'] }}</h3>
                         <p>Владелец: {{ channel['owner_phone_number'] }}</p>
                         <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
                     </div>
-                    {% endfor %}
                 </div>
-                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
 
-             <div class="scrollable-content">
-                 <h2 class="small-header">Ваши диалоги</h2>
+            <div class="scrollable-content">
+                <h2 class="small-header">Ваши диалоги</h2>
                 <div class="dialogs-list">
                     {% for dialog in dialogs %}
-                    <div class="dialogs-item small-title">
-                        <p>{{ dialog.interlocutor_phone_number }}</p>
-                        {% if '[[FILE]]' in dialog.last_message %}
-                        {% set message_text, file_info = dialog.last_message.split('[[FILE]]') %}
-                        {% if ', ' in file_info %}
-                        {% set file_id, file_name = file_info.replace('[[/FILE]]','').split(', ') %}
-                        {% else %}
-                        {% set file_id = file_info.replace('[[/FILE]]','') %}
-                        {% set file_name = "unknown" %}
-                        {% endif %}
-                        <p> {{ message_text }} - <a href="/files/{{ file_id.split(': ')[1] }}"> {{ file_name.split(': ')[1] }}</a> -
-                        {{ dialog.last_message_timestamp }}</p>
-                        {% else %}
-                        <p> {{ dialog.last_message }} - {{ dialog.last_message_timestamp }}</p>
-                        {% endif %}
-                        <a href="#" data-dialog-id="{{ dialog.id }}" class="load-dialog">Перейти в диалог</a>
-                        <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">
-                            <input type="submit" value="Удалить диалог">
-                        </form>
+                    <div class="container border-bottom mb-2 clickable-dialog flex-container"
+                         data-dialog-id="{{ dialog.id }}">
+                        <!-- Фото собеседника -->
+                        <div class="profile-picture-container">
+                            <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
+                                 alt="Interlocutor's profile picture" width="50" height="50" class="profile-picture">
+                        </div>
+                        <!-- Информация о диалоге -->
+                        <div class="dialogs-item small-title flex-grow">
+                            <div>
+                                <!-- Никнейм собеседника -->
+                                <strong>{{ dialog.interlocutor_nickname or dialog.interlocutor_phone_number }}</strong>
+                            </div>
+                            <div>
+                                <!-- Последнее сообщение -->
+                                {% set short_message = dialog.last_message[:25] + "..." if dialog.last_message|length >
+                                25 else dialog.last_message %}
+                                <small> {{ short_message }}</small>
+                            </div>
+                        </div>
+                        <!-- Действия с диалогом -->
+                        <div class="dialog-actions">
+                            <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">
+                                <input type="submit" value="Удалить">
+                            </form>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
 
                 <h2 class="small-header">Ваши чаты</h2>
-                     <div class="chat-list">
-                       {% for chat in chats %}
-                      <div class="chat-item small-title">
-                   <h3>{{ chat['chat_name'] }}</h3>
-                   {% if chat['id'] in left_chats %}
-                      <p>Вы покинули чат</p>
-                   {% endif %}
-                      <p>Владелец: {{ chat['owner_phone_number'] }}</p>
-                       {% if '[[FILE]]' in chat['last_message'] %}
-                     {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
-                         {% if ', ' in file_message_parts[1] %}
-                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                <p>{{ chat['last_message_sender_phone'] }}</p>
-                <p>{{ file_info_parts[1].split(': ')[1] }}</p>
-                <p>Отправлено: {{ chat['last_message_timestamp'] }}</p>
-            {% endif %}
-        {% else %}
-            <p>{{ chat['last_message_sender_phone'] }} : {{ chat['last_message'] }} - Время: {{ chat['last_message_timestamp'] }}</p>
-        {% endif %}
-          <a href="#" data-chat-id="{{ chat.id }}" class="load-chat">Перейти в чат</a>
-    </div>
-    {% endfor %}
-</div>>
-                <h2 class="small-header">Ваши каналы</h2>
-                <div class="channel-list">
-                    {% for channel in channels %}
-                    <div class="channel-item small-title">
-                        <h3>{{ channel['name'] }}</h3>
-                        <p>Владелец: {{ channel['owner_phone_number'] }}</p>
-                        {% if channel['owner_phone_number'] == current_user.phone_number and channel['last_owner_message'] %}
-                        <p>{{ channel['last_owner_message'] }} - {{ channel['last_owner_message_timestamp'] }}</p>
-                        {% if channel['last_owner_message_file'] %}
-                        <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть прикрепленный файл</a>
-                        {% endif %}
-                        {% elif channel['last_message'] %}
-                        <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>
-                        {% if channel['last_message_file'] %}
-                        <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный файл</a>
-                        {% endif %}
-                        {% endif %}
-                        <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
-                        {% if channel['owner_phone_number'] == current_user.phone_number %}
-                        <form action="/channels/{{ channel['id'] }}/delete" method="post">
-                            <input type="submit" value="Удалить канал">
-                        </form>
-                        {% endif %}
+                <div class="chat-list">
+                    {% for chat in chats %}
+                    <div class="container border-bottom mb-2 clickable-chat flex-container"
+                         data-chat-id="{{ chat.id }}">
+                        <!-- Фото чата -->
+                        <div class="profile-picture-container"> <!-- использован тот же класс контейнера -->
+                            <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
+                                 class="profile-picture"> <!-- использован тот же класс для изображения -->
+                        </div>
+                        <!-- Информация о чате -->
+                        <div class="chat-item small-title flex-grow">
+                            <h3>{{ chat['chat_name'] }}</h3>
+                            {% if chat['id'] in left_chats %}
+                            <p>Вы покинули чат</p>
+                            {% endif %}
+
+                            {% if '[[FILE]]' in chat['last_message'] %}
+                            {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
+                            {% if ', ' in file_message_parts[1] %}
+                            {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                            <p>{{ chat['last_message_sender_phone'] }}</p>
+                            <p>{{ file_info_parts[1].split(': ')[1] }}</p>
+                            <p>Отправлено: {{ chat['last_message_timestamp'] }}</p>
+                            {% endif %}
+                            {% else %}
+                            <p>{{ chat['last_message_sender_phone'] }} : {{ chat['last_message'] }} - Время: {{
+                                chat['last_message_timestamp'] }}</p>
+                            {% endif %}
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
 
-             </div>
-            </div>
-
-            <!-- Правая панель -->
-            <div class="col-md-6 right-panel">
-                <div id="dialog-panel">
-                    <!-- The selected dialog will be displayed here -->
-                    <div id="dialog-container">
-                        <ul class="list-group"></ul>
-                        <div id="dialog-history">
-
+                <h2 class="small-header">Ваши каналы</h2>
+                <div class="channel-list">
+                    {% for channel in channels %}
+                    <div class="container border-bottom mb-2">
+                        <div class="channel-item small-title">
+                            <h3>{{ channel['name'] }}</h3>
+                            <p>Владелец: {{ channel['owner_phone_number'] }}</p>
+                            {% if channel['owner_phone_number'] == current_user.phone_number and
+                            channel['last_owner_message'] %}
+                            <p>{{ channel['last_owner_message'] }} - {{ channel['last_owner_message_timestamp'] }}</p>
+                            {% if channel['last_owner_message_file'] %}
+                            <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть прикрепленный файл</a>
+                            {% endif %}
+                            {% elif channel['last_message'] %}
+                            <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>
+                            {% if channel['last_message_file'] %}
+                            <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный файл</a>
+                            {% endif %}
+                            {% endif %}
+                            <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
+                            {% if channel['owner_phone_number'] == current_user.phone_number %}
+                            <form action="/channels/{{ channel['id'] }}/delete" method="post">
+                                <input type="submit" value="Удалить канал">
+                            </form>
+                            {% endif %}
                         </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <!-- Правая панель -->
+        <div class="col-md-6 right-panel">
+            <!-- добавленные стили для "шторки" -->
+            <style>
+                .drawer {
+                    position: fixed;
+                    top: 0;
+                    right: -400px;
+                    width: 400px;
+                    height: 100vh;
+                    background-color: #ECE5DD;
+                    border-left: 1px solid #ce8334;
+                    padding: 15px;
+                    transition: right 0.3s ease;
+                }
+
+                .drawer.open {
+                    right: 0;
+                }
+            </style>
+            <div id="dialog-panel">
+                <!-- The selected dialog will be displayed here -->
+                <div id="dialog-container">
+                    <ul class="list-group"></ul>
+                    <div id="dialog-history">
+
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 </div>
+
 <script>
-// Инициализация кода для dialogs.html
-function initializeDialogJS(dialogId) {
-    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-    const access_token = cookie ? cookie.split('=')[1] : null;
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+    // Инициализация кода для dialogs.html
+    function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+        const access_token = cookie ? cookie.split('=')[1] : null;
+        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
-    ws.onopen = function(event) {
-        console.log("WebSocket connection opened.");
-        ws.send(JSON.stringify({ "action": "init_connection", "dialog_id": dialogId, "access_token": access_token }));
-    };
+        ws.onopen = function (event) {
+            console.log("WebSocket connection opened.", event);
+            ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
+        };
 
-    const form = document.getElementById('message-form');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(form);
-        fetch(`/dialogs/${dialogId}/send_message`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (response.ok) {
-                return response.json();
-            } else {
-                throw new Error('Failed to send message');
-            }
-        })
-        .then(data => {
-        // Очищаем поле для текстового сообщения
-        form.querySelector('textarea[name="message"]').value = '';
-
-        // Очищаем поле для выбора файлов
-        const fileInput = form.querySelector('input[type="file"]');
-        if (fileInput) {
-            fileInput.value = '';
-        }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
-    });
-
-    ws.onmessage = function(event) {
-        let messageData;
-        try {
-            messageData = JSON.parse(event.data);
-        } catch (e) {
-            console.error("Invalid JSON", e);
-            return;
-        }
-
-        const action = messageData.action;
-
-        if (action === 'new_token') {
-            document.cookie = "access_token=" + messageData.token;
-        } else {
-            const messagesList = document.querySelector('.list-group');
-    if (messageData.message && messageData.message.sender_id) {
-        const newMessage = document.createElement('li');
-        newMessage.className = "message-item";
-
-        const messageContent = document.createElement('div');
-        messageContent.className = "message-content";
-
-        const senderNickname = messageData.message.sender_nickname;
-        const rawMessage = messageData.message.message;
-
-        const senderElement = document.createElement('strong');
-        senderElement.innerText = senderNickname + ":";
-        messageContent.appendChild(senderElement);
-
-        const messageTextElement = document.createElement('div');
-        if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-            const [text, fileInfo] = rawMessage.split('[[FILE]]');
-            const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
-            const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
-            const fileId = fileIdInfo.split(': ')[1];
-            const fileName = fileNameInfo.split(': ')[1];
-
-            messageTextElement.appendChild(document.createTextNode(" " + text));
-            messageContent.appendChild(messageTextElement);
-
-            const fileLink = document.createElement('div');
-            const fileAnchor = document.createElement('a');
-            fileAnchor.href = `/files/${fileId}`;
-            fileAnchor.innerText = fileName;
-            fileLink.appendChild(fileAnchor);
-            messageContent.appendChild(fileLink);
-        } else {
-            messageTextElement.appendChild(document.createTextNode(" " + rawMessage));
-            messageContent.appendChild(messageTextElement);
-        }
-
-        const timeElement = document.createElement('div');
-        timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "undefined")));
-        messageContent.appendChild(timeElement);
-
-        newMessage.appendChild(messageContent);
-        messagesList.appendChild(newMessage);
-
-            } else {
-                console.warn('Неожиданный формат сообщения: ', messageData);
-            }
-        }
-    };
-}
-
-// Загрузка dialogs.html в правую панель
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.load-dialog').forEach(function(button) {
-        button.addEventListener('click', function(event) {
-            event.preventDefault();
-            const dialogId = event.target.getAttribute('data-dialog-id');
-            fetch(`/dialogs/${dialogId}`)
-                .then(response => response.text())
-                .then(html => {
-                    document.querySelector('#dialog-panel').innerHTML = html;
-                    initializeDialogJS(dialogId);
-                })
-                .catch(error => {
-                    console.error('Ошибка:', error);
-                });
-        });
-    });
-});
-
-// Инициализация кода для dialogs.html
-// ... (ваш текущий код для dialogs)
-
-// Загрузка chat.html в правую панель
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.load-chat').forEach(function(button) {
-        button.addEventListener('click', function(event) {
-            event.preventDefault();
-            const chatId = event.target.getAttribute('data-chat-id');
-            fetch(`/chat/${chatId}`)
-                .then(response => response.text())
-                .then(html => {
-                    document.querySelector('.right-panel').innerHTML = html;
-                    initializeChatJS(chatId);
-                })
-                .catch(error => {
-                    console.error('Ошибка:', error);
-                });
-        });
-    });
-});
-
-// Инициализация кода для chat.html
-function initializeChatJS(chatId) {
-    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-    const access_token = cookie ? cookie.split('=')[1] : null;
-    var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
-
-    ws.onopen = function(event) {
-        console.log("WebSocket connection opened.");
-        ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
-    };
-
-    ws.onclose = function(event) {
-        console.log("WebSocket connection closed:", event);
-    };
-
-    ws.onerror = function(error) {
-        console.log(`WebSocket Error: ${error}`);
-    };
-
-    // Добавляем обработчик для submit только один раз
-    document.addEventListener('submit', function(event) {
-        const form = event.target;
-        if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
-            event.preventDefault();
-
+        const form = document.getElementById('message-form');
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
             const formData = new FormData(form);
-
-            fetch(form.action, {
+            fetch(`/dialogs/${dialogId}/send_message`, {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('Сообщение успешно отправлено');
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error('Failed to send message');
+                    }
+                })
+                .then(data => {
+                    form.querySelector('textarea[name="message"]').value = '';
+                    const fileInput = form.querySelector('input[type="file"]');
+                    if (fileInput) {
+                        fileInput.value = '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        });
 
-                    // Сброс формы
-                    form.reset();
+        ws.onmessage = function (event) {
+            let messageData;
+            try {
+                messageData = JSON.parse(event.data);
+            } catch (e) {
+                console.error("Invalid JSON", e);
+                return;
+            }
+
+            const action = messageData.action;
+
+            if (action === 'new_token') {
+                document.cookie = "access_token=" + messageData.token;
+            } else {
+                const messagesList = document.querySelector('.list-group');
+                if (messageData.message && messageData.message.sender_id) {
+                    const newMessage = document.createElement('li');
+                    newMessage.className = "message-item";
+
+                    if (messageData.message.sender_id === currentUserId) {
+                        newMessage.classList.add('message-sent');  // Добавлен класс для отправленных сообщений
+                    }
+
+                    const messageContent = document.createElement('div');
+                    messageContent.className = "message-content";
+
+                    const senderNickname = messageData.message.sender_nickname || "";  // Исправление "undefined"
+                    const rawMessage = messageData.message.message;
+
+                    if (senderNickname) {  // Проверка наличия senderNickname
+                        const senderElement = document.createElement('strong');
+                        senderElement.innerText = senderNickname + ":";
+                        messageContent.appendChild(senderElement);
+                    }
+
+                    const messageTextElement = document.createElement('div');
+                    if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                        const [text, fileInfo] = rawMessage.split('[[FILE]]');
+                        const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+                        const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+                        const fileId = fileIdInfo.split(': ')[1];
+                        const fileName = fileNameInfo.split(': ')[1];
+
+                        messageTextElement.appendChild(document.createTextNode(" " + text));
+                        messageContent.appendChild(messageTextElement);
+
+                        const fileLink = document.createElement('div');
+                        const fileAnchor = document.createElement('a');
+                        fileAnchor.href = `/files/${fileId}`;
+                        fileAnchor.innerText = fileName;
+                        fileLink.appendChild(fileAnchor);
+                        messageContent.appendChild(fileLink);
+                    } else {
+                        messageTextElement.appendChild(document.createTextNode(" " + rawMessage));
+                        messageContent.appendChild(messageTextElement);
+                    }
+
+                    const timeElement = document.createElement('div');
+                    timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "")));  // Исправление "undefined"
+                    messageContent.appendChild(timeElement);
+
+                    newMessage.appendChild(messageContent);
+                    messagesList.appendChild(newMessage);
                 } else {
-                    console.log('Ошибка при отправке сообщения:', data.error);
+                    console.warn('Неожиданный формат сообщения: ', messageData);
                 }
-            })
-            .catch(error => {
-                console.error('Ошибка при отправке формы:', error);
+            }
+        };
+    }
+
+
+    // Загрузка dialogs.html в правую панель
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.clickable-dialog').forEach(function (container) {
+            container.addEventListener('click', function (event) {
+                // Не выполняем действие, если клик был по кнопке "Перейти в диалог"
+                if (event.target.classList.contains('load-dialog')) return;
+
+                const dialogId = event.currentTarget.getAttribute('data-dialog-id');
+                fetch(`/dialogs/${dialogId}`)
+                    .then(response => response.text())
+                    .then(html => {
+                        document.querySelector('#dialog-panel').innerHTML = html;
+                        initializeDialogJS(dialogId);
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                    });
+            });
+        });
+    });
+
+    // Инициализация кода для create_dialog.html
+    function initializeCreateDialogJS() {
+        document.querySelectorAll('.start-dialog-form').forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                const userId = form.action.split('/').pop();
+
+                fetch(`/create_dialog/${userId}`, {
+                    method: 'POST'
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        const dialogId = data.dialog_id;
+
+                        // Загружаем содержимое dialogs.html в правую панель
+                        fetch(`/dialogs/${dialogId}`)
+                            .then(response => response.text())
+                            .then(html => {
+                                document.querySelector('.right-panel').innerHTML = html;
+                                initializeDialogJS(dialogId);  // Инициализация JS для нового диалога
+                            });
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                    });
+            });
+        });
+    }
+
+    // Добавление обработчика для кнопки "Создать новый диалог"
+    document.addEventListener('DOMContentLoaded', function () {
+        const createDialogLink = document.querySelector('.create-dialog-link');
+        if (createDialogLink) {
+            createDialogLink.addEventListener('click', function (event) {
+                event.preventDefault();  // Отменяем стандартное поведение перехода по ссылке
+
+                // Загружаем содержимое create_dialog.html
+                fetch('/create_dialog')
+                    .then(response => response.text())
+                    .then(html => {
+                        // Вставляем HTML в правую панель
+                        document.querySelector('.right-panel').innerHTML = html;
+
+                        // Инициализируем JS для create_dialog.html (если необходимо)
+                        initializeCreateDialogJS();
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                    });
             });
         }
     });
 
-    ws.onmessage = function(event) {
-        const messageData = JSON.parse(event.data);
-        const action = messageData.action;
 
-        if (action === 'new_token') {
-            document.cookie = "access_token=" + messageData.token;
-        } else if (action === 'update_member_count') {
-            console.log("Received update_member_count:", messageData.count);
-            document.getElementById('member-count').textContent = messageData.count + " участников";
-        } else {
-            if (messageData.message && messageData.sender_phone_number) {
-                const messagesList = document.getElementById('chat-history');
-                const newMessage = document.createElement('div');
+    // Инициализация кода для dialogs.html
+    // ... (ваш текущий код для dialogs)
 
-                const senderElement = document.createElement("h4");
-                senderElement.innerText = messageData.sender_phone_number || "Unknown";
-                newMessage.appendChild(senderElement);
+    // Загрузка chat.html в правую панель
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.clickable-chat').forEach(function (container) {
+            container.addEventListener('click', function (event) {
+                if (event.target.classList.contains('load-chat')) return;
 
-                const rawMessage = messageData.message;
+                const chatId = event.currentTarget.getAttribute('data-chat-id');
+                fetch(`/chat/${chatId}`)
+                    .then(response => response.text())
+                    .then(html => {
+                        document.querySelector('.right-panel').innerHTML = html;
+                        initializeChatJS(chatId);  // Инициализация JS для чата
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                    });
+            });
+        });
+    });
 
-                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                    const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-                    const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-                    const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-                    const fileId = fileIdInfo.split(': ')[1];
-                    const fileName = fileNameInfo.split(': ')[1];
+    // Инициализация кода для chat.html
+    function initializeChatJS(chatId) {
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+        const access_token = cookie ? cookie.split('=')[1] : null;
+        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
-                    if (fileId && fileName) {
-                        newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
-                    }
-                } else {
-                    newMessage.innerHTML += `${rawMessage}<br>`;
-                }
+        ws.onopen = function (event) {
+            console.log("WebSocket connection opened.");
+            ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
+        };
 
-                const timeElement = document.createElement("small");
-                timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                newMessage.appendChild(timeElement);
+        ws.onclose = function (event) {
+            console.log("WebSocket connection closed:", event);
+        };
 
-                messagesList.appendChild(newMessage);
+        ws.onerror = function (error) {
+            console.log(`WebSocket Error: ${error}`);
+        };
 
-                // Автоматически прокручиваем чат вниз
-                setTimeout(() => {
-                    messagesList.scrollTop = messagesList.scrollHeight;
-                }, 0);
-            } else {
-                console.warn('Неожиданный формат сообщения:', messageData);
+        // Добавляем обработчик для submit только один раз
+        document.addEventListener('submit', function (event) {
+            const form = event.target;
+            if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
+                event.preventDefault();
+
+                const formData = new FormData(form);
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log('Сообщение успешно отправлено');
+
+                            // Сброс формы
+                            form.reset();
+                        } else {
+                            console.log('Ошибка при отправке сообщения:', data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при отправке формы:', error);
+                    });
             }
+        });
+
+        ws.onmessage = function (event) {
+            const messageData = JSON.parse(event.data);
+            const action = messageData.action;
+
+            if (action === 'new_token') {
+                document.cookie = "access_token=" + messageData.token;
+            } else if (action === 'update_member_count') {
+                console.log("Received update_member_count:", messageData.count);
+                document.getElementById('member-count').textContent = messageData.count + " участников";
+            } else {
+                if (messageData.message && messageData.sender_phone_number) {
+                    const messagesList = document.getElementById('chat-history');
+                    const newMessage = document.createElement('div');
+
+                    const senderElement = document.createElement("h4");
+                    senderElement.innerText = messageData.sender_phone_number || "Unknown";
+                    newMessage.appendChild(senderElement);
+
+                    const rawMessage = messageData.message;
+
+                    if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                        const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
+                        const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
+                        const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
+                        const fileId = fileIdInfo.split(': ')[1];
+                        const fileName = fileNameInfo.split(': ')[1];
+
+                        if (fileId && fileName) {
+                            newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
+                        }
+                    } else {
+                        newMessage.innerHTML += `${rawMessage}<br>`;
+                    }
+
+                    const timeElement = document.createElement("small");
+                    timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
+                    newMessage.appendChild(timeElement);
+
+                    messagesList.appendChild(newMessage);
+
+                    // Автоматически прокручиваем чат вниз
+                    setTimeout(() => {
+                        messagesList.scrollTop = messagesList.scrollHeight;
+                    }, 0);
+                } else {
+                    console.warn('Неожиданный формат сообщения:', messageData);
+                }
+            }
+        };
+
+        // Обработчик для формы изменения фотографии
+        const changePictureForm = document.querySelector('form[action*="change_picture"]');
+        if (changePictureForm) {
+            changePictureForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                const formData = new FormData(changePictureForm);
+                fetch(changePictureForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`
+                    },
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'picture updated') {
+                            const chatImage = document.querySelector('img[src*="/chat/picture/"]');
+                            const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
+                            chatImage.setAttribute('src', newSrc);
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            });
         }
-    };
+
+        // Код для управления "шторкой"
+        const interlocutorInfo = document.querySelector('.interlocutor-info');
+        if (interlocutorInfo) {
+            interlocutorInfo.addEventListener('click', function () {
+                const drawer = document.querySelector('.drawer');
+                drawer.classList.toggle('open');
+            });
+        }
+    }
+
 
     function addOption() {
         const newOption = document.createElement('input');
@@ -484,7 +650,61 @@ function initializeChatJS(chatId) {
         };
         ws.send(JSON.stringify(pollData));
     }
-}
+
+
+    // Инициализация кода для create_chat.html
+    function initializeCreateChatJS() {
+        console.log("initializeCreateChatJS is called"); // Отладка
+        const createChatForm = document.querySelector('form[action="/create_chat"]');
+        if (createChatForm) {
+            createChatForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                const formData = new FormData(createChatForm);
+                fetch('/create_chat', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'created' && data.chat_id) {
+                            fetch(`/chat/${data.chat_id}`)
+                                .then(response => response.text())
+                                .then(html => {
+                                    document.querySelector('.right-panel').innerHTML = html;
+                                    initializeChatJS(data.chat_id);
+                                })
+                                .catch(error => {
+                                    console.error('Ошибка:', error);
+                                });
+                        } else {
+                            console.log('Ошибка при создании чата:', data.error || "Unknown error");
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при отправке формы:', error);
+                    });
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Загрузка формы создания чата
+        const createChatLink = document.querySelector('.create-chat-link');
+        if (createChatLink) {
+            createChatLink.addEventListener('click', function (event) {
+                event.preventDefault();
+                fetch('/create_chat')
+                    .then(response => response.text())
+                    .then(html => {
+                        document.querySelector('.right-panel').innerHTML = html;
+                        initializeCreateChatJS();  // Важно: инициализация скриптов для новой формы
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                    });
+            });
+        }
+    });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>

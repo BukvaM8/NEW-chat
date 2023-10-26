@@ -3,30 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <title>Create Chat</title>
-    <link rel="stylesheet" href="/static/Create_ChatStyle.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #ECE5DD;
+            font-family: Times New Roman, sans-serif;
+        }
+
+        .container {
+            height: 100%;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Создание нового чата</h1>
+<div class="container">
+    <h1 class="mb-3">Создание новой группы</h1>
 
-        <!-- Форма создания чата -->
-        <form action="/create_chat" method="post">
-            <label for="chat_name">Имя чата:</label>
-            <input type="text" id="chat_name" name="chat_name" required>
+    <!-- Форма создания чата -->
+    <form action="/create_chat" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="chat_name">Название:</label>
+            <input type="text" class="form-control" id="chat_name" name="chat_name" required>
+        </div>
 
-            <!-- Выпадающий список для выбора участника чата -->
+        <!-- Поле для отображения загруженного изображения -->
+        <div class="form-group">
+            <label>Текущее изображение:</label>
+            <img id="current_image" src="#" alt="Current Chat Image" style="width: 100px; height: 100px;">
+        </div>
+
+
+        <!-- Поле для загрузки изображения -->
+        <div class="form-group">
+            <label for="chat_image">Выберите изображение:</label>
+            <input type="file" class="form-control" id="chat_image" name="chat_image">
+        </div>
+
+        <!-- Выпадающий список для выбора участника чата -->
+        <div class="form-group">
             <label for="user_phone">Выберите участника:</label>
-            <select id="user_phone" name="user_phone" required>
+            <select class="form-control" id="user_phone" name="user_phone" required>
                 {% for user in users %}
-                    <option value="{{ user.phone_number }}">{{ user.nickname }} ({{ user.phone_number }})</option>
+                <option value="{{ user.phone_number }}">{{ user.nickname }} ({{ user.phone_number }})</option>
                 {% endfor %}
             </select>
+        </div>
 
-            <input type="submit" value="Создать">
-        </form>
+        <button type="submit" class="btn btn-primary">Создать</button>
+    </form>
 
-        <!-- Кнопка "Вернуться на главную страницу" -->
-        <button onclick="location.href='/chats'">Вернуться назад</button>
-    </div>
+    <!-- Кнопка "Вернуться на главную страницу" -->
+    <button class="btn btn-secondary mt-3" onclick="location.href='/chats'">Вернуться назад</button>
+</div>
 </body>
 </html>

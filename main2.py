@@ -47,12 +47,11 @@ from pydantic.json import Union
 from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
-    Table, func, LargeBinary, desc, Boolean, BLOB, Text, Float, JSON, delete, create_engine
+    Table, func, LargeBinary, desc, Boolean, BLOB, Text, Float, JSON, delete, create_engine, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.sync import update
 from sqlalchemy.sql import select
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
@@ -95,6 +94,7 @@ app = FastAPI()
 
 # Монтируем статические файлы
 app.mount("/profile_pictures", StaticFiles(directory="profile_pictures"), name="profile_pictures")
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Создаем сессию для взаимодействия с базой данных
@@ -158,6 +158,7 @@ userchats = Table(
     Column("id", Integer, primary_key=True),
     Column("chat_name", String),
     Column("owner_phone_number", String, ForeignKey('Users.phone_number')),
+    Column("chat_image", LargeBinary)  # Измененный тип данных
 )
 
 tokens = Table(
@@ -1000,201 +1001,6 @@ async def get_all_users(search_query: str = "") -> List[dict]:
     return result
 
 
-# Получает все сообщения из указанного чата.
-async def get_chat_messages(chat_id: int):
-    try:
-        query = chatmessages.select().where(chatmessages.c.chat_id == chat_id).order_by(chatmessages.c.timestamp)
-        chat_messages = await database.fetch_all(query)
-        return chat_messages
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error getting chat messages")
-
-
-async def get_user_chats(phone_number: str):
-    try:
-        # Выбираем идентификаторы чатов, в которых участвует пользователь
-        query = ChatMembers.select().where(ChatMembers.c.user_phone_number == phone_number)
-        user_chat_ids = await database.fetch_all(query)
-
-        updated_user_chats = []  # Список для обновленных данных чатов
-
-        # Для каждого идентификатора чата, получить информацию о чате
-        for chat_id in user_chat_ids:
-            query = userchats.select().where(userchats.c.id == chat_id['chat_id'])
-            chat = await database.fetch_one(query)
-
-            # Для каждого чата, получить последнее сообщение
-            query = chatmessages.select().where(chatmessages.c.chat_id == chat_id['chat_id']).order_by(
-                chatmessages.c.timestamp.desc()).limit(1)
-            last_message = await database.fetch_one(query)
-
-            updated_chat = dict(chat)  # Создаем новый словарь из данных chat
-            if last_message:
-                updated_chat['last_message'] = last_message['message']
-                updated_chat['last_message_sender_phone'] = last_message[
-                    'sender_phone_number']  # добавляем номер отправителя последнего сообщения
-                updated_chat['last_message_timestamp'] = last_message['timestamp']
-
-            updated_user_chats.append(updated_chat)  # Добавляем обновленный чат в список
-
-        return updated_user_chats
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error getting user chats")
-
-
-# Получает чат по идентификатору.
-async def get_chat(chat_id: int):
-    query = userchats.select().where(userchats.c.id == chat_id)
-    chat = await database.fetch_one(query)
-    return chat
-
-
-# Получает всех участников определенного чата
-async def get_chat_members(chat_id: int):
-    try:
-        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
-        chat_members = await database.fetch_all(query)
-
-        # Преобразование результатов в словари
-        chat_members = [dict(row) for row in chat_members]
-
-        return chat_members
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error getting chat members")
-
-
-# Маршрут к странице участников чата
-@app.get("/chat/{chat_id}/members", response_class=HTMLResponse)
-async def read_chat_members(request: Request, chat_id: int,
-                            current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    # Этот маршрут отображает всех участников конкретного чата
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-    chat = await get_chat(chat_id)
-    members = await get_chat_members(chat_id)
-    members_info = [await get_user(member['user_phone_number']) for member in members]
-    # Отсортировать список участников так, чтобы владелец был первым
-    members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
-    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info,
-                                                           "current_user": current_user})
-
-
-# Исправленная функция, обращающаяся к БД
-async def add_chat_member_db(chat_id: int, phone_number: str):
-    try:
-        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
-        members = await database.fetch_all(query)
-
-        if len(members) >= 200:
-            raise HTTPException(status_code=400, detail="The chat has reached the maximum number of members")
-
-        query = ChatMembers.insert().values(chat_id=chat_id, user_phone_number=phone_number)
-        await database.execute(query)
-
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail="Error adding chat member")
-
-
-@app.get("/chat/{chat_id}/members/add", response_class=HTMLResponse)
-async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[str] = None,
-                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-
-    print(f"Поисковый запрос: {search_query}")  # Логируем поисковый запрос
-
-    chat = await get_chat(chat_id)
-    members = await get_chat_members(chat_id)
-    members_phone_numbers = [member['user_phone_number'] for member in members]
-
-    if search_query:
-        all_users = await search_users(search_query)
-    else:
-        all_users = await get_all_users()
-
-    # Используем .phone_number вместо ['phone_number']
-    inviteable_users = [user for user in all_users if
-                        user['phone_number'] not in members_phone_numbers and user[
-                            'phone_number'] != current_user.phone_number]
-
-    return templates.TemplateResponse("addtochat.html", {"request": request, "chat": chat, "users": inviteable_users,
-                                                         "current_user": current_user})
-
-
-@app.post("/chat/{chat_id}/members/{phone_number}/add", response_class=RedirectResponse)
-async def add_chat_member(request: Request, chat_id: int, phone_number: str,
-                          current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-    await add_chat_member_db(chat_id, phone_number)  # Исправленный вызов функции
-    member_count = len(await get_chat_members(chat_id))
-    await send_member_count_update(chat_id, member_count)
-    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=303)
-
-
-async def search_chat_members(request: Request, chat_id: int, search_user: str,
-                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    try:
-        # Получение всех участников чата
-        members_info = await get_chat_members(chat_id)
-        search_results = []
-
-        # Фильтрация результатов поиска, если предоставлен search_user
-        if search_user:
-            search_results = list(filter(
-                lambda member: search_user.lower() in member['nickname'].lower() or search_user in member[
-                    'phone_number'],
-                members_info))
-        else:
-            search_results = members_info
-
-        return search_results
-
-    except Exception as e:
-        logging.error(f"An error occurred in search_chat_members: {e}")
-        return []
-
-
-# Удаляет пользователя из чата.
-async def delete_chat_member(chat_id: int, phone_number: str):
-    try:
-        query = ChatMembers.delete().where(
-            and_(ChatMembers.c.chat_id == chat_id, ChatMembers.c.user_phone_number == phone_number))
-        result = await database.execute(query)
-        return result
-    except SQLAlchemyError as e:
-        print(str(e))  # line for debug
-        raise HTTPException(status_code=500, detail="Error deleting chat member")
-
-
-# Маршрут для удлаения частника из чата
-@app.post("/chats/{chat_id}/members/{phone_number}/delete")
-async def remove_chat_member(chat_id: int, phone_number: str,
-                             current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
-    if isinstance(current_user, RedirectResponse):
-        return current_user
-
-    phone_number = unquote(phone_number)  # decode the phone number
-
-    chat = await get_chat(chat_id)
-    if not chat:
-        print(f"Chat {chat_id} not found")  # line for debug
-        raise HTTPException(status_code=404, detail="Chat not found")
-
-    if chat.owner_phone_number != current_user.phone_number:
-        raise HTTPException(status_code=403, detail="Only the chat owner can remove members")
-
-    result = await delete_chat_member(chat_id, phone_number)
-    if not result:
-        print(f"Member {phone_number} not found in chat {chat_id}")  # line for debug
-        raise HTTPException(status_code=404, detail="Member not found")
-
-    member_count = len(await get_chat_members(chat_id))
-    await send_member_count_update(chat_id, member_count)
-
-    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=status.HTTP_303_SEE_OTHER)
-
-
 async def create_poll(chat_id: int, creator_phone_number: str, question: str, options: List[str]):
     poll_query = Polls.insert().values(chat_id=chat_id, creator_phone_number=creator_phone_number, question=question)
     last_poll_id = await database.execute(poll_query)
@@ -1391,16 +1197,17 @@ async def create_message(chat_id: int, message_text: str, sender_phone_number: s
         raise HTTPException(status_code=500, detail="Error creating message")
 
 
-# Создает новый чат.
-async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: str):
+async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: str, image_data: bytes):  # добавлено
     try:
-        query = userchats.insert().values(chat_name=chat_name, owner_phone_number=owner_phone_number)
+        query = userchats.insert().values(
+            chat_name=chat_name,
+            owner_phone_number=owner_phone_number,
+            chat_image=image_data  # добавлено
+        )
         last_record_id = await database.execute(query)
 
-        # Add the owner as a member of the chat
+        # Добавление участников чата
         await add_chat_member_db(last_record_id, owner_phone_number)
-
-        # Add the user_phone as a member of the chat
         await add_chat_member_db(last_record_id, user_phone)
 
         return last_record_id
@@ -1623,53 +1430,95 @@ async def get_registration_form(request: Request):
         error_message = '<div class="alert alert-danger" role="alert">Ошибка: Неверный код подтверждения.</div>'
 
     form = f"""
-    <html>
-    <head>
-        <title>Регистрация пользователя</title>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-        <style>
-            .container {{
-                max-width: 600px;
-            }}
-        </style>
-        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-    </head>
-    <body>
-        <div class="container mt-5">
-            <h2>Регистрация пользователя</h2>
-            {error_message}
-            <br>
-            <form method="post" action="/confirm-code" id="form">
-                <div class="form-group">
-                    <label for="email">Email:</label>
-                    <input type="email" class="form-control" id="email" name="email" required>
-                </div>
-                <div class="g-recaptcha" data-sitekey="{SITE_KEY}" required></div>
+        <html>
+        <head>
+            <title>Регистрация пользователя</title>
+            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+            <style>
+                .container {{
+                    max-width: 600px;
+                }}
+                .under_headline {{
+                    font-family: Roboto;
+                    font-size: 14px;
+                    text-align: center;
+                    font-style: normal;
+                    font-weight: 500;
+                    line-height: 16px;
+                }}
+                .headline {{
+                    font-family: Roboto;
+                    font-size: 24px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 32px;
+                    text-align: center;
+                }}
+                .button {{
+                    display: flex;
+                    height: 53px;
+                    width: 540;
+                    padding: 0px 24px;
+                    justify-content: center;
+                    align-items: center;
+                    align-self: stretch;
+                    background-color: #2A88B9;
+                }}
+            </style>
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+        </head>
+        <body>
+            <div class="container mt-5">
+                <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
                 <br>
-                <button type="submit" class="btn btn-primary" id="submit-button">Подтвердить</button>
-            </form>
-        </div>
-    </body>
-   <script>
-        function onSubmit(token) {{
-            document.getElementById("g-recaptcha-response").value = token;
-            document.getElementById("form").submit();
-        }}
-        function onSubmit(token) {{
-            // При успешной проверке капчи, разблокировать отправку формы
-            document.getElementById("submit-button").removeAttribute("disabled");
-        }}
+                <br>
+                <h4 class="headline">Введите почту для создания аккаунта</h4>
+                <p class="under_headline">На вашу почту придет код подтверждения</p>
+                {error_message}
+                <br>
+                <form method="post" action="/confirm-code" id="form" style="width: 540px">
+                    <div class="form-group">
+                        <input type="email" class="form-control" id="email" name="email" required placeholder="Почта">
+                    </div>
+                        <div class="col-md-6 offset-md-2 text-center">
+                          <div class="g-recaptcha" data-sitekey="{SITE_KEY}" required></div>
+                        </div>
+                    <br>
+                    <button type="submit" class="btn btn-primary button" id="submit-button">Далее</button>
+                    <br>
+                    <div class="form-check" style="text-align: left">
+                        <input type="checkbox" class="form-check-input" id="check1" required>
+                        <label class="form-check-label" for="check1">Я согласен с обработкой персональных данных</label>
+                    </div>
+                    <br>
+                    <div class="form-check" style="text-align: left">
+                        <input type="checkbox" class="form-check-input" id="check2" required>
+                        <label class="form-check-label" for="check2">Я согласен с правилаи компании</label>
+                    </div>
+                </form>
+            </div>
+            <script>
+                function onSubmit(token) {{
+                    document.getElementById("g-recaptcha-response").value = token;
+                    document.getElementById("form").submit();
+                }}
+                function onCaptchaSuccess(response) {{
+                    // При успешной проверке капчи, разблокировать отправку формы
+                    document.getElementById("submit-button").removeAttribute("disabled");
+                }}
 
-        // Блокировка отправки формы при загрузке страницы
-        document.getElementById("form").addEventListener("submit", function (event) {{
-            if (grecaptcha.getResponse() === "") {{
-                event.preventDefault();
-                alert("Пожалуйста, пройдите капчу.");
-            }}
-        }});
-    </script>
-    </html>
+                // Блокировка отправки формы при загрузке страницы
+                document.getElementById("form").addEventListener("submit", function (event) {{
+                    if (grecaptcha.getResponse() === "") {{
+                        event.preventDefault();
+                        alert("Пожалуйста, пройдите капчу.");
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
     """
+
     return form
 
 
@@ -1708,22 +1557,115 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
                     .container {{
                         max-width: 600px;
                     }}
+                    .headline {{
+                        font-family: Roboto;
+                        font-size: 24px;
+                        font-style: normal;
+                        font-weight: 400;
+                        line-height: 32px;
+                        text-align: center;
+                    }}
+                    .button {{
+                        display: flex;
+                        height: 53px;
+                        width: 540;
+                        padding: 0px 24px;
+                        justify-content: center;
+                        align-items: center;
+                        align-self: stretch;
+                        background-color: #2A88B9;
+                    }}
+                    .code-input {{
+                        display: flex;
+                        align-items: center;
+                    }}
+            
+                    .code-box {{
+                        width: 0;
+                        height: 0;
+                        opacity: 0;
+                    }}
+            
+                    .code-container {{
+                        display: flex;
+                        gap: 10px;
+                        
+                    }}
+            
+                    .code-digit {{
+                        width: 50px;
+                        height: 60px;
+                        border: 1px solid #000;
+                        text-align: center;
+                        font-size: 24px;
+                        line-height: 38px;
+                    }}
                 </style>
             </head>
             <body>
                 <div class="container mt-5">
-                    <h2>Код подтверждения отправлен</h2>
-                    <p>На ваш email отправлен код подтверждения. Пожалуйста, введите его ниже:</p>
-                    <form method="post" action="/make-login">
+                    <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+                    <br>
+                    <h4 class="headline">Введите код из письма на вашей почте</h4>
+                    <br>
+                    <form method="post" action="/make-login" style="width: 540px">
+                        <input type="text" class="form-control" id="code-input" name="code" style="display: none">
                         <div class="form-group">
-                            <label for="code">Код подтверждения:</label>
-                            <input type="text" class="form-control" id="code" name="code" required>
+                        <div class="row justify-content-center">
+                            <div class="code-input">
+                              <input type="text" maxlength="6" id="code" class="code-box" />
+                              <div class="code-container">
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                              </div>
+                            </div>
+                          </div>
                             <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
                         </div>
-                        <button type="submit" class="btn btn-primary">Подтвердить</button>
+                        <br>
+                        <button type="submit" class="btn btn-primary button" id="submit-button">Далее</button>
                     </form>
                 </div>
             </body>
+            <script>
+                const codeDigits = document.querySelectorAll('.code-digit');
+                const codeInput = document.getElementById('code-input');
+                
+                function moveToNextOrPrevious(input) {{
+                var maxLength = input.maxLength;
+                var currentLength = input.value.length;
+        
+                if (currentLength === maxLength) {{
+                    var nextInput = input.nextElementSibling;
+                    if (nextInput)
+                        nextInput.focus();
+                }} else if (currentLength === 0) {{
+                    var previousInput = input.previousElementSibling;
+                    if (previousInput) {{
+                        previousInput.focus();
+                    }}
+                }}
+                updateCodeInputValue();
+            }}
+        
+            function moveToPrevious(input) {{
+                if (input.value.length === 0 && event.key === "Backspace") {{
+                    var previousInput = input.previousElementSibling;
+                    if (previousInput) {{
+                        previousInput.focus();
+                    }}
+                }}
+                updateCodeInputValue();
+            }}
+            
+            function updateCodeInputValue() {{
+                codeInput.value = Array.from(codeDigits).map(digitInput => digitInput.value).join('');
+            }}
+            </script>
             </html>
             """
         return response
@@ -1747,26 +1689,74 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
             .container {{
                 max-width: 600px;
             }}
+            
+            .under_headline {{
+                    font-family: Roboto;
+                    font-size: 14px;
+                    text-align: center;
+                    font-style: normal;
+                    font-weight: 500;
+                    line-height: 16px;
+                }}
+                .headline {{
+                    font-family: Roboto;
+                    font-size: 24px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 32px;
+                    text-align: center;
+                }}
+                .button {{
+                    display: flex;
+                    height: 53px;
+                    width: 540;
+                    padding: 0px 24px;
+                    justify-content: center;
+                    align-items: center;
+                    align-self: stretch;
+                    background-color: #2A88B9;
+                }}
+                .unstyled-list {{
+                    font-family: Roboto;
+                    font-size: 14px;
+                    font-style: normal;
+                    font-weight: 500;
+                    line-height: 16px;
+                    text-align: left;
+                }}
+                .button:disabled {{
+                    background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+                }}
         </style>
     </head>
     <body>
          <div class="container mt-5">
-            <h2>Регистрация пользователя</h2>
-            <form method="post" action="/complete-register" id="form">
-                <h2>Вход</h2>
+            <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+            <br>
+            <br>
+            <h4 class="headline">Ура! Осталось немного</h4>
+            <p class="under_headline">Придумайте никнейм. Никнейм - это ваше индивидуальное имя пользователя.</p>
+            <br>
+            <form method="post" action="/complete-register" id="form" style="width: 540px">
                 <div class="form-group">
-                    <label for="nickname">Логин:</label>
-                    <input type="text" id="nickname" name="nickname" class="form-control" required>
+                    <input type="text" id="nickname" name="nickname" class="form-control" placeholder="Никнейм" required>
                     <p id="nicknameError" style="color: red; display: none;">Ваш никнейм должен быть уникальным!.</p>
                 </div>
                 <div class="form-group">
-                    <label for="password">Пароль:</label>
-                    <input type="password" id="password" name="password" class="form-control" required>
-                    <p id="passwordError" style="color: red; display: none;">Пароль должен содержать как минимум одну маленькую букву, одну большую букву, одну цифру И быть более 8 символов.</p>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Пароль" required>
                     <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
                 </div>
-                <button type="submit" class="btn btn-primary" id="loginButton" disabled>Войти</button>
+                <button type="submit" class="btn btn-primary button" id="loginButton" disabled>Зарегистрироваться</button>
             </form>
+            <p class="unstyled-list"> Ваш пароль должен содержать </p>
+            <ul class="unstyled-list">
+                <li class="list-item">Латинские буквы</li>
+                <li class="list-item">Минимум 8 символов</li>
+                <li class="list-item">Минимум 1 заглавную букву</li>
+                <li class="list-item">Минимум 1 прописную букву</li>
+                <li class="list-item">Минимум 1 цифру</li>
+                <li class="list-item">Минимум 1 символ</li>
+            </ul>
         </div>
     </body>
     <script>
@@ -1785,12 +1775,15 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
             var lowerCaseRegex = /[a-z]/;
             var upperCaseRegex = /[A-Z]/;
             var digitRegex = /[0-9]/;
-
+            var specialCharRegex = /[!@#\$%\^&\*\(\)_\+=\[\]\;:'"<>,.?\\-]/; // Добавьте здесь специальные символы, которые вы хотите разрешить
+            
             // Проверьте, что пароль соответствует всем требованиям
             if (
                 lowerCaseRegex.test(password) &&
                 upperCaseRegex.test(password) &&
-                digitRegex.test(password) && password.length >= 8
+                digitRegex.test(password) &&
+                specialCharRegex.test(password) &&
+                password.length >= 8
             ) {{
                 // Если пароль соответствует, сделайте кнопку кликабельной
                 loginButton.removeAttribute("disabled");
@@ -1863,12 +1856,33 @@ async def confirm_registration(nickname: str = Form(...), email: str = Form(...)
                         .container {{
                             max-width: 600px;
                         }}
+                        .headline {{
+                            font-family: Roboto;
+                            font-size: 24px;
+                            font-style: normal;
+                            font-weight: 400;
+                            line-height: 32px;
+                            text-align: center;
+                        }}
+                        .button {{
+                            display: flex;
+                            height: 53px;
+                            width: 540;
+                            padding: 0px 24px;
+                            justify-content: center;
+                            align-items: center;
+                            align-self: stretch;
+                            background-color: #2A88B9;
+                        }}
                     </style>
                 </head>
                 <body>
                     <div class="container mt-5">
-                        <h2>Вы успешно зарегистрированы!</h2>
-                        <button type="button" class="btn btn-primary" onclick="window.location.href='/login'">Войти</button>
+                        <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+                        <br>
+                        <br>
+                        <h4 class="headline">Вы успешно зарегистрированы!</h4>
+                        <button type="button" class="btn btn-primary button" onclick="window.location.href='/login'">Войти</button>
                     </div>
                 </body>
                 </html>
@@ -2330,6 +2344,201 @@ async def get_user_dialogs(current_user_id: int) -> list:
     return dialogs
 
 
+# Получает все сообщения из указанного чата.
+async def get_chat_messages(chat_id: int):
+    try:
+        query = chatmessages.select().where(chatmessages.c.chat_id == chat_id).order_by(chatmessages.c.timestamp)
+        chat_messages = await database.fetch_all(query)
+        return chat_messages
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error getting chat messages")
+
+
+async def get_user_chats(phone_number: str):
+    try:
+        # Выбираем идентификаторы чатов, в которых участвует пользователь
+        query = ChatMembers.select().where(ChatMembers.c.user_phone_number == phone_number)
+        user_chat_ids = await database.fetch_all(query)
+
+        updated_user_chats = []  # Список для обновленных данных чатов
+
+        # Для каждого идентификатора чата, получить информацию о чате
+        for chat_id in user_chat_ids:
+            query = userchats.select().where(userchats.c.id == chat_id['chat_id'])
+            chat = await database.fetch_one(query)
+
+            # Для каждого чата, получить последнее сообщение
+            query = chatmessages.select().where(chatmessages.c.chat_id == chat_id['chat_id']).order_by(
+                chatmessages.c.timestamp.desc()).limit(1)
+            last_message = await database.fetch_one(query)
+
+            updated_chat = dict(chat)  # Создаем новый словарь из данных chat
+            if last_message:
+                updated_chat['last_message'] = last_message['message']
+                updated_chat['last_message_sender_phone'] = last_message[
+                    'sender_phone_number']  # добавляем номер отправителя последнего сообщения
+                updated_chat['last_message_timestamp'] = last_message['timestamp']
+
+            updated_user_chats.append(updated_chat)  # Добавляем обновленный чат в список
+
+        return updated_user_chats
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error getting user chats")
+
+
+# Получает чат по идентификатору.
+async def get_chat(chat_id: int):
+    query = userchats.select().where(userchats.c.id == chat_id)
+    chat = await database.fetch_one(query)
+    return chat
+
+
+# Получает всех участников определенного чата
+async def get_chat_members(chat_id: int):
+    try:
+        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
+        chat_members = await database.fetch_all(query)
+
+        # Преобразование результатов в словари
+        chat_members = [dict(row) for row in chat_members]
+
+        return chat_members
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error getting chat members")
+
+
+# Маршрут к странице участников чата
+@app.get("/chat/{chat_id}/members", response_class=HTMLResponse)
+async def read_chat_members(request: Request, chat_id: int,
+                            current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    # Этот маршрут отображает всех участников конкретного чата
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    chat = await get_chat(chat_id)
+    members = await get_chat_members(chat_id)
+    members_info = [await get_user(member['user_phone_number']) for member in members]
+    # Отсортировать список участников так, чтобы владелец был первым
+    members_info.sort(key=lambda member: member['phone_number'] != chat['owner_phone_number'])
+    return templates.TemplateResponse("chatmembers.html", {"request": request, "chat": chat, "members": members_info,
+                                                           "current_user": current_user})
+
+
+# Исправленная функция, обращающаяся к БД
+async def add_chat_member_db(chat_id: int, phone_number: str):
+    try:
+        query = ChatMembers.select().where(ChatMembers.c.chat_id == chat_id)
+        members = await database.fetch_all(query)
+
+        if len(members) >= 200:
+            raise HTTPException(status_code=400, detail="The chat has reached the maximum number of members")
+
+        query = ChatMembers.insert().values(chat_id=chat_id, user_phone_number=phone_number)
+        await database.execute(query)
+
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error adding chat member")
+
+
+@app.get("/chat/{chat_id}/members/add", response_class=HTMLResponse)
+async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[str] = None,
+                         current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    print(f"Поисковый запрос: {search_query}")  # Логируем поисковый запрос
+
+    chat = await get_chat(chat_id)
+    members = await get_chat_members(chat_id)
+    members_phone_numbers = [member['user_phone_number'] for member in members]
+
+    if search_query:
+        all_users = await search_users(search_query)
+    else:
+        all_users = await get_all_users()
+
+    # Используем .phone_number вместо ['phone_number']
+    inviteable_users = [user for user in all_users if
+                        user['phone_number'] not in members_phone_numbers and user[
+                            'phone_number'] != current_user.phone_number]
+
+    return templates.TemplateResponse("addtochat.html", {"request": request, "chat": chat, "users": inviteable_users,
+                                                         "current_user": current_user})
+
+
+@app.post("/chat/{chat_id}/members/{phone_number}/add", response_class=RedirectResponse)
+async def add_chat_member(request: Request, chat_id: int, phone_number: str,
+                          current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    await add_chat_member_db(chat_id, phone_number)  # Исправленный вызов функции
+    member_count = len(await get_chat_members(chat_id))
+    await send_member_count_update(chat_id, member_count)
+    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=303)
+
+
+async def search_chat_members(request: Request, chat_id: int, search_user: str,
+                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    try:
+        # Получение всех участников чата
+        members_info = await get_chat_members(chat_id)
+        search_results = []
+
+        # Фильтрация результатов поиска, если предоставлен search_user
+        if search_user:
+            search_results = list(filter(
+                lambda member: search_user.lower() in member['nickname'].lower() or search_user in member[
+                    'phone_number'],
+                members_info))
+        else:
+            search_results = members_info
+
+        return search_results
+
+    except Exception as e:
+        logging.error(f"An error occurred in search_chat_members: {e}")
+        return []
+
+
+# Удаляет пользователя из чата.
+async def delete_chat_member(chat_id: int, phone_number: str):
+    try:
+        query = ChatMembers.delete().where(
+            and_(ChatMembers.c.chat_id == chat_id, ChatMembers.c.user_phone_number == phone_number))
+        result = await database.execute(query)
+        return result
+    except SQLAlchemyError as e:
+        print(str(e))  # line for debug
+        raise HTTPException(status_code=500, detail="Error deleting chat member")
+
+
+# Маршрут для удлаения частника из чата
+@app.post("/chats/{chat_id}/members/{phone_number}/delete")
+async def remove_chat_member(chat_id: int, phone_number: str,
+                             current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    phone_number = unquote(phone_number)  # decode the phone number
+
+    chat = await get_chat(chat_id)
+    if not chat:
+        print(f"Chat {chat_id} not found")  # line for debug
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if chat.owner_phone_number != current_user.phone_number:
+        raise HTTPException(status_code=403, detail="Only the chat owner can remove members")
+
+    result = await delete_chat_member(chat_id, phone_number)
+    if not result:
+        print(f"Member {phone_number} not found in chat {chat_id}")  # line for debug
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    member_count = len(await get_chat_members(chat_id))
+    await send_member_count_update(chat_id, member_count)
+
+    return RedirectResponse(url=f"/chat/{chat_id}/members", status_code=status.HTTP_303_SEE_OTHER)
+
+
 async def get_subscribed_channels(user_phone_number: str):
     # Выборка из таблицы channel_members, где user_phone_number равен номеру телефона пользователя
     query = channel_members.select().where(channel_members.c.user_phone_number == user_phone_number)
@@ -2464,6 +2673,55 @@ async def read_chat(request: Request, chat_id: int,
                                        "current_user": current_user})
 
 
+@app.get("/chat/picture/{chat_id}")
+async def get_chat_picture(chat_id: int):
+    chat = await get_chat(chat_id)
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if chat.chat_image is None:
+        default_image_path = os.path.join('images', 'default_chat.jpg')
+        if os.path.exists(default_image_path):
+            return FileResponse(default_image_path)
+        else:
+            raise HTTPException(status_code=404, detail="Default chat image not found")
+
+    return StreamingResponse(io.BytesIO(chat.chat_image), media_type="image/jpeg")
+
+
+async def update_chat_picture(chat_id: int, new_image_data: bytes):
+    try:
+        query = update(userchats).where(userchats.c.id == chat_id).values(chat_image=new_image_data)
+        await database.execute(query)
+    except Exception as e:
+        print("Error in update_chat_picture:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chats/{chat_id}/change_picture", response_class=JSONResponse)
+async def change_chat_picture(chat_id: int, new_picture: UploadFile = File(...),
+                              current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    chat = await get_chat(chat_id)
+
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    if chat['owner_phone_number'] != current_user.phone_number:
+        raise HTTPException(status_code=403, detail="Only the admin can change the picture")
+
+    image_data = await new_picture.read()
+
+    try:
+        await update_chat_picture(chat_id, image_data)
+    except HTTPException as e:
+        return PlainTextResponse(content="failed", status_code=e.status_code)
+
+    return JSONResponse(content={"status": "picture updated"})
+
+
 # Маршрут к странице создания нового чата
 @app.get("/create_chat", response_class=HTMLResponse)
 async def create_chat_page(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
@@ -2476,16 +2734,19 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
 
 
 # Маршрут для создания нового чата
-@app.post("/create_chat", response_class=HTMLResponse)
+@app.post("/create_chat", response_class=JSONResponse)
 async def create_chat(request: Request, chat_name: str = Form(...), user_phone: str = Form(...),
+                      chat_image: UploadFile = File(...),  # добавлено
                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    # Используем .phone_number вместо ['phone_number']
-    chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phone)
+    # Чтение и сохранение изображения
+    image_data = await chat_image.read()
 
-    return RedirectResponse(url=f"/chat/{chat_id}", status_code=303)  # перенаправление на страницу чата
+    chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phone, image_data)  # добавлено
+
+    return JSONResponse(content={"chat_id": chat_id, "status": "created"})
 
 
 # Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
@@ -2546,7 +2807,7 @@ async def delete_chat(request: Request, chat_id: int,
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error deleting the chat")
 
-    return RedirectResponse(url="/chats", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 async def get_chat_participants(chat_id: int):
@@ -3270,54 +3531,52 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    # Извлекаем id и nickname текущего пользователя
+    # Добавлено логирование
+    logging.info(f"Processing new message for dialog: {dialog_id}")
+
+    # Извлечение данных отправителя
     sender_id = current_user.id
     sender_nickname = await get_nickname_by_user_id(sender_id)
 
     dialog = await get_dialog_by_id(dialog_id, sender_id, check_user_deleted=False)
 
-    room = f"dialog_{dialog_id}"
-    await manager.send_message_to_room(room, f"New message in dialog {dialog_id} from user {sender_id}: {message}")
-
     if sender_id not in [dialog['user1_id'], dialog['user2_id']]:
         raise HTTPException(status_code=400, detail="User not in this dialog")
 
+    room = f"dialog_{dialog_id}"
+    await manager.send_message_to_room(room, f"New message in dialog {dialog_id} from user {sender_id}: {message}")
+
+    # Извлечение данных получателя
     receiver_id = dialog['user1_id'] if sender_id == dialog['user2_id'] else dialog['user2_id']
-    if receiver_id == dialog['user1_id']:
-        await update_dialog_deleted_status(dialog_id, deleted_by_user1=False)
-    else:
-        await update_dialog_deleted_status(dialog_id, deleted_by_user2=False)
+    receiver_nickname = await get_nickname_by_user_id(receiver_id)
+
+    if message is None and file is None:
+        raise HTTPException(status_code=400, detail="No message or file to send")
 
     file_id = None
-    file_name = None
-
     if file and file.filename:
         file_content = await file.read()
         file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
-        file_path = file.filename
 
-    if file_id and file_path:
-        file_info = f' [[FILE]]File ID: {file_id}, File Path: {file_path}[[/FILE]]'
-        message = file_info if message is None else message + file_info
-
-    if message is None:
-        raise HTTPException(status_code=400, detail="No message or file to send")
+    if file_id:
+        message = f' [[FILE]]File ID: {file_id}, File Path: {file.filename}[[/FILE]]'
 
     await send_message(dialog_id, sender_id, message)
-    participants = [sender_id, receiver_id]
-    await manager.broadcast(f"New message in dialog {dialog_id} from user {sender_id}: {message}")
 
     new_message = {
         "dialog_id": dialog_id,
         "sender_id": sender_id,
-        "sender_nickname": sender_nickname,  # Добавлено поле
+        "sender_nickname": sender_nickname,
+        "receiver_nickname": receiver_nickname,
         "message": message,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     }
 
     websocket = manager.get_connection(current_user.id, room)
     if websocket and isinstance(websocket, WebSocket) and websocket.client_state == WebSocketState.CONNECTED:
-        await manager.send_message_to_room(room, json.dumps({"type": "new_message", "message": new_message}))
+        # Экранирование JSON-строки
+        safe_json_data = json.dumps({"type": "new_message", "message": new_message})
+        await manager.send_message_to_room(room, safe_json_data)
     else:
         logging.warning(f"No active connections found for room {room}")
 
@@ -3332,18 +3591,14 @@ async def create_dialog_handler(user_id: int, current_user: Union[str, RedirectR
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    # Используем .id вместо ['id']
     dialog_id = await check_dialog_exists(current_user.id, user_id)
 
     if dialog_id is None:
-        # Если диалог не существует, создаем новый диалог
         dialog_id = await create_new_dialog(current_user.id, user_id)
 
-    # Перенаправляем пользователя на страницу диалога (нового или уже существующего)
-    return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return JSONResponse(content={"dialog_id": dialog_id})
 
 
-# Удаление сообщения из диалога
 @app.post("/dialogs/{dialog_id}/delete_message/{message_id}")
 async def delete_message(
         dialog_id: int,
@@ -3352,33 +3607,39 @@ async def delete_message(
 ):
     messages = await get_messages_from_dialog(dialog_id, message_id)
     if not messages:
-        raise HTTPException(status_code=404, detail="Message not found")
+        return JSONResponse(content={"detail": "Message not found"}, status_code=status.HTTP_404_NOT_FOUND)
 
     message = messages[0]
 
-    # Проверяем, есть ли у пользователя права на удаление этого сообщения
     if message["sender_id"] != current_user.id:
-        raise HTTPException(status_code=403, detail="You do not have permission to delete this message")
+        return JSONResponse(content={"detail": "You do not have permission to delete this message"},
+                            status_code=status.HTTP_403_FORBIDDEN)
 
-    await delete_message_by_id(message_id)
-
-    return RedirectResponse(url=f"/dialogs/{dialog_id}", status_code=303)
+    delete_status = await delete_message_by_id(message_id)
+    if delete_status:
+        return JSONResponse(content={"detail": "Message deleted successfully"}, status_code=status.HTTP_200_OK)
+    else:
+        return JSONResponse(content={"detail": "Failed to delete message"},
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # Функция полностью удаляет сообщение из базы данных.
-async def delete_message_by_id(message_id: int):
+async def delete_message_by_id(message_id: int) -> bool:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
-
-    # Полностью удаляем сообщение из базы данных
-    await cur.execute("""
-        DELETE FROM DialogMessages
-        WHERE id = %s
-    """, (message_id,))
-
-    await conn.commit()
-    await cur.close()
-    conn.close()
+    try:
+        await cur.execute("""
+            DELETE FROM DialogMessages
+            WHERE id = %s
+        """, (message_id,))
+        await conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Failed to delete message: {e}")
+        return False
+    finally:
+        await cur.close()
+        conn.close()
 
 
 # Маршрут, который обрабатывает удаление диалога.
@@ -3560,7 +3821,7 @@ class ConnectionManager:
                     except RuntimeError as e:
                         logging.error(f"An error occurred: {e}")
 
-    async def broadcast(self, message: str):
+    async def broadcast(self, message: str, room_name: str):
         for user_rooms in self.active_connections.values():
             for data in user_rooms.values():
                 websocket = data['websocket']
@@ -3584,7 +3845,8 @@ class ConnectionManager:
             if not self.global_active_connections[room]:
                 del self.global_active_connections[room]
 
-    async def auto_reconnect(self, user_id: int, room: str, max_retries=5):
+    async def auto_reconnect(self, user_id: int, room: str, max_retries=5, max_delay=60):
+        delay = 5  # начальная задержка в секундах
         retries = 0
         websocket_info = self.get_connection(user_id, room)
         if not websocket_info:
@@ -3600,8 +3862,9 @@ class ConnectionManager:
                 self.active_connections[user_id][room]['state'] = WebSocketState.CONNECTED
                 break
             except Exception as e:
-                await asyncio.sleep(5)
+                await asyncio.sleep(delay)
                 retries += 1
+                delay = min(delay * 2, max_delay)  # Экспоненциальная задержка с максимальным лимитом
 
     async def keep_alive(self):
         while True:
@@ -3862,42 +4125,54 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
 
             elif action == 'send_message':
                 message = received_data.get('message')
-                file_name = received_data.get('file')  # получаем прикрепленный файл, если он есть
+                file_name = received_data.get('file')
 
-                file_content = None  # Здесь вы должны получить содержимое файла
-                file_extension = None  # Здесь вы должны получить расширение файла
+                file_content = None
+                file_extension = None
 
                 file_id = None
                 if file_name and file_content and file_extension:
                     file_id = await save_file(user.phone_number, file_name, file_content, file_extension)
 
-                # Вызов функции handle_dialog_message
-                dialog_id = int(
-                    room_name.split('_')[1])  # Предполагается, что room_name имеет формат 'dialog_{dialog_id}'
-                current_user = user  # Текущий пользователь уже определен в этой функции
+                dialog_id = int(room_name.split('_')[1])
+                current_user = user
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
 
-                # Проверьте, отправляется ли сообщение от текущего пользователя.
-                if user.id != received_data.get('sender_id'):
-                    new_message = {
-                        "chat_id": chat_id,
-                        "sender_id": current_user.id,
-                        "message": message_text,
-                        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                        "file_id": file_id,
-                        "file_name": file_name
-                    }
-                    # Отправляем сообщение через WebSocket
-                    await manager.send_message_to_room(room_name,
-                                                       json.dumps({"type": "new_message", "message": new_message}))
+            elif action == 'delete_message':
+                logging.info("Delete message action triggered.")
+                message_id = int(received_data.get('message_id'))
+                message_info = await get_message_by_id(message_id)
+                if message_info is None:
+                    logging.error(f"Message with ID {message_id} not found.")
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "error", "message": "Message not found"})
+                    )
+                    continue
 
-            else:
-                logging.warning("Unsupported action or user is not the author or the chat admin")
+                if user.phone_number != message_info['sender_phone_number']:
+                    logging.error("User is not authorized to delete this message.")
+
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "error", "message": "Not authorized"})
+                    )
+                    continue
+
+                delete_status = await delete_message_by_id(message_id)  # Здесь произошла замена
+                if delete_status:
+                    logging.info(f"Successfully deleted message with ID {message_id}.")
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "message_deleted", "message_id": message_id})
+                    )
+
+                else:
+                    logging.error("Failed to delete message.")
+                    await manager.send_message_to_room(
+                        room_name, json.dumps({"type": "error", "message": "Failed to delete message"})
+                    )
 
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)
         logging.warning(f"WebSocket disconnected for user {user.id}")
-
 
 async def generic_websocket_endpoint(websocket: WebSocket, room_id: str, room_type: str):
     logging.info(f"=== WebSocket Endpoint: {room_type.capitalize()} ===")
