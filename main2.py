@@ -800,7 +800,6 @@ async def get_user_by_phone(phone_number: str):
     query = users.select().where(users.c.phone_number == phone_number)
     user = await database.fetch_one(query)
     if user:
-        logging.info(f'Found user: {user}')
         return UserInDB(**user)
     logging.info(f'No user found for phone: {phone_number}')
     return None
@@ -854,7 +853,7 @@ async def get_current_user(request: Request):
             logging.error("User not found by phone number")
             raise credentials_exception
 
-        logging.info(f"User found: {user}")
+        logging.info(f"User found: {user.id} {user.nickname} {user.email}")
         return user
     except PyJWTError as e:
         logging.error(f"JWT error: {e}")
@@ -1343,7 +1342,7 @@ async def get_current_user_from_request(request: Request) -> Optional[UserInDB]:
             logging.error("User not found by phone number")
             raise credentials_exception
 
-        logging.info(f"User found: {user}")
+        logging.info(f"User found: {user.id} {user.nickname} {user.email}")
         return user
     except PyJWTError as e:
         logging.error(f"JWT error: {e}")
@@ -2211,7 +2210,7 @@ async def update_user_profile_picture(phone_number: str, new_profile_picture: st
 
 
 @app.get("/profile/picture/{phone_number}", response_class=FileResponse)
-async def get_profile_picture(request: Request, phone_number: str):
+async def get_profile_picture(request: Request, phone_number: str, db: Session = Depends(get_db)):
     # Получаем токен из куки
     access_token = request.cookies.get("access_token")
 
@@ -2223,16 +2222,24 @@ async def get_profile_picture(request: Request, phone_number: str):
     user = await get_user_by_phone(phone_number)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-
-    if user.profile_picture is None or not os.path.exists(user.profile_picture.decode('utf-8')):
+    if user.profile_picture is None:
         default_image_path = os.path.join('images', 'default.jpg')
         if os.path.exists(default_image_path):
-            return FileResponse(default_image_path)
+            response = FileResponse(default_image_path, media_type="image/jpeg")
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            return response
         else:
             raise HTTPException(status_code=404, detail="Default image not found")
 
-    profile_picture_path = user.profile_picture.decode('utf-8')
-    return FileResponse(profile_picture_path)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+        temp_file.write(user.profile_picture)
+
+    try:
+        response = FileResponse(temp_file.name, media_type="image/jpeg")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+    finally:
+        temp_file.close()
 
 
 async def save_profile_picture(profile_picture: UploadFile):
