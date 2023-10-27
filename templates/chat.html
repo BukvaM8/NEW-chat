@@ -4,19 +4,6 @@
     <meta charset="UTF-8">
     <title>{{ chat.chat_name }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script>
-        // Функция для открытия и закрытия "шторки"
-        function toggleDrawer() {
-            const drawer = document.getElementById('chatDrawer');
-            drawer.classList.toggle('open');
-        }
-
-        // Убеждаемся, что скрипт выполняется после загрузки всего документа
-        document.addEventListener('DOMContentLoaded', function () {
-            const interlocutorInfo = document.querySelector('.interlocutor-info');
-            interlocutorInfo.addEventListener('click', toggleDrawer);
-        });
-    </script>
     <!-- Собственные стили -->
     <style>
         body {
@@ -122,6 +109,32 @@
             opacity: 0.5; /* Прозрачность */
         }
 
+        .profile-picture-overlay {
+            position: relative;
+            display: inline-block;
+        }
+
+        .edit-photo-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .edit-photo-label:hover {
+            opacity: 1;
+        }
+
+        .profile-picture-overlay:hover .edit-photo-label {
+            opacity: 1;
+        }
+
     </style>
 </head>
 <body>
@@ -139,12 +152,14 @@
     <!-- Стрелочка для закрытия "шторки" -->
     <div class="arrow" style="cursor: pointer;">&larr; Закрыть</div>
     <!-- Фотография чата -->
-    <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="200" height="200">
+    <div class="profile-picture-overlay">
+        <label class="edit-photo-label" id="change-photo-button">Изменить фото</label>
+        <img id="chatImage" src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="200" height="200">
+        <input type="file" id="photo-upload" accept="image/*" style="display: none">
+    </div>
     <!-- Форма для изменения фотографии -->
-    <form action="/chats/{{chat.id}}/change_picture" method="post" enctype="multipart/form-data">
-        <input type="file" name="new_picture">
-        <button type="submit">Изменить фотографию</button>
-    </form>
+    <input type="file" id="fileInput" style="display:none;" name="new_picture">
+
 
     <!-- Поле для изменения названия -->
     <form action="/chats/{{chat.id}}/change_name" method="post">
@@ -233,120 +248,185 @@
 </div>
 </div>
 <script>
-    // Инициализация переменных
-    var chatId = "{{ chat.id }}";
-    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-    const access_token = cookie ? cookie.split('=')[1] : null;
-    var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+    // Функция для открытия и закрытия "шторки"
+    function toggleDrawer() {
+        const drawer = document.getElementById('chatDrawer');
+        drawer.classList.toggle('open');
+    }
 
-    // Обработчики событий WebSocket
-    ws.onopen = function (event) {
-        console.log("WebSocket connection opened.", event);
-        ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
-    };
-
-
-    ws.onclose = function (event) {
-        console.log("WebSocket connection closed:", event);
-    };
-
-    ws.onerror = function (error) {
-        console.log(`WebSocket Error: ${error}`);
-    };
-
-    ws.onmessage = function (event) {
-        // Обработка входящих сообщений
-        const messageData = JSON.parse(event.data);
-        const action = messageData.action;
-
-        if (action === 'new_token') {
-            document.cookie = "access_token=" + messageData.token;
-        } else if (action === 'update_member_count') {
-            console.log("Received update_member_count:", messageData.count);
-            document.getElementById('member-count').textContent = messageData.count + " участников";
-        } else {
-            if (messageData.message && messageData.sender_phone_number) {
-                const messagesList = document.getElementById('chat-history');
-                const newMessage = document.createElement('div');
-                newMessage.className = "message-item";  // Задаем базовый класс
-
-                // Добавляем класс .user, если сообщение от текущего пользователя
-                if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
-                    newMessage.className += " user";
-                }
-
-                const senderElement = document.createElement("h4");
-                senderElement.innerText = messageData.sender_phone_number || "Unknown";
-                newMessage.appendChild(senderElement);
-
-                console.log(messageData.message);
-                const rawMessage = messageData.message;
-
-                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                    const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-                    const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-                    const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-                    const fileId = fileIdInfo.split(': ')[1];
-                    const fileName = fileNameInfo.split(': ')[1];
-
-                    if (fileId && fileName) {
-                        newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
-                    }
-                } else {
-                    newMessage.innerHTML += `${rawMessage}<br>`;
-                }
-
-                const timeElement = document.createElement("small");
-                timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                newMessage.appendChild(timeElement);
-
-                messagesList.appendChild(newMessage);
-
-                // Автоматически прокручиваем чат вниз
-                setTimeout(() => {
-                    messagesList.scrollTop = messagesList.scrollHeight;
-                }, 0);
-            } else {
-                console.warn('Неожиданный формат сообщения: ', messageData);
-            }
-        }
-    };
-
-    // Обработчик для формы изменения фотографии
+    // Убеждаемся, что скрипт выполняется после загрузки всего документа
     document.addEventListener('DOMContentLoaded', function () {
-        const changePictureForm = document.querySelector('form[action*="change_picture"]');
-        const drawer = document.querySelector('.drawer');  // "Шторка"
-        const arrow = document.querySelector('.arrow');  // Стрелочка для закрытия "шторки"
+        const interlocutorInfo = document.querySelector('.interlocutor-info');
+        interlocutorInfo.addEventListener('click', toggleDrawer);
 
-        if (arrow) {
-            arrow.addEventListener('click', function () {
-                drawer.style.display = 'none';  // скрыть "шторку"
-            });
-        }
+        // Инициализация переменных для управления фотографией чата
+        const chatImage = document.getElementById('chatImage');
+        const changePhotoButton = document.getElementById("change-photo-button");
+        const photoUpload = document.getElementById("photo-upload");
 
-        if (changePictureForm) {
-            changePictureForm.addEventListener('submit', function (event) {
-                event.preventDefault();
-                const formData = new FormData(changePictureForm);
-                fetch(changePictureForm.action, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${access_token}`
-                    },
-                    body: formData
+        // Используем только одно объявление chatId
+        const chatId = "{{ chat.id }}";
+
+        // Добавляем обработчик клика по кнопке изменения фотографии
+        changePhotoButton.addEventListener("click", function () {
+            photoUpload.click();
+        });
+
+        // Добавляем обработчик изменения файла в input
+        photoUpload.addEventListener("change", function (event) {
+            const fileInput = event.target;
+
+            if (fileInput.files && fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append("new_picture", fileInput.files[0]);
+
+                // Отправка запроса на сервер для обновления фотографии
+                fetch(`/chats/${chatId}/change_picture`, {
+                    method: "POST",
+                    body: formData,
                 })
                     .then(response => response.json())
                     .then(data => {
-                        if (data.status === 'picture updated') {
-                            const chatImage = document.querySelector('img[src*="/chat/picture/"]');
-                            const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
-                            chatImage.setAttribute('src', newSrc);
+                        if (data.status === "picture updated") {
+                            // Обновление фотографии в "шторке"
+                            const readerForDrawer = new FileReader();
+                            readerForDrawer.onload = function (e) {
+                                chatImage.src = e.target.result;
+                            };
+                            readerForDrawer.readAsDataURL(fileInput.files[0]);
+
+                            // Обновление фотографии в контейнере с названием чата
+                            const readerForContainer = new FileReader();
+                            const interlocutorImage = document.querySelector('.interlocutor-info img');
+                            readerForContainer.onload = function (e) {
+                                interlocutorImage.src = e.target.result;
+                            };
+                            readerForContainer.readAsDataURL(fileInput.files[0]);
                         }
                     })
-                    .catch(error => console.error('Error:', error));
-            });
-        }
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            }
+        });
+
+        // Убрали дублирующее объявление chatId
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+        const access_token = cookie ? cookie.split('=')[1] : null;
+        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+
+
+        // Обработчики событий WebSocket
+        ws.onopen = function (event) {
+            console.log("WebSocket connection opened.", event);
+            ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
+        };
+
+
+        ws.onclose = function (event) {
+            console.log("WebSocket connection closed:", event);
+        };
+
+        ws.onerror = function (error) {
+            console.log(`WebSocket Error: ${error}`);
+        };
+
+
+        ws.onmessage = function (event) {
+            // Обработка входящих сообщений
+            const messageData = JSON.parse(event.data);
+            const action = messageData.action;
+
+            if (action === 'new_token') {
+                document.cookie = "access_token=" + messageData.token;
+            } else if (action === 'update_member_count') {
+                console.log("Received update_member_count:", messageData.count);
+                document.getElementById('member-count').textContent = messageData.count + " участников";
+            } else {
+                if (messageData.message && messageData.sender_phone_number) {
+                    const messagesList = document.getElementById('chat-history');
+                    const newMessage = document.createElement('div');
+                    newMessage.className = "message-item";  // Задаем базовый класс
+
+                    // Добавляем класс .user, если сообщение от текущего пользователя
+                    if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
+                        newMessage.className += " user";
+                    }
+
+                    const senderElement = document.createElement("h4");
+                    senderElement.innerText = messageData.sender_phone_number || "Unknown";
+                    newMessage.appendChild(senderElement);
+
+                    console.log(messageData.message);
+                    const rawMessage = messageData.message;
+
+                    if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                        const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
+                        const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
+                        const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
+                        const fileId = fileIdInfo.split(': ')[1];
+                        const fileName = fileNameInfo.split(': ')[1];
+
+                        if (fileId && fileName) {
+                            newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
+                        }
+                    } else {
+                        newMessage.innerHTML += `${rawMessage}<br>`;
+                    }
+
+                    const timeElement = document.createElement("small");
+                    timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
+                    newMessage.appendChild(timeElement);
+
+                    messagesList.appendChild(newMessage);
+
+                    // Автоматически прокручиваем чат вниз
+                    setTimeout(() => {
+                        messagesList.scrollTop = messagesList.scrollHeight;
+                    }, 0);
+                } else {
+                    console.warn('Неожиданный формат сообщения: ', messageData);
+                }
+            }
+        };
+
+        // Обработчик для формы изменения фотографии
+        document.addEventListener('DOMContentLoaded', function () {
+            const changePictureForm = document.querySelector('form[action*="change_picture"]');
+            const drawer = document.querySelector('.drawer');  // "Шторка"
+            const arrow = document.querySelector('.arrow');  // Стрелочка для закрытия "шторки"
+
+            if (arrow) {
+                arrow.addEventListener('click', function () {
+                    drawer.style.display = 'none';  // скрыть "шторку"
+                });
+            }
+
+            if (changePictureForm) {
+                changePictureForm.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    const formData = new FormData(changePictureForm);
+                    fetch(changePictureForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${access_token}`
+                        },
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'picture updated') {
+                                const chatImage = document.querySelector('img[src*="/chat/picture/"]');
+                                const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
+                                chatImage.setAttribute('src', newSrc);
+                            }
+                        })
+                        .catch(error => console.error('Error:', error));
+                });
+            }
+        });
     });
+
 
 </script>
 </body>

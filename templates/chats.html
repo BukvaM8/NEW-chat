@@ -602,28 +602,50 @@
             }
         };
 
-        // Обработчик для формы изменения фотографии
-        const changePictureForm = document.querySelector('form[action*="change_picture"]');
-        if (changePictureForm) {
-            changePictureForm.addEventListener('submit', function (event) {
-                event.preventDefault();
-                const formData = new FormData(changePictureForm);
-                fetch(changePictureForm.action, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${access_token}`
-                    },
-                    body: formData
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'picture updated') {
-                            const chatImage = document.querySelector('img[src*="/chat/picture/"]');
-                            const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
-                            chatImage.setAttribute('src', newSrc);
-                        }
+        // Обработчик для кнопки "Изменить фото"
+        const changePhotoButton = document.getElementById('change-photo-button');
+        const photoUploadInput = document.getElementById('photo-upload');
+        if (changePhotoButton && photoUploadInput) {
+            changePhotoButton.addEventListener('click', function () {
+                photoUploadInput.click();
+            });
+
+            photoUploadInput.addEventListener('change', function () {
+                if (this.files && this.files[0]) {
+                    const formData = new FormData();
+                    formData.append('new_picture', this.files[0]);
+
+                    fetch(`/chats/${chatId}/change_picture`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${access_token}`
+                        },
+                        body: formData
                     })
-                    .catch(error => console.error('Error:', error));
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'picture updated') {
+                                const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
+
+                                // Обновляем фото в "шторке"
+                                const chatImage = document.getElementById('chatImage');
+                                chatImage.setAttribute('src', newSrc);
+
+                                // Обновляем фото в контейнере с названием чата
+                                const interlocutorImage = document.querySelector('.interlocutor-info img');
+                                if (interlocutorImage) {
+                                    interlocutorImage.setAttribute('src', newSrc);
+                                }
+
+                                // Обновляем фото в левой панели
+                                const chatItemInLeftPanel = document.querySelector(`.clickable-chat[data-chat-id="${chatId}"] .profile-picture`);
+                                if (chatItemInLeftPanel) {
+                                    chatItemInLeftPanel.setAttribute('src', newSrc);
+                                }
+                            }
+                        })
+                        .catch(error => console.error('Error:', error));
+                }
             });
         }
 
