@@ -67,12 +67,22 @@
             background-color: #ffffff;
             padding: 10px;
             border-radius: 10px;
+            max-width: 50%; /* Добавленная строка */
         }
 
-        /* Стиль для содержимого сообщения от текущего пользователя */
+
+        /* Обновление стиля для сообщения пользователя */
         .message-item.user .message-content {
-            background-color: #4CAF50;
+            background-color: #59af4c;
             color: #ffffff;
+            margin: 5px; /* Добавляем отступы */
+        }
+
+        /* Добавленный стиль для контейнера сообщений пользователя */
+        .user-message-container {
+            background-color: #4CAF50;; /* Задаем зеленый фон */
+            border-radius: 10px; /* Закругляем углы */
+            padding: 5px; /* Добавляем отступы */
         }
 
         .btn-custom {
@@ -190,14 +200,13 @@
     <!-- Список сообщений -->
     <ul class="messages-list" id="chat-history">
         {% for message in messages %}
-        <!-- Шаблон для отображения каждого сообщения -->
         <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}">
-            {% if message.sender_phone_number == "deleted" %}
-            <h4>Deleted message</h4>
-            {% else %}
-            <h4>{{ message.sender_nickname }}</h4>
-            {% endif %}
             <div class="message-content">
+                {% if message.sender_phone_number == "deleted" %}
+                <h4>Deleted message</h4>
+                {% else %}
+                <h4>{{ message.sender_nickname }}</h4>
+                {% endif %}
                 <p>
                     <!-- Обработка вложенных файлов в сообщении -->
                     {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
@@ -333,62 +342,65 @@
 
 
         ws.onmessage = function (event) {
-            // Обработка входящих сообщений
             const messageData = JSON.parse(event.data);
             const action = messageData.action;
 
             if (action === 'new_token') {
                 document.cookie = "access_token=" + messageData.token;
             } else if (action === 'update_member_count') {
-                console.log("Received update_member_count:", messageData.count);
                 document.getElementById('member-count').textContent = messageData.count + " участников";
             } else {
                 if (messageData.message && messageData.sender_phone_number) {
                     const messagesList = document.getElementById('chat-history');
-                    const newMessage = document.createElement('div');
-                    newMessage.className = "message-item";  // Задаем базовый класс
 
-                    // Добавляем класс .user, если сообщение от текущего пользователя
+                    // Создание основного контейнера для сообщения
+                    const newMessageItem = document.createElement('div');
+                    newMessageItem.className = "message-item";
+
                     if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
-                        newMessage.className += " user";
+                        newMessageItem.className += " user";
                     }
 
-                    const senderElement = document.createElement("h4");
-                    senderElement.innerText = messageData.sender_phone_number || "Unknown";
-                    newMessage.appendChild(senderElement);
+                    // Создание контейнера для содержимого сообщения
+                    const messageContent = document.createElement('div');
+                    messageContent.className = "message-content";
 
-                    console.log(messageData.message);
+                    // Добавление никнейма в контейнер сообщения
+                    const nicknameElement = document.createElement("h4");
+                    nicknameElement.innerText = messageData.sender_nickname || "Unknown";
+                    messageContent.appendChild(nicknameElement);
+
+                    const messageTextElement = document.createElement('p');
+
                     const rawMessage = messageData.message;
-
                     if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
                         const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
                         const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
                         const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
                         const fileId = fileIdInfo.split(': ')[1];
                         const fileName = fileNameInfo.split(': ')[1];
-
                         if (fileId && fileName) {
-                            newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
+                            messageTextElement.innerHTML = `${messageText} <a href="/files/${fileId}">${fileName}</a>`;
                         }
                     } else {
-                        newMessage.innerHTML += `${rawMessage}<br>`;
+                        messageTextElement.innerText = rawMessage;
                     }
+                    messageContent.appendChild(messageTextElement);
 
+                    // Добавление времени отправки
                     const timeElement = document.createElement("small");
                     timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                    newMessage.appendChild(timeElement);
+                    messageContent.appendChild(timeElement);
 
-                    messagesList.appendChild(newMessage);
-
-                    // Автоматически прокручиваем чат вниз
-                    setTimeout(() => {
-                        messagesList.scrollTop = messagesList.scrollHeight;
-                    }, 0);
+                    newMessageItem.appendChild(messageContent);
+                    messagesList.appendChild(newMessageItem);
                 } else {
                     console.warn('Неожиданный формат сообщения: ', messageData);
                 }
             }
         };
+
+
         // Находим форму на странице
         const messageForm = document.querySelector('form[action*="/send_message"]');
 
