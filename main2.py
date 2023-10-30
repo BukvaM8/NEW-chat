@@ -1358,7 +1358,6 @@ async def root(request: Request, current_user: Optional[User] = Depends(
         logging.info('No current user, redirecting to login')
         return templates.TemplateResponse("login.html", {"request": request})
     else:
-        logging.info(f'Current user: {current_user}, redirecting to home')
         return RedirectResponse(url="/home", status_code=303)
 
 
@@ -4074,8 +4073,15 @@ async def handle_dialog_message(dialog_id: int, message_content: str, current_us
 async def handle_chat_message(chat_id: int, message_content: str, current_user: User):
     try:
         logging.info(f"Starting to handle chat message from user {current_user.phone_number} in chat {chat_id}.")
+
+        # Получение никнейма пользователя из базы данных
+        query = users.select().where(users.c.phone_number == current_user.phone_number)
+        result = await database.fetch_one(query)
+        nickname = result['nickname'] if result else "Unknown"
+
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Вставка сообщения в базу данных
         query = chatmessages.insert().values(
             chat_id=chat_id,
             sender_phone_number=current_user.phone_number,
@@ -4086,11 +4092,13 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         result = await database.execute(query)
         logging.info(f"Message saved to database with result: {result}")
 
+        # Отправка сообщения через WebSocket
         room = f"chat_{chat_id}"
         message_data = {
             "action": "new_message",
             "message": message_content,
             "sender_phone_number": current_user.phone_number,
+            "sender_nickname": nickname,  # добавлено
             "timestamp": current_time  # добавляем время
         }
 

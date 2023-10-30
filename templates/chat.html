@@ -389,6 +389,36 @@
                 }
             }
         };
+        // Находим форму на странице
+        const messageForm = document.querySelector('form[action*="/send_message"]');
+
+        // Добавляем обработчик события submit для формы
+        messageForm.addEventListener('submit', function (event) {
+            // Отменяем стандартное поведение формы
+            event.preventDefault();
+
+            // Создаем объект FormData из формы
+            const formData = new FormData(messageForm);
+
+            // Используем Fetch API для отправки данных
+            fetch(messageForm.action, {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Обрабатываем ответ от сервера
+                    if (data.success) {
+                        // Отправляем сообщение через WebSocket или обновляем интерфейс
+                        // Сброс формы
+                        messageForm.reset();
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+        });
+
 
         // Обработчик для формы изменения фотографии
         document.addEventListener('DOMContentLoaded', function () {
