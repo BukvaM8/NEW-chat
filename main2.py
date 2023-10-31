@@ -132,7 +132,6 @@ metadata = MetaData()
 moscow_tz = timezone('Europe/Moscow')
 MSK_TZ = timezone('Europe/Moscow')
 
-
 users = Table(
     "Users",
     metadata,
@@ -247,7 +246,7 @@ chatmessages = Table(
     metadata,
     Column("id", Integer, primary_key=True),
     Column("chat_id", Integer, ForeignKey('Userchats.id')),
-    Column("sender_phone_number", String, ForeignKey('Users.phone_number')),
+    Column("sender_phone_number", String, ForeignKey('Users.nickname')),
     Column("message", String),
     Column("timestamp", DateTime, default=func.now()),
     Column("delete_timestamp", DateTime),
@@ -2376,9 +2375,17 @@ async def get_user_dialogs(current_user_id: int) -> list:
 # Получает все сообщения из указанного чата.
 async def get_chat_messages(chat_id: int):
     try:
-        query = chatmessages.select().where(chatmessages.c.chat_id == chat_id).order_by(chatmessages.c.timestamp)
+        query = select([chatmessages, users.c.nickname]). \
+            where(chatmessages.c.chat_id == chat_id). \
+            select_from(
+            chatmessages.join(users, chatmessages.c.sender_phone_number == users.c.phone_number)
+        ). \
+            order_by(chatmessages.c.timestamp)
+
         chat_messages = await database.fetch_all(query)
-        return chat_messages
+        return [
+            {**dict(row), 'sender_nickname': row.nickname} for row in chat_messages
+        ]
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error getting chat messages")
 
@@ -2684,7 +2691,7 @@ async def read_chat(request: Request, chat_id: int,
     poll_results = {}
     user_voted = False  # Инициализация user_voted
     for message in messages:
-        if message.message.startswith('Опрос: '):
+        if message['message'].startswith('Опрос: '):
             poll_id_str = message.message.split(' ')[1].split('\n')[0]
             if poll_id_str.isdigit():
                 poll_id = int(poll_id_str)
@@ -2882,6 +2889,7 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
     new_message = {
         "chat_id": chat_id,
         "sender_id": current_user.id,
+        "sender_nickname": current_user.nickname,  # добавлен никнейм
         "message": message_text,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
         "file_id": file_id,
@@ -4075,9 +4083,10 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         logging.info(f"Starting to handle chat message from user {current_user.phone_number} in chat {chat_id}.")
 
         # Получение никнейма пользователя из базы данных
-        query = users.select().where(users.c.phone_number == current_user.phone_number)
-        result = await database.fetch_one(query)
-        nickname = result['nickname'] if result else "Unknown"
+        nickname = await get_nickname_by_user_id(
+            current_user.id)  # Изменено на использование функции get_nickname_by_user_id
+        if nickname is None:
+            nickname = "Unknown"
 
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 

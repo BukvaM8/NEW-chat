@@ -71,10 +71,25 @@
             color: white !important;
         }
 
-        .message-sent {
+        .message-item h4,
+        .message-item p,
+        .message-item small {
+            display: block;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .message-self {
             text-align: right;
             background-color: green;
+            color: white; /* Изменено с красного на белый */
+            border-radius: 10px;
+            margin-bottom: 5px;
+            padding: 10px;
+            margin-left: auto;
         }
+
 
         .profile-picture {
             border-radius: 50%;
@@ -559,104 +574,98 @@
             if (action === 'new_token') {
                 document.cookie = "access_token=" + messageData.token;
             } else if (action === 'update_member_count') {
-                console.log("Received update_member_count:", messageData.count);
                 document.getElementById('member-count').textContent = messageData.count + " участников";
             } else {
                 if (messageData.message && messageData.sender_phone_number) {
                     const messagesList = document.getElementById('chat-history');
-                    const newMessage = document.createElement('div');
 
-                    const senderElement = document.createElement("h4");
-                    senderElement.innerText = messageData.sender_phone_number || "Unknown";
-                    newMessage.appendChild(senderElement);
+                    // Создание основного контейнера для сообщения
+                    const newMessageItem = document.createElement('div');
+                    newMessageItem.className = "message-item";
 
-                    const rawMessage = messageData.message;
-
-                    if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                        const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-                        const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-                        const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-                        const fileId = fileIdInfo.split(': ')[1];
-                        const fileName = fileNameInfo.split(': ')[1];
-
-                        if (fileId && fileName) {
-                            newMessage.innerHTML += `${messageText} <a href="/files/${fileId}">${fileName}</a><br>`;
-                        }
-                    } else {
-                        newMessage.innerHTML += `${rawMessage}<br>`;
+                    // Проверка на соответствие текущему пользователю по никнейму
+                    if (messageData.sender_nickname === "{{ current_user.nickname }}") {
+                        newMessageItem.className += " message-self";
                     }
 
-                    const timeElement = document.createElement("small");
+                    // Добавление никнейма в контейнер сообщения
+                    const nicknameElement = document.createElement("div");
+                    nicknameElement.innerText = messageData.sender_nickname || "Unknown";
+                    newMessageItem.appendChild(nicknameElement);
+
+                    // Создание и добавление текста сообщения
+                    const messageTextElement = document.createElement('div');
+                    messageTextElement.innerText = messageData.message;
+                    newMessageItem.appendChild(messageTextElement);
+
+                    // Добавление времени отправки
+                    const timeElement = document.createElement("div");
                     timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                    newMessage.appendChild(timeElement);
+                    newMessageItem.appendChild(timeElement);
 
-                    messagesList.appendChild(newMessage);
-
-                    // Автоматически прокручиваем чат вниз
-                    setTimeout(() => {
-                        messagesList.scrollTop = messagesList.scrollHeight;
-                    }, 0);
+                    messagesList.appendChild(newMessageItem);
                 } else {
-                    console.warn('Неожиданный формат сообщения:', messageData);
-                }
+                console.warn('Неожиданный формат сообщения: ', messageData);
             }
-        };
+        }
+    };
 
-        // Обработчик для кнопки "Изменить фото"
-        const changePhotoButton = document.getElementById('change-photo-button');
-        const photoUploadInput = document.getElementById('photo-upload');
-        if (changePhotoButton && photoUploadInput) {
-            changePhotoButton.addEventListener('click', function () {
-                photoUploadInput.click();
-            });
 
-            photoUploadInput.addEventListener('change', function () {
-                if (this.files && this.files[0]) {
-                    const formData = new FormData();
-                    formData.append('new_picture', this.files[0]);
+    // Обработчик для кнопки "Изменить фото"
+    const changePhotoButton = document.getElementById('change-photo-button');
+    const photoUploadInput = document.getElementById('photo-upload');
+    if (changePhotoButton && photoUploadInput) {
+        changePhotoButton.addEventListener('click', function () {
+            photoUploadInput.click();
+        });
 
-                    fetch(`/chats/${chatId}/change_picture`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${access_token}`
-                        },
-                        body: formData
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'picture updated') {
-                                const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
+        photoUploadInput.addEventListener('change', function () {
+            if (this.files && this.files[0]) {
+                const formData = new FormData();
+                formData.append('new_picture', this.files[0]);
 
-                                // Обновляем фото в "шторке"
-                                const chatImage = document.getElementById('chatImage');
-                                chatImage.setAttribute('src', newSrc);
+                fetch(`/chats/${chatId}/change_picture`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`
+                    },
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'picture updated') {
+                            const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
 
-                                // Обновляем фото в контейнере с названием чата
-                                const interlocutorImage = document.querySelector('.interlocutor-info img');
-                                if (interlocutorImage) {
-                                    interlocutorImage.setAttribute('src', newSrc);
-                                }
+                            // Обновляем фото в "шторке"
+                            const chatImage = document.getElementById('chatImage');
+                            chatImage.setAttribute('src', newSrc);
 
-                                // Обновляем фото в левой панели
-                                const chatItemInLeftPanel = document.querySelector(`.clickable-chat[data-chat-id="${chatId}"] .profile-picture`);
-                                if (chatItemInLeftPanel) {
-                                    chatItemInLeftPanel.setAttribute('src', newSrc);
-                                }
+                            // Обновляем фото в контейнере с названием чата
+                            const interlocutorImage = document.querySelector('.interlocutor-info img');
+                            if (interlocutorImage) {
+                                interlocutorImage.setAttribute('src', newSrc);
                             }
-                        })
-                        .catch(error => console.error('Error:', error));
-                }
-            });
-        }
 
-        // Код для управления "шторкой"
-        const interlocutorInfo = document.querySelector('.interlocutor-info');
-        if (interlocutorInfo) {
-            interlocutorInfo.addEventListener('click', function () {
-                const drawer = document.querySelector('.drawer');
-                drawer.classList.toggle('open');
-            });
-        }
+                            // Обновляем фото в левой панели
+                            const chatItemInLeftPanel = document.querySelector(`.clickable-chat[data-chat-id="${chatId}"] .profile-picture`);
+                            if (chatItemInLeftPanel) {
+                                chatItemInLeftPanel.setAttribute('src', newSrc);
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            }
+        });
+    }
+
+    // Код для управления "шторкой"
+    const interlocutorInfo = document.querySelector('.interlocutor-info');
+    if (interlocutorInfo) {
+        interlocutorInfo.addEventListener('click', function () {
+            const drawer = document.querySelector('.drawer');
+            drawer.classList.toggle('open');
+        });
+    }
     }
 
 

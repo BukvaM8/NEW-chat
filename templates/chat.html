@@ -62,7 +62,7 @@
             justify-content: flex-end;
         }
 
-        /* Стиль для содержимого сообщения */
+        /* Стиль для содержимого входящего сообщения */
         .message-item .message-content {
             background-color: #ffffff;
             padding: 10px;
@@ -78,12 +78,6 @@
             margin: 5px; /* Добавляем отступы */
         }
 
-        /* Добавленный стиль для контейнера сообщений пользователя */
-        .user-message-container {
-            background-color: #4CAF50;; /* Задаем зеленый фон */
-            border-radius: 10px; /* Закругляем углы */
-            padding: 5px; /* Добавляем отступы */
-        }
 
         .btn-custom {
             background-color: #075E54;
@@ -98,7 +92,7 @@
             width: 400px;
             height: 100vh;
             background-color: #ECE5DD;
-            border-left: 1px solid #ce8334;
+            border-left: 1px solid rgba(242, 242, 242, 0);
             padding: 15px;
             transition: right 0.3s ease;
         }
@@ -367,24 +361,12 @@
 
                     // Добавление никнейма в контейнер сообщения
                     const nicknameElement = document.createElement("h4");
-                    nicknameElement.innerText = messageData.sender_nickname || "Unknown";
+                    nicknameElement.innerText = messageData.sender_nickname || "Unknown";  // Изменено для отображения никнейма
                     messageContent.appendChild(nicknameElement);
 
+                    // Создание и добавление текста сообщения
                     const messageTextElement = document.createElement('p');
-
-                    const rawMessage = messageData.message;
-                    if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                        const [messageText, fileInfo] = rawMessage.split('[[FILE]]');
-                        const cleanFileInfo = fileInfo.replace('[[/FILE]]', '');
-                        const [fileIdInfo, fileNameInfo] = cleanFileInfo.split(', ');
-                        const fileId = fileIdInfo.split(': ')[1];
-                        const fileName = fileNameInfo.split(': ')[1];
-                        if (fileId && fileName) {
-                            messageTextElement.innerHTML = `${messageText} <a href="/files/${fileId}">${fileName}</a>`;
-                        }
-                    } else {
-                        messageTextElement.innerText = rawMessage;
-                    }
+                    messageTextElement.innerText = messageData.message;
                     messageContent.appendChild(messageTextElement);
 
                     // Добавление времени отправки
@@ -468,8 +450,6 @@
             }
         });
     });
-
-
 </script>
 </body>
 </html>
