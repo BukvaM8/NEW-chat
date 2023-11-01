@@ -4184,38 +4184,13 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                 dialog_id = int(room_name.split('_')[1])
                 current_user = user
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
-
             elif action == 'delete_message':
-                logging.info("Delete message action triggered.")
-                message_id = int(received_data.get('message_id'))
-                message_info = await get_message_by_id(message_id)
-                if message_info is None:
-                    logging.error(f"Message with ID {message_id} not found.")
-                    await manager.send_message_to_room(
-                        room_name, json.dumps({"type": "error", "message": "Message not found"})
-                    )
-                    continue
-
-                if user.phone_number != message_info['sender_phone_number']:
-                    logging.error("User is not authorized to delete this message.")
-
-                    await manager.send_message_to_room(
-                        room_name, json.dumps({"type": "error", "message": "Not authorized"})
-                    )
-                    continue
-
-                delete_status = await delete_message_by_id(message_id)  # Здесь произошла замена
-                if delete_status:
-                    logging.info(f"Successfully deleted message with ID {message_id}.")
-                    await manager.send_message_to_room(
-                        room_name, json.dumps({"type": "message_deleted", "message_id": message_id})
-                    )
-
+                message_id = received_data.get('message_id')
+                if not message_id:
+                    logging.warning("No message_id provided for deletion.")
                 else:
-                    logging.error("Failed to delete message.")
-                    await manager.send_message_to_room(
-                        room_name, json.dumps({"type": "error", "message": "Failed to delete message"})
-                    )
+                    await delete_message_from_db(message_id)
+                    await manager.broadcast({"action": "message_deleted", "message_id": message_id}, room=room_name)
 
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)

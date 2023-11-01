@@ -615,16 +615,31 @@
                     // Создание контейнера для содержимого сообщения
                     const messageContent = document.createElement('div');
                     messageContent.className = 'message-content';
+                    const rawMessage = messageData.message;
 
-                    // Добавление никнейма в контейнер сообщения
-                    const nicknameElement = document.createElement('div');
-                    nicknameElement.innerText = messageData.sender_nickname || "Unknown";
-                    messageContent.appendChild(nicknameElement);
+                    if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                        const [text, fileInfo] = rawMessage.split('[[FILE]]');
+                        const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+                        const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+                        const fileId = fileIdInfo.split(': ')[1];
+                        const fileName = fileNameInfo.split(': ')[1];
 
-                    // Создание и добавление текста сообщения
-                    const messageTextElement = document.createElement('div');
-                    messageTextElement.innerText = messageData.message;
-                    messageContent.appendChild(messageTextElement);
+                        const messageTextElement = document.createElement('div');
+                        messageTextElement.innerText = text;
+                        messageContent.appendChild(messageTextElement);
+
+                        const fileLink = document.createElement('div');
+                        const fileAnchor = document.createElement('a');
+                        fileAnchor.href = `/files/${fileId}`;
+                        fileAnchor.innerText = fileName;
+                        fileLink.appendChild(fileAnchor);
+                        messageContent.appendChild(fileLink);
+                    } else {
+                        const messageTextElement = document.createElement('div');
+                        messageTextElement.innerText = rawMessage;
+                        messageContent.appendChild(messageTextElement);
+                    }
+
 
                     // Добавление времени отправки
                     const timeElement = document.createElement('div');
