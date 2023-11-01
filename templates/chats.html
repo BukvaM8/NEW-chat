@@ -90,6 +90,30 @@
             margin-left: auto;
         }
 
+        .message-item {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .message-item.user {
+            justify-content: flex-end;
+        }
+
+        .message-item .message-content {
+            background-color: #ffffff;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 50%;
+        }
+
+        .message-item.user .message-content {
+            background-color: #59af4c;
+            color: #ffffff;
+            margin: 5px;
+        }
+
 
         .profile-picture {
             border-radius: 50%;
@@ -585,87 +609,95 @@
 
                     // Проверка на соответствие текущему пользователю по никнейму
                     if (messageData.sender_nickname === "{{ current_user.nickname }}") {
-                        newMessageItem.className += " message-self";
+                        newMessageItem.className += " user";
                     }
 
+                    // Создание контейнера для содержимого сообщения
+                    const messageContent = document.createElement('div');
+                    messageContent.className = 'message-content';
+
                     // Добавление никнейма в контейнер сообщения
-                    const nicknameElement = document.createElement("div");
+                    const nicknameElement = document.createElement('div');
                     nicknameElement.innerText = messageData.sender_nickname || "Unknown";
-                    newMessageItem.appendChild(nicknameElement);
+                    messageContent.appendChild(nicknameElement);
 
                     // Создание и добавление текста сообщения
                     const messageTextElement = document.createElement('div');
                     messageTextElement.innerText = messageData.message;
-                    newMessageItem.appendChild(messageTextElement);
+                    messageContent.appendChild(messageTextElement);
 
                     // Добавление времени отправки
-                    const timeElement = document.createElement("div");
+                    const timeElement = document.createElement('div');
                     timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                    newMessageItem.appendChild(timeElement);
+                    messageContent.appendChild(timeElement);
 
+                    // Добавление контейнера для содержимого сообщения в основной контейнер сообщения
+                    newMessageItem.appendChild(messageContent);
+
+                    // Добавление нового сообщения в список сообщений
                     messagesList.appendChild(newMessageItem);
                 } else {
-                console.warn('Неожиданный формат сообщения: ', messageData);
+                    console.warn('Неожиданный формат сообщения: ', messageData);
+                }
             }
-        }
-    };
+        };
 
 
-    // Обработчик для кнопки "Изменить фото"
-    const changePhotoButton = document.getElementById('change-photo-button');
-    const photoUploadInput = document.getElementById('photo-upload');
-    if (changePhotoButton && photoUploadInput) {
-        changePhotoButton.addEventListener('click', function () {
-            photoUploadInput.click();
-        });
+        // Обработчик для кнопки "Изменить фото"
+        const changePhotoButton = document.getElementById('change-photo-button');
+        const photoUploadInput = document.getElementById('photo-upload');
+        if (changePhotoButton && photoUploadInput) {
+            changePhotoButton.addEventListener('click', function () {
+                photoUploadInput.click();
+            });
 
-        photoUploadInput.addEventListener('change', function () {
-            if (this.files && this.files[0]) {
-                const formData = new FormData();
-                formData.append('new_picture', this.files[0]);
+            photoUploadInput.addEventListener('change', function () {
+                if (this.files && this.files[0]) {
+                    const formData = new FormData();
+                    formData.append('new_picture', this.files[0]);
 
-                fetch(`/chats/${chatId}/change_picture`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${access_token}`
-                    },
-                    body: formData
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'picture updated') {
-                            const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
-
-                            // Обновляем фото в "шторке"
-                            const chatImage = document.getElementById('chatImage');
-                            chatImage.setAttribute('src', newSrc);
-
-                            // Обновляем фото в контейнере с названием чата
-                            const interlocutorImage = document.querySelector('.interlocutor-info img');
-                            if (interlocutorImage) {
-                                interlocutorImage.setAttribute('src', newSrc);
-                            }
-
-                            // Обновляем фото в левой панели
-                            const chatItemInLeftPanel = document.querySelector(`.clickable-chat[data-chat-id="${chatId}"] .profile-picture`);
-                            if (chatItemInLeftPanel) {
-                                chatItemInLeftPanel.setAttribute('src', newSrc);
-                            }
-                        }
+                    fetch(`/chats/${chatId}/change_picture`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${access_token}`
+                        },
+                        body: formData
                     })
-                    .catch(error => console.error('Error:', error));
-            }
-        });
-    }
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'picture updated') {
+                                const newSrc = `/chat/picture/${chatId}?${new Date().getTime()}`;
 
-    // Код для управления "шторкой"
-    const interlocutorInfo = document.querySelector('.interlocutor-info');
-    if (interlocutorInfo) {
-        interlocutorInfo.addEventListener('click', function () {
-            const drawer = document.querySelector('.drawer');
-            drawer.classList.toggle('open');
-        });
-    }
+                                // Обновляем фото в "шторке"
+                                const chatImage = document.getElementById('chatImage');
+                                chatImage.setAttribute('src', newSrc);
+
+                                // Обновляем фото в контейнере с названием чата
+                                const interlocutorImage = document.querySelector('.interlocutor-info img');
+                                if (interlocutorImage) {
+                                    interlocutorImage.setAttribute('src', newSrc);
+                                }
+
+                                // Обновляем фото в левой панели
+                                const chatItemInLeftPanel = document.querySelector(`.clickable-chat[data-chat-id="${chatId}"] .profile-picture`);
+                                if (chatItemInLeftPanel) {
+                                    chatItemInLeftPanel.setAttribute('src', newSrc);
+                                }
+                            }
+                        })
+                        .catch(error => console.error('Error:', error));
+                }
+            });
+        }
+
+        // Код для управления "шторкой"
+        const interlocutorInfo = document.querySelector('.interlocutor-info');
+        if (interlocutorInfo) {
+            interlocutorInfo.addEventListener('click', function () {
+                const drawer = document.querySelector('.drawer');
+                drawer.classList.toggle('open');
+            });
+        }
     }
 
 
