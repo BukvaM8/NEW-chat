@@ -27,11 +27,6 @@
             margin-left: 10px;
         }
 
-        /* Стиль для контейнера */
-        .container {
-            height: 50%;
-        }
-
         .messages-container {
             height: calc(70vh - 100px);
             overflow-y: auto;
@@ -39,53 +34,110 @@
             border-radius: 8px;
             padding: 15px;
             background-color: #F5ECE5;
-            scrollbar-width: thin; /* Firefox */
-            scrollbar-color: transparent transparent; /* Firefox */
+            scrollbar-width: thin;
+            scrollbar-color: transparent transparent;
         }
 
-        /* Chrome, Safari и другие веб-китовые браузеры */
         .messages-container::-webkit-scrollbar {
             display: none;
         }
 
-
-        /* Стиль для элемента сообщения */
         .message-item {
             display: flex;
             justify-content: flex-start;
             align-items: center;
             margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
         }
 
-        /* Стиль для сообщения пользователя */
+        .message-item:hover {
+            z-index: 10;
+        }
+
         .message-item.user {
             justify-content: flex-end;
         }
 
-        /* Стиль для содержимого входящего сообщения */
-        .message-item .message-content {
+        .message-content h4 {
+            font-size: 0.9rem;
+            margin: 0;
+            margin-bottom: 5px;
+        }
+
+        .message-content {
             background-color: #ffffff;
             padding: 10px;
             border-radius: 10px;
-            max-width: 50%; /* Добавленная строка */
+            max-width: 50%;
+            position: relative;
         }
 
-
-        /* Обновление стиля для сообщения пользователя */
         .message-item.user .message-content {
             background-color: #59af4c;
             color: #ffffff;
-            margin: 5px; /* Добавляем отступы */
+            margin: 5px;
         }
 
-
-        .btn-custom {
-            background-color: #075E54;
-            color: white;
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        /* Стили для "шторки" */
+        .message-dropdown {
+            padding: 10px;
+            cursor: pointer;
+            position: relative;
+            z-index: 11;
+        }
+
+        .message-options-icon {
+            width: 30px;
+            height: 30px;
+        }
+
+        .message-options {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            width: 150px;
+            z-index: 12;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform: translateY(-10px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .message-dropdown:hover .message-options {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .message-options button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            background-color: transparent;
+            text-align: left;
+            cursor: pointer;
+            border-top: 1px solid #ccc; /* Добавлена верхняя граница */
+        }
+
+        .message-options button:first-child {
+            border-top: none; /* Удалена верхняя граница у первой кнопки */
+        }
+
+        .message-options button:hover {
+            background-color: #ddd;
+        }
+
         .drawer {
+            z-index: 1000;
             position: fixed;
             top: 0;
             right: -400px;
@@ -95,9 +147,12 @@
             border-left: 1px solid rgba(242, 242, 242, 0);
             padding: 15px;
             transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
 
-        /* Стили для фотографии в шторке */
         .drawer img {
             border-radius: 50%;
             display: block;
@@ -108,14 +163,16 @@
             right: 0;
         }
 
-        /* Стиль для плейсхолдера */
         input::placeholder {
-            opacity: 0.5; /* Прозрачность */
+            opacity: 0.5;
         }
 
         .profile-picture-overlay {
             position: relative;
             display: inline-block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .edit-photo-label {
@@ -139,6 +196,9 @@
             opacity: 1;
         }
 
+        .drawer a.btn-secondary {
+            margin-top: auto; /* Это переместит кнопку вниз "шторки" */
+        }
     </style>
 </head>
 <body>
@@ -153,8 +213,6 @@
 
 <!-- "Шторка" с дополнительными опциями -->
 <div class="drawer" id="chatDrawer">
-    <!-- Стрелочка для закрытия "шторки" -->
-    <div class="arrow" style="cursor: pointer;">&larr; Закрыть</div>
     <!-- Фотография чата -->
     <div class="profile-picture-overlay">
         <label class="edit-photo-label" id="change-photo-button">Изменить фото</label>
@@ -194,13 +252,34 @@
     <!-- Список сообщений -->
     <ul class="messages-list" id="chat-history">
         {% for message in messages %}
-        <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}">
+        <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
+             data-message-id="{{ message.id }}">
             <div class="message-content">
-                {% if message.sender_phone_number == "deleted" %}
-                <h4>Deleted message</h4>
-                {% else %}
-                <h4>{{ message.sender_nickname }}</h4>
-                {% endif %}
+                <div class="message-header">
+                    {% if message.sender_phone_number == "deleted" %}
+                    <h4>Deleted message</h4>
+                    {% else %}
+                    <h4>{{ message.sender_nickname }}</h4>
+                    {% endif %}
+
+                    <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
+                    <div class="message-dropdown">
+                        {% if message.sender_phone_number != "deleted" and (message.sender_phone_number ==
+                        current_user.phone_number or chat.owner_phone_number == current_user.phone_number) %}
+                        <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
+                        <div class="message-options">
+                            {% if chat.owner_phone_number == current_user.phone_number %}
+                            <button class="delete-message-button">Удалить сообщение</button> <!-- Изменено здесь -->
+                            {% endif %}
+                            <button class="forward-message">Переслать</button>
+                            {% if message.sender_phone_number == current_user.phone_number %}
+                            <button class="edit-message">Изменить</button>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <p>
                     <!-- Обработка вложенных файлов в сообщении -->
                     {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
@@ -222,10 +301,6 @@
                 </p>
                 <small>Отправлено: {{ message.timestamp }}</small>
             </div>
-            <!-- Кнопка для удаления сообщения -->
-            {% if message.sender_phone_number != "deleted" and (message.sender_phone_number ==
-            current_user.phone_number or chat.owner_phone_number == current_user.phone_number) %}
-            {% endif %}
         </div>
         {% endfor %}
     </ul>
@@ -257,7 +332,6 @@
         drawer.classList.toggle('open');
     }
 
-    // Убеждаемся, что скрипт выполняется после загрузки всего документа
     document.addEventListener('DOMContentLoaded', function () {
         const interlocutorInfo = document.querySelector('.interlocutor-info');
         interlocutorInfo.addEventListener('click', toggleDrawer);
@@ -363,15 +437,20 @@
             }
         };
 
-        function deleteMessage(messageId) {
-            ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
-        }
 
-        const deleteButtons = document.querySelectorAll('.delete-button');
+        const optionIcons = document.querySelectorAll('.message-options-icon');
+        optionIcons.forEach(function (icon) {
+            icon.addEventListener('click', function () {
+                const messageOptions = icon.nextElementSibling;
+                messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
+            });
+        });
+
+        const deleteButtons = document.querySelectorAll('.delete-message');
         deleteButtons.forEach(function (button) {
-            const messageId = button.getAttribute('data-message-id');
             button.addEventListener('click', function () {
-                deleteMessage(messageId);
+                const messageId = button.closest('.message-item').getAttribute('data-message-id');
+                ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
             });
         });
 
@@ -394,8 +473,8 @@
                 });
         });
     });
-</script>
 
+</script>
 </body>
 </html>
 

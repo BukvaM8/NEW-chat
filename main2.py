@@ -3858,13 +3858,13 @@ class ConnectionManager:
                     except RuntimeError as e:
                         logging.error(f"An error occurred: {e}")
 
-    async def broadcast(self, message: str, room_name: str):
-        for user_rooms in self.active_connections.values():
-            for data in user_rooms.values():
-                websocket = data['websocket']
+    async def broadcast(self, message: dict, room: str):
+        message_str = json.dumps(message)
+        if room in self.global_active_connections:
+            for websocket in self.global_active_connections[room]:
                 if websocket.client_state == WebSocketState.CONNECTED:
                     try:
-                        await websocket.send_text(message)
+                        await websocket.send_text(message_str)
                     except RuntimeError as e:
                         logging.error(f"An error occurred: {e}")
 
