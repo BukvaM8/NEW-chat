@@ -264,12 +264,12 @@
 
                     <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
                     <div class="message-dropdown">
-                        {% if message.sender_phone_number != "deleted" and (message.sender_phone_number ==
-                        current_user.phone_number or chat.owner_phone_number == current_user.phone_number) %}
+                        {% if message.sender_phone_number != "deleted" %}
                         <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
                         <div class="message-options">
-                            {% if chat.owner_phone_number == current_user.phone_number %}
-                            <button class="delete-message-button">Удалить сообщение</button> <!-- Изменено здесь -->
+                            {% if chat.owner_phone_number == current_user.phone_number or message.sender_phone_number ==
+                            current_user.phone_number %}
+                            <button class="delete-message-button">Удалить сообщение</button>
                             {% endif %}
                             <button class="forward-message">Переслать</button>
                             {% if message.sender_phone_number == current_user.phone_number %}
@@ -278,6 +278,7 @@
                         </div>
                         {% endif %}
                     </div>
+
                 </div>
 
                 <p>
@@ -473,7 +474,6 @@
                 });
         });
     });
-
 </script>
 </body>
 </html>
