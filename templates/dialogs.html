@@ -141,7 +141,8 @@
                     <small>Отправлено: {{ message.timestamp }}</small>
                     <!-- Dropdown menu for message options -->
                     <div class="message-dropdown">
-                        <img src="/static/downarrow.png" alt="Options" class="message-options-icon" onclick="toggleDropdownMenu(event)">
+                        <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
+                             onclick="toggleDropdownMenu(event)">
                         <div class="message-options" style="display: none;">
                             <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">Удалить
                                 сообщение
@@ -152,15 +153,6 @@
                         </div>
                     </div>
                 </div>
-                {% if message.sender_id == current_user.id %}
-                <form action="/dialogs/{{ dialog.id }}/delete_message/{{ message.id }}" method="post" class="d-inline">
-                    <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-                    <input type="hidden" name="message_id" value="{{ message.id }}">
-                    <button type="submit" class="btn btn-link btn-sm p-0 ml-2">
-                        <img src="/static/trash-icon.png" alt="Delete" width="20" height="20">
-                    </button>
-                </form>
-                {% endif %}
             </li>
             {% endif %}
             {% endfor %}
@@ -236,44 +228,36 @@
             timeElement.innerText = "Отправлено: " + (messageData.message.timestamp || "undefined");
             messageContent.appendChild(timeElement);
 
-            const deleteButton = document.createElement('img');
-            deleteButton.src = "/static/trash-icon.png";
-            deleteButton.width = 20;
-            deleteButton.height = 20;
-            deleteButton.addEventListener('click', function () {
+            // Add dropdown for message options
+            const dropdown = document.createElement('div');
+            dropdown.className = "message-dropdown";
+            const dropdownIcon = document.createElement('img');
+            dropdownIcon.src = "/static/downarrow.png";
+            dropdownIcon.alt = "Options";
+            dropdownIcon.className = "message-options-icon";
+
+            const messageOptions = document.createElement('div');
+            messageOptions.className = "message-options";
+
+            // Add delete option
+            const deleteOption = document.createElement('button');
+            deleteOption.className = "dropdown-item";
+            deleteOption.textContent = "Удалить сообщение";
+            deleteOption.onclick = function () {
                 ws.send(JSON.stringify({
                     "action": "delete_message",
                     "message_id": messageData.message.id
                 }));
-            });
-            messageContent.appendChild(deleteButton);
+            };
+
+            messageOptions.appendChild(deleteOption);
+            dropdown.appendChild(dropdownIcon);
+            dropdown.appendChild(messageOptions);
+            messageContent.appendChild(dropdown);
 
             newMessage.appendChild(messageContent);
             messagesList.appendChild(newMessage);
         }
-
-        const form = document.getElementById('message-form');
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
-            const formData = new FormData(form);
-            fetch(`/dialogs/${dialogId}/send_message`, {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Failed to send message');
-                    }
-                })
-                .then(data => {
-                    form.querySelector('textarea[name="message"]').value = '';
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-        });
 
         ws.onmessage = function (event) {
             let messageData;
@@ -300,6 +284,7 @@
                 console.warn('Неожиданный формат сообщения: ', messageData);
             }
         };
+
 
         // Обработчик кликов по иконке выпадающего списка
         document.addEventListener('click', function (event) {

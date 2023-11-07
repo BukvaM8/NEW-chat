@@ -336,71 +336,8 @@
 </div>
 
 <script>
-    // Функция для переключения видимости выпадающего списка
-    function toggleDropdownMenu(event) {
-        // Останавливаем всплытие события
-        event.stopPropagation();
-
-        // Находим ближайший родительский элемент, содержащий элементы выпадающего списка
-        const messageContent = event.target.closest('.message-content');
-
-        // Внутри родительского элемента находим нужный выпадающий список
-        const dropdown = messageContent.querySelector('.message-options');
-
-        // Проверяем, видим ли уже выпадающее меню
-        var isDisplayed = dropdown.style.display === 'block';
-
-        // Закрываем все другие выпадающие меню перед открытием текущего
-        var allDropdowns = document.querySelectorAll('.message-options');
-        allDropdowns.forEach(function (menu) {
-            menu.style.display = 'none';
-        });
-
-        // Переключаем видимость выбранного выпадающего меню
-        dropdown.style.display = isDisplayed ? 'none' : 'block';
-    }
-
-
-    // Функция для создания элемента выпадающего списка
-    function createDropdownMenu() {
-        const dropdownButton = document.createElement('img');
-        dropdownButton.src = "/static/downarrow.png";
-        dropdownButton.alt = "Options";
-        dropdownButton.className = "message-options-icon";
-        dropdownButton.onclick = toggleDropdownMenu; // Правильное назначение функции
-
-        const dropdownMenu = document.createElement('div');
-        dropdownMenu.className = "message-options";
-        dropdownMenu.style.display = 'none';
-
-        const deleteButton = document.createElement('button');
-        deleteButton.className = "dropdown-item";
-        deleteButton.innerText = "Удалить сообщение";
-        // Здесь должен быть ваш код для удаления сообщения
-        dropdownMenu.appendChild(deleteButton);
-
-        const editButton = document.createElement('button');
-        editButton.className = "dropdown-item";
-        editButton.innerText = "Изменить";
-        // Здесь должен быть ваш код для редактирования сообщения
-        dropdownMenu.appendChild(editButton);
-
-        const forwardButton = document.createElement('button');
-        forwardButton.className = "dropdown-item";
-        forwardButton.innerText = "Переслать";
-        // Здесь должен быть ваш код для пересылки сообщения
-        dropdownMenu.appendChild(forwardButton);
-
-        const dropdownContainer = document.createElement('div');
-        dropdownContainer.className = "message-dropdown";
-        dropdownContainer.appendChild(dropdownButton);
-        dropdownContainer.appendChild(dropdownMenu);
-
-        return dropdownContainer;
-    }
-
     // Инициализация кода для dialogs.html
-    function initializeDialogJS(dialogId, currentUserId) {
+    function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
         const ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
@@ -450,38 +387,69 @@
 
             if (action === 'new_token') {
                 document.cookie = "access_token=" + messageData.token;
-            } else if (action === 'new_message' && messageData.message && messageData.message.sender_id) {
-                const messagesList = document.querySelector('.list-group');
-                const newMessage = document.createElement('li');
-                newMessage.className = "message-item";
-                newMessage.setAttribute('data-message-id', messageData.message.id);
-
-                if (String(messageData.message.sender_id) === String(currentUserId)) {
-                    newMessage.classList.add("user");
-                }
-
-                const messageContent = document.createElement('div');
-                messageContent.className = "message-content";
-                const messageText = document.createElement('span');
-                messageText.textContent = messageData.message.content || "";
-                messageContent.appendChild(messageText);
-
-                const dropdown = createDropdownMenu();  // Создаем выпадающее меню
-                messageContent.appendChild(dropdown);   // Добавляем его к сообщению
-
-                newMessage.appendChild(messageContent);
-                messagesList.appendChild(newMessage);
-                messagesList.scrollTop = messagesList.scrollHeight; // Прокрутка к последнему сообщению
             } else {
-                console.warn('Неожиданный формат сообщения: ', messageData);
+                const messagesList = document.querySelector('.list-group');
+                if (messageData.message && messageData.message.sender_id) {
+                    const newMessage = document.createElement('li');
+                    newMessage.className = "message-item";
+
+                    if (messageData.message.sender_id === currentUserId) {
+                        newMessage.classList.add('message-sent');  // Добавлен класс для отправленных сообщений
+                    }
+
+                    const messageContent = document.createElement('div');
+                    messageContent.className = "message-content";
+
+                    const senderNickname = messageData.message.sender_nickname || "";  // Исправление "undefined"
+                    const rawMessage = messageData.message.message;
+
+                    if (senderNickname) {  // Проверка наличия senderNickname
+                        const senderElement = document.createElement('strong');
+                        senderElement.innerText = senderNickname + ":";
+                        messageContent.appendChild(senderElement);
+                    }
+
+                    const messageTextElement = document.createElement('div');
+                    if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                        const [text, fileInfo] = rawMessage.split('[[FILE]]');
+                        const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+                        const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+                        const fileId = fileIdInfo.split(': ')[1];
+                        const fileName = fileNameInfo.split(': ')[1];
+
+                        messageTextElement.appendChild(document.createTextNode(" " + text));
+                        messageContent.appendChild(messageTextElement);
+
+                        const fileLink = document.createElement('div');
+                        const fileAnchor = document.createElement('a');
+                        fileAnchor.href = `/files/${fileId}`;
+                        fileAnchor.innerText = fileName;
+                        fileLink.appendChild(fileAnchor);
+                        messageContent.appendChild(fileLink);
+                    } else {
+                        messageTextElement.appendChild(document.createTextNode(" " + rawMessage));
+                        messageContent.appendChild(messageTextElement);
+                    }
+
+                    const timeElement = document.createElement('div');
+                    timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "")));  // Исправление "undefined"
+                    messageContent.appendChild(timeElement);
+
+                    newMessage.appendChild(messageContent);
+                    messagesList.appendChild(newMessage);
+                } else {
+                    console.warn('Неожиданный формат сообщения: ', messageData);
+                }
             }
         };
     }
+
 
     // Загрузка dialogs.html в правую панель
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.clickable-dialog').forEach(function (container) {
             container.addEventListener('click', function (event) {
+                // Не выполняем действие, если клик был по кнопке "Перейти в диалог"
                 if (event.target.classList.contains('load-dialog')) return;
 
                 const dialogId = event.currentTarget.getAttribute('data-dialog-id');
@@ -496,18 +464,6 @@
                     });
             });
         });
-    });
-
-    // Дополнительный обработчик для закрытия всех выпадающих списков при клике вне их
-    document.addEventListener('click', function (event) {
-        var isDropdownButton = event.target.closest('.message-options-icon');
-        var isDropdownMenu = event.target.closest('.message-options');
-        if (!isDropdownButton && !isDropdownMenu) {
-            var allDropdowns = document.querySelectorAll('.message-options');
-            allDropdowns.forEach(function (menu) {
-                menu.style.display = 'none';
-            });
-        }
     });
 
     // Инициализация кода для create_dialog.html
