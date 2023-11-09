@@ -52,7 +52,7 @@
                         <p>Nickname: {{ user['phone_number'] }}</p>
                     </div>
                     <!-- Форма для начала диалога -->
-                    <form action="/create_dialog/{{ user['id'] }}" method="post" class="ms-auto start-dialog-form">
+                    <form action="/create_dialog/{{ user['nickname'] }}" method="post" class="ms-auto start-dialog-form">
                         <button type="submit" class="btn btn-success">Начать диалог</button>
                     </form>
                 </div>

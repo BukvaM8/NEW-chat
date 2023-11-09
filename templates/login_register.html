@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SpiritCHAT Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container {
+            max-width: 600px;
+        }
+
+        .headline {
+            font-family: Roboto;
+            font-size: 24px;
+            font-style: normal;
+            font-weight: 400;
+            line-height: 32px;
+            text-align: center;
+            padding-right: 25px;
+        }
+
+        .button {
+            display: flex;
+            height: 53px;
+            width: 540px;
+            padding: 0px 24px;
+            justify-content: center;
+            align-items: center;
+            align-self: stretch;
+            background-color: #2A88B9;
+            border-radius: 8px;
+            border: 3px #2A88B9;
+        }
+
+        .button_register {
+            display: flex;
+            height: 53px;
+            width: 540px;
+            padding: 0px 24px;
+            justify-content: center;
+            align-items: center;
+            align-self: stretch;
+            color: #2A88B9;
+            background-color: white;
+            border-radius: 8px;
+            border: 3px solid #2A88B9;
+        }
+
+        .button:hover,
+        .button:focus,
+        .button:active {
+            background-color: #2A88B9;
+        }
+
+        .button_register:hover,
+        .button_register:focus,
+        .button_register:active {
+            color: #2A88B9;
+            background-color: white;
+            border-radius: 10px;
+            border: 3px solid #2A88B9;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+    <br>
+    <br>
+    <h4 class="headline">Зарегистрируйтесь или войдите в свой аккаунт</h4>
+    <br>
+    <form method="get" action="/login" id="form" style="width: 540px">
+        <button type="submit" class="btn btn-primary button" id="loginButton">Войти</button>
+    </form>
+    <br>
+    <form method="post" action="/registration" id="form" style="width: 540px">
+        <button type="submit" class="btn btn-primary button_register" id="loginButton">Регистрация</button>
+    </form>
+    <br>
+    {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
+    {% endif %}
+</div>
+<!-- Add Bootstrap JS (optional) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

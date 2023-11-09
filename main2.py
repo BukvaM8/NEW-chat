@@ -1,6 +1,5 @@
 # Встроенные модули Python
 import asyncio
-import tempfile
 import configparser
 import io
 import json
@@ -8,6 +7,7 @@ import logging
 import mimetypes
 import os
 import smtplib
+import tempfile
 import time
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
@@ -26,7 +26,7 @@ import bcrypt
 import jwt
 import pytz
 import requests
-import room
+# import room
 import uvicorn
 # Сторонние библиотеки для работы с файлами, датами и временем
 from aiofile import async_open
@@ -48,6 +48,7 @@ from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, Boolean, BLOB, Text, Float, JSON, delete, create_engine, update
+from sqlalchemy.orm import relationship
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -380,6 +381,19 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     phone_number: str
+
+
+class Contact(Base):
+    __tablename__ = 'contacts'
+
+    ID = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    my_username_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    FIO = Column(String(length=100))
+
+    # Добавьте отношения к таблице пользователей (по вашим внешним ключам)
+    my_username = relationship("User", foreign_keys=[my_username_id])
+    user = relationship("User", foreign_keys=[user_id])
 
 
 def get_db():
@@ -804,6 +818,14 @@ async def get_user_by_phone(phone_number: str):
     return None
 
 
+async def get_user_by_id(user_id: str):
+    query = users.select().where(users.c.id == user_id)
+    user = await database.fetch_one(query)
+    if user:
+        return UserInDB(**user)
+    return None
+
+
 # Функция для извлечения nickname по user_id
 async def get_nickname_by_user_id(user_id: int) -> Optional[str]:
     query = select([users.c.nickname]).where(users.c.id == user_id)
@@ -825,7 +847,7 @@ async def get_current_user(request: Request):
     access_token = request.cookies.get("access_token")
     if access_token is None:
         logging.warning("Token is missing.")
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/login_register", status_code=303)
 
     try:
         if is_token_expired(access_token, SECRET_KEY):
@@ -839,7 +861,7 @@ async def get_current_user(request: Request):
                 access_token = new_token
             else:
                 logging.error("Failed to refresh the token.")
-                return RedirectResponse(url="/login", status_code=303)
+                return RedirectResponse(url="/login_register", status_code=303)
 
         payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
         phone_number: str = payload.get("sub")
@@ -994,6 +1016,22 @@ async def get_all_users(search_query: str = "") -> List[dict]:
         await cur.execute(
             "SELECT id, nickname, phone_number FROM Users",
         )
+    result = []
+    async for row in cur:
+        result.append({"id": row[0], "nickname": row[1], "phone_number": row[2]})
+    await cur.close()
+    conn.close()
+    return result
+
+
+async def get_all_users_from_contacts(my_id) -> List[dict]:
+    conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
+    cur = await conn.cursor()
+
+    await cur.execute(
+        f"SELECT id, user_id, FIO FROM Contacts WHERE my_username_id = {my_id}"
+    )
+
     result = []
     async for row in cur:
         result.append({"id": row[0], "nickname": row[1], "phone_number": row[2]})
@@ -1367,6 +1405,11 @@ async def login_form(request: Request):
     return templates.TemplateResponse('login.html', {"request": request})
 
 
+@app.get("/login_register", response_class=HTMLResponse)
+async def login_form(request: Request):
+    return templates.TemplateResponse('login_register.html', {"request": request})
+
+
 # Маршрут для аутентификации пользователя
 @app.post("/login")
 async def login_user(request: Request, phone_number: str = Form(...), password: str = Form(...)):
@@ -1414,7 +1457,7 @@ async def logout(request: Request, current_user: User = Depends(get_current_user
     await database.execute(query_refresh)
 
     logging.info(f'User with ID {current_user.id} logged out. Redirecting to login page.')
-    response_redirect = RedirectResponse(url="/login", status_code=303)
+    response_redirect = RedirectResponse(url="/login_register", status_code=303)
     response_redirect.delete_cookie(key="access_token")
     return response_redirect
 
@@ -1954,6 +1997,434 @@ def send_email(to_email, code):
         print(f"Ошибка отправки письма: {str(e)}")
 
 
+@app.post("/forget_password", response_class=HTMLResponse)
+async def get_registration_form(request: Request):
+    message = request.query_params.get("message", "")
+
+    error_message = ""
+    if message == "CaptchaFailed":
+        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Капча не пройдена.</div>'
+    elif message == "ConfirmationFailed":
+        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Неверный код подтверждения.</div>'
+    elif message == 'LoginFailed':
+        error_message = '<div class="alert alert-danger" role="alert">Ошибка: К данному никнейму привязан другой email.</div>'
+    form = f"""
+        <html>
+        <head>
+            <title>Смена пароля</title>
+            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+            <style>
+                .container {{
+                    max-width: 600px;
+                }}
+                .under_headline {{
+                    font-family: Roboto;
+                    font-size: 14px;
+                    text-align: center;
+                    font-style: normal;
+                    font-weight: 500;
+                    line-height: 16px;
+                }}
+                .headline {{
+                    font-family: Roboto;
+                    font-size: 24px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 32px;
+                    text-align: center;
+                }}
+                .button {{
+                    display: flex;
+                    height: 53px;
+                    width: 540;
+                    padding: 0px 24px;
+                    justify-content: center;
+                    align-items: center;
+                    align-self: stretch;
+                    background-color: #2A88B9;
+                }}
+            </style>
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+        </head>
+        <body>
+            <div class="container mt-5">
+                <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+                <br>
+                <br>
+                <h4 class="headline">Введите почту для изменения пароля</h4>
+                <p class="under_headline">На вашу почту придет код подтверждения</p>
+                {error_message}
+                <br>
+                <form method="post" action="/confirm-code-password-reset" id="form" style="width: 540px">
+                    <div class="form-group">
+                        <input type="email" class="form-control" id="email" name="email" required placeholder="Почта">
+                    </div>
+                    <div class="form-group">
+                        <input type="text" class="form-control" id="nickname" name="nickname" required placeholder="Никнейм">
+                    </div>
+                        <div class="col-md-6 offset-md-2 text-center">
+                          <div class="g-recaptcha" data-sitekey="{SITE_KEY}" required></div>
+                        </div>
+                    <br>
+                    <button type="submit" class="btn btn-primary button" id="submit-button">Далее</button>
+                </form>
+            </div>
+            <script>
+                function onSubmit(token) {{
+                    document.getElementById("g-recaptcha-response").value = token;
+                    document.getElementById("form").submit();
+                }}
+                function onCaptchaSuccess(response) {{
+                    // При успешной проверке капчи, разблокировать отправку формы
+                    document.getElementById("submit-button").removeAttribute("disabled");
+                }}
+
+                // Блокировка отправки формы при загрузке страницы
+                document.getElementById("form").addEventListener("submit", function (event) {{
+                    if (grecaptcha.getResponse() === "") {{
+                        event.preventDefault();
+                        alert("Пожалуйста, пройдите капчу.");
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
+    """
+
+    return form
+
+
+@app.post("/confirm-code-password-reset", response_class=HTMLResponse)
+async def confirm_code_reset_password(request: Request, email: str = Form(...), nickname: str = Form(...),
+                                      db: Session = Depends(get_db)):
+    form_data = await request.form()
+    captcha_response = form_data.get("g-recaptcha-response")
+
+    user_details = db.query(User).filter(User.nickname == nickname).first()
+
+    if user_details.email != email:
+        return RedirectResponse("/forget_password?message=LoginFailed")
+    if not captcha_response:
+        return RedirectResponse("/forget_password?message=CaptchaFailed")
+
+    verify_url = f"https://www.google.com/recaptcha/api/siteverify?secret={CAPTCHA_SECRET_KEY}&response={captcha_response}"
+
+    response = requests.get(verify_url)
+    result = response.json()
+
+    if result["success"]:
+        code = str(randint(100000, 999999))
+
+        existing_registration = db.query(Registration).filter(Registration.email == email).first()
+        if existing_registration:
+            db.delete(existing_registration)
+
+        new_registration = Registration(email=email, confirmation_code=code)
+        db.add(new_registration)
+        db.commit()
+
+        # send_email(email, code)
+        print(code)
+        response = f"""
+            <html>
+            <head>
+                <title>Код подтверждения отправлен</title>
+                <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+                <style>
+                    .container {{
+                        max-width: 600px;
+                    }}
+                    .headline {{
+                        font-family: Roboto;
+                        font-size: 24px;
+                        font-style: normal;
+                        font-weight: 400;
+                        line-height: 32px;
+                        text-align: center;
+                    }}
+                    .button {{
+                        display: flex;
+                        height: 53px;
+                        width: 540;
+                        padding: 0px 24px;
+                        justify-content: center;
+                        align-items: center;
+                        align-self: stretch;
+                        background-color: #2A88B9;
+                    }}
+                    .code-input {{
+                        display: flex;
+                        align-items: center;
+                    }}
+
+                    .code-box {{
+                        width: 0;
+                        height: 0;
+                        opacity: 0;
+                    }}
+
+                    .code-container {{
+                        display: flex;
+                        gap: 10px;
+
+                    }}
+
+                    .code-digit {{
+                        width: 50px;
+                        height: 60px;
+                        border: 1px solid #000;
+                        text-align: center;
+                        font-size: 24px;
+                        line-height: 38px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container mt-5">
+                    <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+                    <br>
+                    <h4 class="headline">Введите код из письма на вашей почте</h4>
+                    <br>
+                    <form method="post" action="/reset-password" style="width: 540px">
+                        <input type="text" class="form-control" id="code-input" name="code" style="display: none">
+                        <div class="form-group">
+                        <div class="row justify-content-center">
+                            <div class="code-input">
+                              <input type="text" maxlength="6" id="code" class="code-box" />
+                              <div class="code-container">
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)" onkeydown="moveToPrevious(this)" />
+                              </div>
+                            </div>
+                          </div>
+                            <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
+                            <input type="text" class="form-control" id="nickname" name="nickname" value="{nickname}" style="display: None">
+                        </div>
+                        <br>
+                        <button type="submit" class="btn btn-primary button" id="submit-button">Далее</button>
+                    </form>
+                </div>
+            </body>
+            <script>
+                const codeDigits = document.querySelectorAll('.code-digit');
+                const codeInput = document.getElementById('code-input');
+
+                function moveToNextOrPrevious(input) {{
+                var maxLength = input.maxLength;
+                var currentLength = input.value.length;
+
+                if (currentLength === maxLength) {{
+                    var nextInput = input.nextElementSibling;
+                    if (nextInput)
+                        nextInput.focus();
+                }} else if (currentLength === 0) {{
+                    var previousInput = input.previousElementSibling;
+                    if (previousInput) {{
+                        previousInput.focus();
+                    }}
+                }}
+                updateCodeInputValue();
+            }}
+
+            function moveToPrevious(input) {{
+                if (input.value.length === 0 && event.key === "Backspace") {{
+                    var previousInput = input.previousElementSibling;
+                    if (previousInput) {{
+                        previousInput.focus();
+                    }}
+                }}
+                updateCodeInputValue();
+            }}
+
+            function updateCodeInputValue() {{
+                codeInput.value = Array.from(codeDigits).map(digitInput => digitInput.value).join('');
+            }}
+            </script>
+            </html>
+            """
+        return response
+    else:
+        return RedirectResponse("/forget_password?message=CaptchaFailed")
+
+
+@app.post("/reset-password", response_class=HTMLResponse)
+async def confirm_registration(code: str = Form(...), email: str = Form(...), nickname: str = Form(...),
+                               db: Session = Depends(get_db)):
+    results = db.query(Registration).filter(Registration.email == email).first()
+
+    if results is None or code != results.confirmation_code:
+        return RedirectResponse("/forget_password?message=ConfirmationFailed")
+
+    response = f"""
+    <html>
+    <head>
+        <title>Регистрация завершена</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <style>
+            .container {{
+                max-width: 600px;
+            }}
+
+            .under_headline {{
+                    font-family: Roboto;
+                    font-size: 14px;
+                    text-align: center;
+                    font-style: normal;
+                    font-weight: 500;
+                    line-height: 16px;
+                }}
+                .headline {{
+                    font-family: Roboto;
+                    font-size: 24px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 32px;
+                    text-align: center;
+                }}
+                .button {{
+                    display: flex;
+                    height: 53px;
+                    width: 540;
+                    padding: 0px 24px;
+                    justify-content: center;
+                    align-items: center;
+                    align-self: stretch;
+                    background-color: #2A88B9;
+                }}
+                .unstyled-list {{
+                    font-family: Roboto;
+                    font-size: 14px;
+                    font-style: normal;
+                    font-weight: 500;
+                    line-height: 16px;
+                    text-align: left;
+                }}
+                .button:disabled {{
+                    background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+                }}
+        </style>
+    </head>
+    <body>      
+         <div class="container mt-5">
+            <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+            <br>
+            <br>
+            <h4 class="headline">Введите новый пароль</h4>
+            <form method="post" action="/complete-password-reset" id="form" style="width: 540px">
+                <div class="form-group">
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Пароль" required>
+                    <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
+                    <input type="text" class="form-control" id="nickname" name="nickname" value="{nickname}" style="display: None">
+                </div>
+                <button type="submit" class="btn btn-primary button" id="loginButton" disabled>Изменить пароль</button>
+            </form>
+            <p class="unstyled-list"> Ваш пароль должен содержать </p>
+            <ul class="unstyled-list">
+                <li class="list-item">Латинские буквы</li>
+                <li class="list-item">Минимум 8 символов</li>
+                <li class="list-item">Минимум 1 заглавную букву</li>
+                <li class="list-item">Минимум 1 прописную букву</li>
+                <li class="list-item">Минимум 1 цифру</li>
+                <li class="list-item">Минимум 1 символ</li>
+            </ul>
+        </div>
+    </body>
+    <script>
+        // Получите ссылки на элементы формы
+        var passwordInput = document.getElementById("password");
+        var loginButton = document.getElementById("loginButton");
+        var passwordError = document.getElementById("passwordError");
+        var nicknameInput = document.getElementById("nickname"); // Добавлено
+
+        // Добавьте обработчик события для ввода пароля
+        passwordInput.addEventListener("input", function () {{
+            // Получите значение введенного пароля
+            var password = passwordInput.value;
+
+            // Создайте регулярные выражения для проверки наличия маленькой, большой буквы и цифры
+            var lowerCaseRegex = /[a-z]/;
+            var upperCaseRegex = /[A-Z]/;
+            var digitRegex = /[0-9]/;
+            var specialCharRegex = /[!@#\$%\^&\*\(\)_\+=\[\]\;:'"<>,.?\\-]/; // Добавьте здесь специальные символы, которые вы хотите разрешить
+
+            // Проверьте, что пароль соответствует всем требованиям
+            if (
+                lowerCaseRegex.test(password) &&
+                upperCaseRegex.test(password) &&
+                digitRegex.test(password) &&
+                specialCharRegex.test(password) &&
+                password.length >= 8
+            ) {{
+                // Если пароль соответствует, сделайте кнопку кликабельной
+                loginButton.removeAttribute("disabled");
+                passwordError.style.display = "none";
+            }} else {{
+                // Если пароль не соответствует, сделайте кнопку некликабельной
+                loginButton.setAttribute("disabled", "disabled");
+                passwordError.style.display = "block";
+            }}
+        }});
+    </script>
+    </html>
+    """
+    return response
+
+
+@app.post("/complete-password-reset", response_class=HTMLResponse)
+async def complete_password_reset(email: str = Form(...), nickname: str = Form(...),
+                                  password: str = Form(...), db: Session = Depends(get_db)):
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    user = db.query(User).filter(User.nickname == nickname).first()
+    user.password = hashed_password
+    db.commit()
+
+    response = f"""
+                <html>
+                <head>
+                    <title>Код подтверждения отправлен</title>
+                    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+                    <style>
+                        .container {{
+                            max-width: 600px;
+                        }}
+                        .headline {{
+                            font-family: Roboto;
+                            font-size: 24px;
+                            font-style: normal;
+                            font-weight: 400;
+                            line-height: 32px;
+                            text-align: center;
+                        }}
+                        .button {{
+                            display: flex;
+                            height: 53px;
+                            width: 540;
+                            padding: 0px 24px;
+                            justify-content: center;
+                            align-items: center;
+                            align-self: stretch;
+                            background-color: #2A88B9;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container mt-5">
+                        <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
+                        <br>
+                        <br>
+                        <h4 class="headline">Ваш пароль успешно изменен!</h4>
+                        <button type="button" class="btn btn-primary button" onclick="window.location.href='/login'">Войти</button>
+                    </div>
+                </body>
+                </html>
+                """
+    return response
+
+
 @app.get("/profile", response_class=HTMLResponse)
 async def user_profile(request: Request):
     # Получаем токен из куки
@@ -2023,6 +2494,13 @@ class EmailVisibilityRequest(BaseModel):
 class PhotoRequest(BaseModel):
     photo: str
     nickname: str
+
+
+class ContactsData(BaseModel):
+    nickname: str
+    fio: str
+    my_nickname: str
+
 
 
 @app.post("/send-code")
@@ -2279,6 +2757,36 @@ async def delete_profile_picture(request: Request):
 
     await update_user_profile_picture(phone_number, "images/default.jpg")
     return RedirectResponse(url="/profile", status_code=303)
+
+
+@app.post("/check-contacts")
+async def handle_nickname_data(data: ContactsData, db: Session = Depends(get_db)):
+    received_nickname = data.nickname
+    user = db.execute(select(User).where(User.nickname == received_nickname)).first()
+
+    if user is not None:
+        return {"received_nickname": received_nickname}
+    else:
+        return {"received_nickname": "null"}
+
+
+@app.post("/add-contacts")
+async def handle_nickname_data(data: ContactsData, db: Session = Depends(get_db)):
+    try:
+        my_user = await get_user_by_phone(data.my_nickname)
+        user = await get_user_by_phone(data.nickname)
+
+        new_contact = Contact(
+            my_username_id=my_user.id,
+            user_id=user.id,
+            FIO=data.fio,
+        )
+
+        db.add(new_contact)
+        db.commit()
+    except Exception:
+        return {"status": "0"}
+    return {"status": "200"}
 
 
 @app.post("/profile/update")
@@ -2607,7 +3115,7 @@ async def main_page(request: Request, current_user: User = Depends(get_current_u
 
     if current_user is None:
         logging.info('No current user, redirecting to login from main page')
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/login_register", status_code=303)
 
     search_results_chats = []
     search_results_channels = []
@@ -2760,11 +3268,14 @@ async def change_chat_picture(chat_id: int, new_picture: UploadFile = File(...),
 
 # Маршрут к странице создания нового чата
 @app.get("/create_chat", response_class=HTMLResponse)
-async def create_chat_page(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def create_chat_page(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user),
+                           db: Session = Depends(get_db)):
     # Этот маршрут отображает страницу создания нового чата
     if isinstance(current_user, RedirectResponse):
         return current_user
-    users = await get_all_users()
+    # users = await get_all_users()
+    users = await get_all_users_from_contacts(current_user.id)
+
     return templates.TemplateResponse("create_chat.html",
                                       {"request": request, "users": users, "current_user": current_user})
 
@@ -2772,11 +3283,13 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
 # Маршрут для создания нового чата
 @app.post("/create_chat", response_class=JSONResponse)
 async def create_chat(request: Request, chat_name: str = Form(...), user_phone: str = Form(...),
-                      chat_image: UploadFile = File(...),  # добавлено
+                      chat_image: UploadFile = File(...), # добавлено
                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
+    user_phone = await get_user_by_id(user_phone)
+    user_phone = user_phone.phone_number
     # Чтение и сохранение изображения
     image_data = await chat_image.read()
 
@@ -3365,7 +3878,7 @@ async def create_dialog_route(request: Request, current_user: Union[str, Redirec
     return templates.TemplateResponse("create_dialog.html", {
         "request": request,
         "current_user": current_user,
-        "users": await get_all_users(),
+        "users": await get_all_users_from_contacts(current_user.id),
         "search_results": [],
     })
 
@@ -3385,7 +3898,7 @@ async def search_dialog_route(request: Request, current_user: Union[str, Redirec
     return templates.TemplateResponse("create_dialog.html", {
         "request": request,
         "current_user": current_user,
-        "users": await get_all_users(),
+        "users": await get_all_users_from_contacts(current_user.id),
         "search_results": search_results,
     })
 
@@ -3410,6 +3923,7 @@ async def search_users(query: str) -> List[dict]:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     query = '%' + query + '%'
+
     await cur.execute(
         "SELECT id, nickname, phone_number FROM Users WHERE nickname LIKE %s OR phone_number LIKE %s",
         (query, query),
@@ -3629,7 +4143,6 @@ async def create_dialog_handler(user_id: int, current_user: Union[str, RedirectR
         return current_user
 
     dialog_id = await check_dialog_exists(current_user.id, user_id)
-
     if dialog_id is None:
         dialog_id = await create_new_dialog(current_user.id, user_id)
 
@@ -4231,7 +4744,7 @@ async def main_page_websocket_endpoint(websocket: WebSocket, user_id: int):
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     if exc.status_code == 401:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/login_register", status_code=303)
     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
 
 

@@ -48,8 +48,9 @@
             <label for="user_phone">Выберите участника:</label>
             <select class="form-control" id="user_phone" name="user_phone" required>
                 {% for user in users %}
-                <option value="{{ user.phone_number }}">{{ user.nickname }} ({{ user.phone_number }})</option>
+                <option value="{{ user.nickname }}">{{ user.nickname }} ({{ user.phone_number }})</option>
                 {% endfor %}
+{#            <input type="text" class="form-control" id="nickname" name="nickname" value="{{ user.nickname }}" style="display: None">#}
             </select>
         </div>
 
