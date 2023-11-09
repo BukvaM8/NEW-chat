@@ -651,7 +651,7 @@
                     .then(response => response.text())
                     .then(html => {
                         document.querySelector('.right-panel').innerHTML = html;
-                        initializeChatJS(chatId);  // Инициализация JS для чата
+                        initializeChatJS(chatId);
                     })
                     .catch(error => {
                         console.error('Ошибка:', error);
@@ -667,7 +667,7 @@
         var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
-            console.log("WebSocket connection opened.");
+            console.log("WebSocket connection opened.", event);
             ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
         };
 
@@ -679,14 +679,11 @@
             console.log(`WebSocket Error: ${error}`);
         };
 
-        // Добавляем обработчик для submit только один раз
         document.addEventListener('submit', function (event) {
             const form = event.target;
             if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
                 event.preventDefault();
-
                 const formData = new FormData(form);
-
                 fetch(form.action, {
                     method: 'POST',
                     body: formData
@@ -695,8 +692,6 @@
                     .then(data => {
                         if (data.success) {
                             console.log('Сообщение успешно отправлено');
-
-                            // Сброс формы
                             form.reset();
                         } else {
                             console.log('Ошибка при отправке сообщения:', data.error);
@@ -708,6 +703,29 @@
             }
         });
 
+        document.querySelector('.right-panel').addEventListener('click', function (event) {
+            // Проверяем, был ли клик сделан по иконке выпадающего списка
+            if (event.target.closest('.message-options-icon')) {
+                // Получаем выпадающий список, связанный с этой иконкой
+                const messageOptions = event.target.closest('.message-dropdown').querySelector('.message-options');
+
+                // Переключаем видимость выпадающего списка
+                messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
+            }
+
+            // Обработчик клика для кнопки "Удалить сообщение"
+            if (event.target.closest('.delete-message-button')) {
+                console.log("Обработчик удаления сообщения сработал."); // Добавлено для проверки
+                const messageId = event.target.closest('.message-item').getAttribute('data-message-id');
+                if (messageId) {
+                    console.log(`Отправляем запрос на удаление сообщения с ID: ${messageId}`); // Добавлено для проверки
+                    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
+                } else {
+                    console.error("Не удалось получить ID сообщения."); // Добавлено для проверки
+                }
+            }
+        });
+
         ws.onmessage = function (event) {
             const messageData = JSON.parse(event.data);
             const action = messageData.action;
@@ -716,20 +734,23 @@
                 document.cookie = "access_token=" + messageData.token;
             } else if (action === 'update_member_count') {
                 document.getElementById('member-count').textContent = messageData.count + " участников";
+            } else if (action === 'message_deleted') {
+                const messageId = messageData.message_id;
+                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    messageElement.remove();
+                }
             } else {
                 if (messageData.message && messageData.sender_phone_number) {
                     const messagesList = document.getElementById('chat-history');
 
-                    // Создание основного контейнера для сообщения
                     const newMessageItem = document.createElement('div');
                     newMessageItem.className = "message-item";
 
-                    // Проверка на соответствие текущему пользователю по никнейму
                     if (messageData.sender_nickname === "{{ current_user.nickname }}") {
                         newMessageItem.className += " user";
                     }
 
-                    // Создание контейнера для содержимого сообщения
                     const messageContent = document.createElement('div');
                     messageContent.className = 'message-content';
                     const rawMessage = messageData.message;
@@ -757,23 +778,17 @@
                         messageContent.appendChild(messageTextElement);
                     }
 
-
-                    // Добавление времени отправки
                     const timeElement = document.createElement('div');
                     timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
                     messageContent.appendChild(timeElement);
 
-                    // Добавление контейнера для содержимого сообщения в основной контейнер сообщения
                     newMessageItem.appendChild(messageContent);
-
-                    // Добавление нового сообщения в список сообщений
                     messagesList.appendChild(newMessageItem);
                 } else {
                     console.warn('Неожиданный формат сообщения: ', messageData);
                 }
             }
         };
-
 
         // Обработчик для кнопки "Изменить фото"
         const changePhotoButton = document.getElementById('change-photo-button');
