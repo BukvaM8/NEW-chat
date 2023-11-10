@@ -146,24 +146,24 @@
                 <div class="text-left" id="nickname">{{ user.nickname }}</div>
             </div>
             <br>
-            <div class="d-flex flex-column align-items-start">
-                <div class="text-left text-blue mb-2"><strong>Статус:</strong></div>
-                <div class="text-left mb-2" id="user-status">
-                    {% if user.status_visibility %}
+            {% if user.status_visibility %}
+                <div class="d-flex flex-column align-items-start">
+                    <div class="text-left text-blue mb-2"><strong>Статус:</strong></div>
+                    <div class="text-left mb-2" id="user-status">
                         {{ user.status }}
-                    {% endif %}
+                    </div>
                 </div>
-            </div>
+            {% endif %}
             <br>
-            <div class="d-flex flex-column align-items-start">
-                <div class="text-left text-blue mb-2"><strong>Почта:</strong></div>
-                <div class="text-left mb-2" id="email">
-                    {% if user.email_visibility %}
+            {% if user.email_visibility %}
+                <div class="d-flex flex-column align-items-start">
+                    <div class="text-left text-blue mb-2"><strong>Почта:</strong></div>
+                    <div class="text-left mb-2" id="email">
                         {{ user.email }}
-                    {% endif %}
+                    </div>
+                    <!-- Добавляем кнопку для изменения почты -->
                 </div>
-                <!-- Добавляем кнопку для изменения почты -->
-            </div>
+            {% endif %}
         </div>
     </div>
 </div>
