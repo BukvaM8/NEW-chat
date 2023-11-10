@@ -259,7 +259,7 @@
                     {% if message.sender_phone_number == "deleted" %}
                     <h4>Deleted message</h4>
                     {% else %}
-                    <h4>{{ message.sender_nickname }}</h4>
+                    <a href="/profile/{{ message.sender_nickname }}"> <h4>{{ message.sender_nickname }}</h4> </a>
                     {% endif %}
 
                     <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->

@@ -1394,7 +1394,7 @@ async def root(request: Request, current_user: Optional[User] = Depends(
     logging.info('Root route called')
     if current_user is None:
         logging.info('No current user, redirecting to login')
-        return templates.TemplateResponse("login.html", {"request": request})
+        return templates.TemplateResponse("login_register.html", {"request": request})
     else:
         return RedirectResponse(url="/home", status_code=303)
 
@@ -1508,11 +1508,21 @@ async def get_registration_form(request: Request):
                     align-self: stretch;
                     background-color: #2A88B9;
                 }}
+                
+                .back {{
+                    font-family: Roboto;
+                    font-size: 20px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 22px;
+                    color: #928F8F;
+                }}
             </style>
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
         </head>
         <body>
             <div class="container mt-5">
+                <a style="text-decoration: none;" href="/login_register"> <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p> </a>
                 <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
                 <br>
                 <br>
@@ -1537,7 +1547,7 @@ async def get_registration_form(request: Request):
                     <br>
                     <div class="form-check" style="text-align: left">
                         <input type="checkbox" class="form-check-input" id="check2" required>
-                        <label class="form-check-label" for="check2">Я согласен с правилаи компании</label>
+                        <label class="form-check-label" for="check2">Я согласен с правилами компании</label>
                     </div>
                 </form>
             </div>
@@ -1644,10 +1654,22 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
                         font-size: 24px;
                         line-height: 38px;
                     }}
+                    
+                    .back {{
+                        font-family: Roboto;
+                        font-size: 20px;
+                        font-style: normal;
+                        font-weight: 400;
+                        line-height: 22px;
+                        color: #928F8F;
+                    }}
                 </style>
             </head>
             <body>
                 <div class="container mt-5">
+                    <a style="text-decoration: none;" href="#" onclick="submitForm()">
+                        <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
+                    </a>
                     <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
                     <br>
                     <h4 class="headline">Введите код из письма на вашей почте</h4>
@@ -1676,6 +1698,21 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
                 </div>
             </body>
             <script>
+                function submitForm() {{
+                    var form = document.createElement("form");
+                    form.setAttribute("method", "POST");
+                    form.setAttribute("action", "/registration");
+            
+                    var input = document.createElement("input");
+                    input.setAttribute("type", "hidden");
+                    input.setAttribute("name", "dummyData"); // Добавьте любые данные, если нужно
+                    input.setAttribute("value", "dummyValue");
+                    form.appendChild(input);
+            
+                    document.body.appendChild(form);
+                    form.submit();
+                }}
+                
                 const codeDigits = document.querySelectorAll('.code-digit');
                 const codeInput = document.getElementById('code-input');
                 
@@ -1771,10 +1808,23 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
                 .button:disabled {{
                     background-color: #2A88B9; /* Цвет фона для disabled кнопки */
                 }}
+                
+                .back {{
+                    font-family: Roboto;
+                    font-size: 20px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 22px;
+                    color: #928F8F;
+                    text-decoration: none;
+                }}
         </style>
     </head>
     <body>
          <div class="container mt-5">
+            <a style="text-decoration: none;" href="#" onclick="submitForm()">
+                <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
+            </a>
             <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
             <br>
             <br>
@@ -1804,6 +1854,20 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
         </div>
     </body>
     <script>
+        function submitForm() {{
+            var form = document.createElement("form");
+            form.setAttribute("method", "POST");
+            form.setAttribute("action", "/registration");
+    
+            var input = document.createElement("input");
+            input.setAttribute("type", "hidden");
+            input.setAttribute("name", "dummyData"); // Добавьте любые данные, если нужно
+            input.setAttribute("value", "dummyValue");
+            form.appendChild(input);
+    
+            document.body.appendChild(form);
+            form.submit();
+        }}
         // Получите ссылки на элементы формы
         var passwordInput = document.getElementById("password");
         var loginButton = document.getElementById("loginButton");
@@ -2044,11 +2108,23 @@ async def get_registration_form(request: Request):
                     align-self: stretch;
                     background-color: #2A88B9;
                 }}
+                
+                .back {{
+                    font-family: Roboto;
+                    font-size: 20px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 22px;
+                    color: #928F8F;
+                }}
             </style>
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
         </head>
         <body>
             <div class="container mt-5">
+                <a style="text-decoration: none;" href="/login">
+                    <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
+                </a>
                 <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
                 <br>
                 <br>
@@ -2178,10 +2254,22 @@ async def confirm_code_reset_password(request: Request, email: str = Form(...), 
                         font-size: 24px;
                         line-height: 38px;
                     }}
+                    
+                    .back {{
+                        font-family: Roboto;
+                        font-size: 20px;
+                        font-style: normal;
+                        font-weight: 400;
+                        line-height: 22px;
+                        color: #928F8F;
+                    }}
                 </style>
             </head>
             <body>
                 <div class="container mt-5">
+                    <a style="text-decoration: none;" href="#" onclick="submitForm()">
+                        <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
+                    </a>
                     <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
                     <br>
                     <h4 class="headline">Введите код из письма на вашей почте</h4>
@@ -2211,6 +2299,20 @@ async def confirm_code_reset_password(request: Request, email: str = Form(...), 
                 </div>
             </body>
             <script>
+                 function submitForm() {{
+                    var form = document.createElement("form");
+                    form.setAttribute("method", "POST");
+                    form.setAttribute("action", "/forget_password");
+            
+                    var input = document.createElement("input");
+                    input.setAttribute("type", "hidden");
+                    input.setAttribute("name", "dummyData"); // Добавьте любые данные, если нужно
+                    input.setAttribute("value", "dummyValue");
+                    form.appendChild(input);
+            
+                    document.body.appendChild(form);
+                    form.submit();
+                }}
                 const codeDigits = document.querySelectorAll('.code-digit');
                 const codeInput = document.getElementById('code-input');
 
@@ -2307,10 +2409,22 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), ni
                 .button:disabled {{
                     background-color: #2A88B9; /* Цвет фона для disabled кнопки */
                 }}
+                .back {{
+                    font-family: Roboto;
+                    font-size: 20px;
+                    font-style: normal;
+                    font-weight: 400;
+                    line-height: 22px;
+                    color: #928F8F;
+                    text-decoration: none;
+                }}
         </style>
     </head>
     <body>      
          <div class="container mt-5">
+            <a style="text-decoration: none;" href="#" onclick="submitForm()">
+                <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
+            </a>
             <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
             <br>
             <br>
@@ -2335,6 +2449,20 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), ni
         </div>
     </body>
     <script>
+        function submitForm() {{
+            var form = document.createElement("form");
+            form.setAttribute("method", "POST");
+            form.setAttribute("action", "/forget_password");
+    
+            var input = document.createElement("input");
+            input.setAttribute("type", "hidden");
+            input.setAttribute("name", "dummyData"); // Добавьте любые данные, если нужно
+            input.setAttribute("value", "dummyValue");
+            form.appendChild(input);
+    
+            document.body.appendChild(form);
+            form.submit();
+        }}
         // Получите ссылки на элементы формы
         var passwordInput = document.getElementById("password");
         var loginButton = document.getElementById("loginButton");
@@ -2789,6 +2917,17 @@ async def handle_nickname_data(data: ContactsData, db: Session = Depends(get_db)
     return {"status": "200"}
 
 
+@app.get("/contacts/", response_class=HTMLResponse)
+async def read_contacts(request: Request, db: Session = Depends(get_db)):
+    contacts = await get_all_users_from_contacts(22)
+    users_in_contacts = []
+    for contact in contacts:
+        user = db.execute(select(User).where(User.id == contact.get("nickname"))).first()[0]
+        users_in_contacts.append({"id": user.id, "photo": user.profile_picture, "nickname": user.nickname,
+                                  "status": user.status, "status_visibility": user.status_visibility})
+    return templates.TemplateResponse("contacts.html", {"request": request, "contacts": users_in_contacts})
+
+
 @app.post("/profile/update")
 async def update_user_profile(request: Request,
                               nickname: str = Form(None),
@@ -2998,7 +3137,7 @@ async def invite_to_chat(request: Request, chat_id: int, search_query: Optional[
     if search_query:
         all_users = await search_users(search_query)
     else:
-        all_users = await get_all_users()
+        all_users = await get_all_users_from_contacts(current_user.id)
 
     # Используем .phone_number вместо ['phone_number']
     inviteable_users = [user for user in all_users if
@@ -4701,7 +4840,7 @@ async def dialog_websocket_endpoint(websocket: WebSocket, dialog_id: str):
 
 
 @app.websocket("/ws/main_page/{user_id}/")
-async def main_page_websocket_endpoint(websocket: WebSocket, user_id: int):
+async def main_page_websocket_endpoint(websocket: WebSocket, user_id: str):
     await generic_websocket_endpoint(websocket, user_id, "main_page")
 
 
