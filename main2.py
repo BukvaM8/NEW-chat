@@ -2904,7 +2904,7 @@ async def handle_nickname_data(data: ContactsData, db: Session = Depends(get_db)
         user = await get_user_by_phone(data.nickname)
 
         new_fio = data.fio if data.fio != '' else data.nickname
-        contact = session.query(Contact).filter_by(my_username_id=my_user.id, user_id=user.id).first()
+        contact = db.query(Contact).filter_by(my_username_id=my_user.id, user_id=user.id).first()
 
         if not contact:
             new_contact = Contact(
@@ -3014,7 +3014,7 @@ async def update_user_field(phone_number: str, field: str, new_value: str):
         print(f"Field {field} updated successfully for user {phone_number}")
 
 
-async def get_user_dialogs(current_user_id: int) -> list:
+async def get_user_dialogs(current_user_id: int, db: Session = Depends(get_db)) -> list:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     await cur.execute("""
@@ -3039,6 +3039,8 @@ async def get_user_dialogs(current_user_id: int) -> list:
         query = dialog_messages.select().where(dialog_messages.c.dialog_id == dialog_id).order_by(
             dialog_messages.c.timestamp.desc()).limit(1)
         last_message = await database.fetch_one(query)
+        # contact =
+        # print(contact)
         if last_message:
             dialogs.append({
                 "id": row[0],
@@ -3046,7 +3048,8 @@ async def get_user_dialogs(current_user_id: int) -> list:
                 "interlocutor_phone_number": row[2],
                 "last_online": row[3],
                 "last_message": last_message['message'],
-                "last_message_timestamp": last_message['timestamp']
+                "last_message_timestamp": last_message['timestamp'],
+                "user_fio": None
             })
     return dialogs
 
@@ -3277,7 +3280,7 @@ async def get_subscribed_channels(user_phone_number: str):
 
 @app.get("/home", response_class=HTMLResponse)
 async def main_page(request: Request, current_user: User = Depends(get_current_user_from_request),
-                    search_query: str = None):
+                    search_query: str = None, db: Session = Depends(get_db)):
     logging.info('Main page route called')
 
     # Добавляем логирование для токенов
@@ -3299,6 +3302,13 @@ async def main_page(request: Request, current_user: User = Depends(get_current_u
 
     # Получаем все доступные диалоги для текущего пользователя
     user_dialogs = await get_user_dialogs(current_user.id)
+    print(user_dialogs)
+    for i in range(len(user_dialogs)):
+        fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=user_dialogs[i]["user_id"]).first()
+        if fio:
+            user_dialogs[i]["user_fio"] = fio.FIO
+        else:
+            user_dialogs[i]["user_fio"] = user_dialogs[i]["interlocutor_phone_number"]
 
     # Выбираем первый доступный диалог, если он есть
     first_dialog = user_dialogs[0] if user_dialogs else None
@@ -4143,7 +4153,8 @@ async def get_dialog_by_id(dialog_id: int, current_user_id: int, check_user_dele
         "interlocutor_phone_number": interlocutor_info['phone_number'],
         "last_online": last_online,  # Updated to pass the formatted 'last_online' or 'нет данных'
         "user1_deleted": row['user1_deleted'],
-        "user2_deleted": row['user2_deleted']
+        "user2_deleted": row['user2_deleted'],
+        "user_fio": None
     }
 
 
@@ -4209,8 +4220,15 @@ async def get_dialog_and_messages(dialog_id: int, current_user):
 # Маршрут для страницы диалога
 @app.get("/dialogs/{dialog_id}", response_class=HTMLResponse)
 async def dialog_route(dialog_id: int, request: Request,
-                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+                       current_user: Union[str, RedirectResponse] = Depends(get_current_user),
+                       db: Session = Depends(get_db)):
     redirect, dialog, messages = await get_dialog_and_messages(dialog_id, current_user)
+    fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=dialog["user2_id"]).first()
+    if fio:
+        dialog["user_fio"] = fio.FIO
+    else:
+        dialog["user_fio"] = dialog["interlocutor_phone_number"]
+
     if redirect:
         return redirect
 
