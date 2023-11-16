@@ -26,7 +26,7 @@ import bcrypt
 import jwt
 import pytz
 import requests
-import room
+# import room
 # import room
 import uvicorn
 # Сторонние библиотеки для работы с файлами, датами и временем
@@ -49,10 +49,10 @@ from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, Boolean, BLOB, Text, Float, JSON, delete, create_engine, update
-from sqlalchemy.orm import relationship
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import select
 from starlette.middleware.sessions import SessionMiddleware
@@ -2891,7 +2891,6 @@ async def delete_profile_picture(request: Request):
 async def handle_nickname_data(data: ContactsData, db: Session = Depends(get_db)):
     received_nickname = data.nickname
     user = db.execute(select(User).where(User.nickname == received_nickname)).first()
-
     if user is not None:
         return {"received_nickname": received_nickname}
     else:
@@ -2904,28 +2903,61 @@ async def handle_nickname_data(data: ContactsData, db: Session = Depends(get_db)
         my_user = await get_user_by_phone(data.my_nickname)
         user = await get_user_by_phone(data.nickname)
 
-        new_contact = Contact(
-            my_username_id=my_user.id,
-            user_id=user.id,
-            FIO=data.fio,
-        )
+        new_fio = data.fio if data.fio != '' else data.nickname
+        contact = session.query(Contact).filter_by(my_username_id=my_user.id, user_id=user.id).first()
 
-        db.add(new_contact)
-        db.commit()
+        if not contact:
+            new_contact = Contact(
+                my_username_id=my_user.id,
+                user_id=user.id,
+                FIO=new_fio,
+            )
+
+            db.add(new_contact)
+            db.commit()
+        else:
+            return {"status": "1"}
     except Exception:
         return {"status": "0"}
-    return {"status": "200"}
+    return {"status": "200", "id": user.id, "nickname": user.nickname, "fio": new_fio,
+            "status_visibility": user.status_visibility, "user_status": user.status,
+            "current_user_nickname": my_user.nickname}
+
+
+@app.post("/edit-contacts")
+async def edit_contact(data: ContactsData, db: Session = Depends(get_db)):
+    try:
+        my_user = await get_user_by_phone(data.my_nickname)
+        user = await get_user_by_phone(data.nickname)
+
+        contact = db.query(Contact).filter_by(my_username_id=my_user.id, user_id=user.id).first()
+        new_fio = user.nickname if data.fio == '' else data.fio
+        if contact:
+            contact.FIO = new_fio
+            db.commit()
+
+    except Exception:
+        return {"status": "0"}
+    return {"nickname": new_fio}
 
 
 @app.get("/contacts/", response_class=HTMLResponse)
-async def read_contacts(request: Request, db: Session = Depends(get_db)):
-    contacts = await get_all_users_from_contacts(22)
-    users_in_contacts = []
+async def read_contacts(request: Request, db: Session = Depends(get_db),
+                        current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    contacts = await get_all_users_from_contacts(current_user.id)
+    users_in_contacts = [{"current_user_nickname": current_user.nickname, "show": False}]
     for contact in contacts:
         user = db.execute(select(User).where(User.id == contact.get("nickname"))).first()[0]
-        users_in_contacts.append({"id": user.id, "photo": user.profile_picture, "nickname": user.nickname,
-                                  "status": user.status, "status_visibility": user.status_visibility})
-    return templates.TemplateResponse("contacts.html", {"request": request, "contacts": users_in_contacts})
+        fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=user.id).first().FIO
+        users_in_contacts.append({"current_user_nickname": current_user.nickname, "show": True, "id": user.id,
+                                      "photo": user.profile_picture, "fio": fio, "nickname": user.nickname,
+                                      "status": user.status, "status_visibility": user.status_visibility})
+    response = templates.TemplateResponse(
+        "contacts.html",
+        {"request": request, "contacts": users_in_contacts}
+    )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @app.post("/profile/update")
