@@ -296,11 +296,12 @@ files = Table(
     "Files",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("phone_number", String, ForeignKey('Users.phone_number')),
+    Column("nickname", String, ForeignKey('Users.nickname')),  # Изменено на nickname
     Column("file_path", String),
     Column("file", LargeBinary),
     Column("file_extension", String(255)),
 )
+
 
 channel_history = Table(
     "Channel_history",
@@ -1285,11 +1286,13 @@ async def get_file(file_id: int):
 
 
 # Сохраняет файл в базу данных.
-async def save_file(phone_number: str, file_path: str, file_content: bytes, file_extension: str):
-    query = files.insert().values(phone_number=phone_number, file_path=file_path, file=file_content,
+async def save_file(nickname: str, file_path: str, file_content: bytes, file_extension: str):
+    logging.info(f"Saving file for nickname: {nickname}")
+    query = files.insert().values(nickname=nickname, file_path=file_path, file=file_content,
                                   file_extension=file_extension)
     file_id = await database.execute(query)
     return file_id
+
 
 
 # БЛОК УДАЛЕНИЯ СООБЩЕНИЙ ИЗ ЧАТА
@@ -3534,14 +3537,15 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
         message_text = file_info if message_text is None else message_text + file_info
 
     try:
-        await handle_chat_message(chat_id, message_text, current_user)
+        message_id = await handle_chat_message(chat_id, message_text, current_user)
     except HTTPException:
         raise HTTPException(status_code=500, detail="Error sending message or uploading file")
 
     new_message = {
+        "id": message_id,
         "chat_id": chat_id,
         "sender_id": current_user.id,
-        "sender_nickname": current_user.nickname,  # добавлен никнейм
+        "sender_nickname": current_user.nickname,
         "message": message_text,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
         "file_id": file_id,
@@ -4718,8 +4722,7 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         logging.info(f"Starting to handle chat message from user {current_user.phone_number} in chat {chat_id}.")
 
         # Получение никнейма пользователя из базы данных
-        nickname = await get_nickname_by_user_id(
-            current_user.id)  # Изменено на использование функции get_nickname_by_user_id
+        nickname = await get_nickname_by_user_id(current_user.id)
         if nickname is None:
             nickname = "Unknown"
 
@@ -4730,11 +4733,11 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
             chat_id=chat_id,
             sender_phone_number=current_user.phone_number,
             message=message_content,
-            timestamp=current_time  # убедитесь, что у вас есть такое поле в базе данных
+            timestamp=current_time
         )
 
-        result = await database.execute(query)
-        logging.info(f"Message saved to database with result: {result}")
+        message_id = await database.execute(query)
+        logging.info(f"Message saved to database with ID: {message_id}")
 
         # Отправка сообщения через WebSocket
         room = f"chat_{chat_id}"
@@ -4742,13 +4745,16 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
             "action": "new_message",
             "message": message_content,
             "sender_phone_number": current_user.phone_number,
-            "sender_nickname": nickname,  # добавлено
-            "timestamp": current_time  # добавляем время
+            "sender_nickname": nickname,
+            "timestamp": current_time
         }
 
         await manager.send_message_to_room(room, json.dumps(message_data))
+        return message_id
     except Exception as e:
         logging.error(f"An error occurred while handling chat message: {e}")
+        raise
+
 
 
 async def handle_heartbeat(websocket: WebSocket, last_heartbeat, interval=30):
