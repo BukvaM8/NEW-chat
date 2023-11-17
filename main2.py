@@ -4144,24 +4144,41 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
 
 
 # Добавляет новое сообщение в базу данных
+# Добавляет новое сообщение в базу данных и отправляет уведомление через WebSocket
 async def send_message(dialog_id: int, sender_id: int, message: str):
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
+
+    # Вставляем сообщение в базу данных
     await cur.execute("INSERT INTO DialogMessages (dialog_id, sender_id, message) VALUES (%s, %s, %s)",
                       (dialog_id, sender_id, message))
     await conn.commit()
+
+    # Получаем ID вставленного сообщения
+    await cur.execute("SELECT LAST_INSERT_ID()")
+    result = await cur.fetchone()
+    message_id = result[0] if result else None
+
     await cur.close()
     conn.close()
 
-    # Send the message through WebSocket
-    room = f"dialog_{dialog_id}"
-    new_message = {
-        "dialog_id": dialog_id,
-        "sender_id": sender_id,
-        "message": message,
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    await manager.send_message_to_room(room, json.dumps({"type": "new_message", "message": new_message}))
+    if message_id is not None:
+        # Формируем данные сообщения для отправки через WebSocket
+        new_message_data = {
+            "type": "new_message",
+            "message": {
+                "message_id": message_id,  # ID сообщения
+                "dialog_id": dialog_id,
+                "sender_id": sender_id,
+                "message": message,
+                "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        }
+        # Отправляем сообщение в комнату WebSocket
+        await manager.send_message_to_room(f"dialog_{dialog_id}", json.dumps(new_message_data))
+    else:
+        # Обработка случая, когда сообщение не было вставлено
+        logging.error("Failed to insert message into the database.")
 
 
 # Общая функция для получения данных о диалоге и сообщениях
@@ -4291,6 +4308,7 @@ async def delete_message(
 
 # Функция полностью удаляет сообщение из базы данных.
 async def delete_message_by_id(message_id: int) -> bool:
+    logging.info(f"Attempting to delete message with ID: {message_id}")
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     try:
@@ -4540,7 +4558,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 # Запуск метода keep_alive в фоне
-asyncio.create_task(manager.keep_alive())
+
 
 
 # Функция, которая будет отправлять обновленное число участников:
@@ -4801,13 +4819,26 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                 dialog_id = int(room_name.split('_')[1])
                 current_user = user
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
+
             elif action == 'delete_message':
                 message_id = received_data.get('message_id')
                 if not message_id:
                     logging.warning("No message_id provided for deletion.")
                 else:
-                    await delete_message_from_db(message_id)
-                    await manager.broadcast({"action": "message_deleted", "message_id": message_id}, room=room_name)
+                    if room_name.startswith('dialog_'):
+                        logging.info(f"Deleting message in dialog: {room_name}, message_id: {message_id}")
+                        # Логика удаления сообщений из диалога
+                        delete_status = await delete_message_by_id(message_id)
+                    else:
+                        # Логика удаления сообщений из чата
+                        delete_status = await delete_message_from_db(message_id)
+
+                    if delete_status:
+                        # Если удаление прошло успешно, отправляем сообщение всем участникам комнаты
+                        await manager.broadcast({"action": "message_deleted", "message_id": message_id}, room=room_name)
+                    else:
+                        # Опционально: можно обработать случай, когда удаление не удалось
+                        logging.error(f"Failed to delete message with id {message_id}")
 
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)

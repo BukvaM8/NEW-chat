@@ -381,7 +381,7 @@
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+        const ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
