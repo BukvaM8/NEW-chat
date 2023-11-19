@@ -42,21 +42,23 @@
             margin-left: 10px;
         }
 
-        /*Оформляет каждое сообщение, выравнивая его слева.*/
+        /* Оформляет каждое сообщение, выравнивая его слева. */
         .message-item {
             display: flex;
             justify-content: flex-start;
             align-items: center;
             margin-bottom: 10px;
-            position: relative; /* Добавлено для позиционирования выпадающего меню */
+            position: relative;
         }
 
-        /*Устанавливает фон, отступы и скругление углов для блока содержимого каждого сообщения.*/
+        /* Устанавливает фон, отступы и скругление углов для блока содержимого каждого сообщения. */
         .message-item .message-content {
+            position: relative;
             background-color: #ffffff;
             padding: 10px;
             border-radius: 10px;
             margin-right: 30px; /* Добавлено место для иконки выпадающего меню */
+            overflow: visible; /* Позволяет выпадающему списку выходить за границы контейнера */
         }
 
         /*Определяет стиль для сообщений, отправленных пользователем, с зеленым фоном и белым текстом.*/
@@ -92,10 +94,11 @@
 
         /*Стилизует выпадающее меню для сообщений, делая его абсолютно позиционированным.*/
         .message-dropdown {
-            position: absolute; /* Позиционируем стрелочку абсолютно внутри контейнера сообщения */
-            top: 5px; /* Расположение от верхнего края контейнера сообщения */
-            right: 5px; /* Расположение от правого края контейнера сообщения */
-            z-index: 2; /* Убедимся, что выпадающее меню будет поверх остального содержимого */
+            position: absolute;
+            top: 5px;
+            right: -1px; /* Сдвиньте иконку вправо за пределы контейнера */
+            z-index: 2;
+            visibility: hidden; /* Скройте выпадающий список по умолчанию */
         }
 
 
@@ -119,8 +122,13 @@
         }
 
         /*Отображает выпадающее меню при наведении на иконку.*/
-        .message-dropdown:hover .message-options {
-            display: block;
+        .message-item:hover .message-dropdown {
+            visibility: visible; /* Показать выпадающий список при наведении на контейнер сообщения */
+        }
+
+        /* Отображает выпадающее меню при наведении на контейнер сообщения. */
+        .message-item .message-content:hover .message-dropdown {
+            visibility: visible;
         }
 
         /*Стилизует кнопки в выпадающем меню.*/
@@ -181,12 +189,16 @@
                                 <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
                                      onclick="toggleDropdownMenu(event)">
                                 <div class="message-options" style="display: none;">
-                                    <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">Удалить
-                                        сообщение
-                                    </button>
-                                    <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">Изменить
-                                    </button>
-                                    <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">Переслать
+                                    {% if message.sender_id == current_user.id %}
+                                        <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">
+                                            Удалить сообщение
+                                        </button>
+                                        <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">
+                                            Изменить
+                                        </button>
+                                    {% endif %}
+                                    <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">
+                                        Переслать
                                     </button>
                                 </div>
                             </div>
@@ -196,24 +208,26 @@
             {% endfor %}
         </ul>
     </div>
+</div>
 
-    <div class="mt-4">
-        <form id="message-form">
-            <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-            <input type="hidden" name="sender_id" value="{{ current_user.id }}">
-            <div class="form-group">
-                <textarea name="message" class="form-control" rows="4"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="file">Attach files (up to 10):</label>
-                <input type="file" id="file" name="file" class="form-control-file" multiple>
-            </div>
-            <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
-        </form>
-    </div>
-    <div class="mt-4">
-        <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
-    </div>
+
+<div class="mt-4">
+    <form id="message-form">
+        <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+        <input type="hidden" name="sender_id" value="{{ current_user.id }}">
+        <div class="form-group">
+            <textarea name="message" class="form-control" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="file">Attach files (up to 10):</label>
+            <input type="file" id="file" name="file" class="form-control-file" multiple>
+        </div>
+        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
+    </form>
+</div>
+<div class="mt-4">
+    <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
+</div>
 </div>
 <script>
     {##}

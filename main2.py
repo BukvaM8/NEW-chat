@@ -4184,6 +4184,25 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
         # Обработка случая, когда сообщение не было вставлено
         logging.error("Failed to insert message into the database.")
 
+async def update_message(message_id: int, new_message: str) -> bool:
+    logging.info(f"Attempting to update message with ID: {message_id}")
+    conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
+    cur = await conn.cursor()
+    try:
+        await cur.execute("""
+            UPDATE DialogMessages
+            SET message = %s
+            WHERE id = %s
+        """, (new_message, message_id))
+        await conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Failed to update message: {e}")
+        return False
+    finally:
+        await cur.close()
+        conn.close()
+
 
 # Общая функция для получения данных о диалоге и сообщениях
 async def get_dialog_and_messages(dialog_id: int, current_user):
@@ -4845,6 +4864,24 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                     else:
                         # Опционально: можно обработать случай, когда удаление не удалось
                         logging.error(f"Failed to delete message with id {message_id}")
+            elif action == 'edit_message':
+                # Обработка редактирования сообщения
+                message_id = received_data.get('message_id')
+                new_text = received_data.get('new_text')
+                if message_id and new_text:
+                    update_status = await update_message(message_id, new_text)
+                    if update_status:
+                        # Если обновление прошло успешно, отправляем обновленное сообщение в комнату
+                        await manager.broadcast(
+                            {
+                                "action": "message_updated",
+                                "message_id": message_id,
+                                "new_text": new_text
+                            },
+                            room=room_name
+                        )
+                    else:
+                        logging.error(f"Failed to update message with id {message_id}")
 
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)
