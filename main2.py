@@ -4185,7 +4185,7 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
         logging.error("Failed to insert message into the database.")
 
 async def update_message(message_id: int, new_message: str) -> bool:
-    logging.info(f"Attempting to update message with ID: {message_id}")
+    logging.info(f"Attempting to update message with ID: {message_id}, New message: {new_message}")
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     try:
@@ -4195,9 +4195,11 @@ async def update_message(message_id: int, new_message: str) -> bool:
             WHERE id = %s
         """, (new_message, message_id))
         await conn.commit()
+        logging.info("Message update successful")
         return True
     except Exception as e:
         logging.error(f"Failed to update message: {e}")
+        logging.error("Exception details:", exc_info=True)  # Добавлено для более детального логирования
         return False
     finally:
         await cur.close()
@@ -4870,6 +4872,7 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                 new_text = received_data.get('new_text')
                 if message_id and new_text:
                     update_status = await update_message(message_id, new_text)
+                    logging.info(f"Update status for message ID {message_id}: {update_status}")  # Добавлено логирование статуса
                     if update_status:
                         # Если обновление прошло успешно, отправляем обновленное сообщение в комнату
                         await manager.broadcast(

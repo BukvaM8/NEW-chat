@@ -230,122 +230,121 @@
 </div>
 </div>
 <script>
-    {##}
-    {#    document.addEventListener('DOMContentLoaded', function () {#}
-    {#        const dialogId = "{{ dialog.id }}";#}
-    {#        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));#}
-    {#        const access_token = cookie ? cookie.split('=')[1] : null;#}
-    {#        const ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);#}
-    {##}
-    {#        ws.onopen = function (event) {#}
-    {#            console.log("WebSocket connection opened.", event);#}
-    {#            ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));#}
-    {#        };#}
-    {##}
-    {#        function appendMessage(messageData) {#}
-    {#            const messagesList = document.querySelector('.list-group');#}
-    {#            const newMessage = document.createElement('li');#}
-    {#            newMessage.className = "message-item";#}
-    {#            newMessage.setAttribute('data-message-id', messageData.message.id)#}
-    {##}
-    {#            // Логирование для отладки#}
-    {#            console.log("Message sender ID:", messageData.message.sender_id, "Current User ID:", "{{ current_user.id }}");#}
-    {##}
-    {##}
-    {#            const messageContent = document.createElement('div');#}
-    {#            messageContent.className = "message-content";#}
-    {##}
-    {#            const senderNickname = messageData.message.sender_nickname;#}
-    {#            if (senderNickname) {#}
-    {#                const strongElement = document.createElement('strong');#}
-    {#                strongElement.innerText = senderNickname;#}
-    {#                messageContent.appendChild(strongElement);#}
-    {#            }#}
-    {##}
-    {#            const textNode = document.createTextNode(" " + messageData.message.message);#}
-    {#            messageContent.appendChild(textNode);#}
-    {##}
-    {#            const timeElement = document.createElement("small");#}
-    {#            timeElement.innerText = "Отправлено: " + (messageData.message.timestamp || "undefined");#}
-    {#            messageContent.appendChild(timeElement);#}
-    {##}
-    {#            // Добавление выпадающего меню для опций сообщения#}
-    {#            const dropdown = document.createElement('div');#}
-    {#            dropdown.className = "message-dropdown";#}
-    {#            const dropdownIcon = document.createElement('img');#}
-    {#            dropdownIcon.src = "/static/downarrow.png";#}
-    {#            dropdownIcon.alt = "Options";#}
-    {#            dropdownIcon.className = "message-options-icon";#}
-    {##}
-    {#            const messageOptions = document.createElement('div');#}
-    {#            messageOptions.className = "message-options";#}
-    {##}
-    {#            // Опция удаления#}
-    {#            const deleteOption = document.createElement('button');#}
-    {#            deleteOption.className = "dropdown-item";#}
-    {#            deleteOption.textContent = "Удалить сообщение";#}
-    {#            deleteOption.onclick = function () {#}
-    {#                ws.send(JSON.stringify({#}
-    {#                    "action": "delete_message",#}
-    {#                    "message_id": messageData.message.id#}
-    {#                }));#}
-    {#            };#}
-    {##}
-    {#            messageOptions.appendChild(deleteOption);#}
-    {#            dropdown.appendChild(dropdownIcon);#}
-    {#            dropdown.appendChild(messageOptions);#}
-    {#            messageContent.appendChild(dropdown);#}
-    {##}
-    {#            newMessage.appendChild(messageContent);#}
-    {#            messagesList.appendChild(newMessage);#}
-    {#        }#}
-    {##}
-    {##}
-    {#        ws.onmessage = function (event) {#}
-    {#            let messageData;#}
-    {#            try {#}
-    {#                messageData = JSON.parse(event.data);#}
-    {#            } catch (e) {#}
-    {#                console.error("Invalid JSON", e);#}
-    {#                return;#}
-    {#            }#}
-    {##}
-    {#            const action = messageData.action;#}
-    {##}
-    {#            if (action === 'new_token') {#}
-    {#                document.cookie = "access_token=" + messageData.token;#}
-    {#            } else if (action === 'new_message') {#}
-    {#                appendMessage(messageData); // Важно, чтобы функция appendMessage правильно обрабатывала классы сообщений#}
-    {#            } else if (action === 'message_deleted') {#}
-    {#                const messageId = messageData.message_id;#}
-    {#                const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`);#}
-    {#                if (messageElement) {#}
-    {#                    messageElement.remove();#}
-    {#                }#}
-    {#            } else {#}
-    {#                console.warn('Неожиданный формат сообщения: ', messageData);#}
-    {#            }#}
-    {#        };#}
-    {##}
-    {##}
-    {#        // Обработчик кликов по иконке выпадающего списка#}
-    {#        document.addEventListener('click', function (event) {#}
-    {#            var messageOptionsIcon = event.target.closest('.message-options-icon');#}
-    {#            if (messageOptionsIcon) {#}
-    {#                var messageOptions = messageOptionsIcon.nextElementSibling;#}
-    {#                messageOptions.style.display = messageOptions.style.display === 'block' ? 'none' : 'block';#}
-    {#            } else {#}
-    {#                // Закрытие всех открытых меню при клике вне их#}
-    {#                var messageOptionsElements = document.querySelectorAll('.message-options');#}
-    {#                messageOptionsElements.forEach(function (menu) {#}
-    {#                    if (menu.style.display === 'block') {#}
-    {#                        menu.style.display = 'none';#}
-    {#                    }#}
-    {#                });#}
-    {#            }#}
-    {#        });#}
-    {#    })#}
-    {#    #}
+    // {#    document.addEventListener('DOMContentLoaded', function () {#}
+    // {#        const dialogId = "{{ dialog.id }}";#}
+    // {#        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));#}
+    // {#        const access_token = cookie ? cookie.split('=')[1] : null;#}
+    // {#        const ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);#}
+    // {##}
+    // {#        ws.onopen = function (event) {#}
+    // {#            console.log("WebSocket connection opened.", event);#}
+    // {#            ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));#}
+    // {#        };#}
+    // {##}
+    // {#        function appendMessage(messageData) {#}
+    // {#            const messagesList = document.querySelector('.list-group');#}
+    // {#            const newMessage = document.createElement('li');#}
+    // {#            newMessage.className = "message-item";#}
+    // {#            newMessage.setAttribute('data-message-id', messageData.message.id)#}
+    // {##}
+    // {#            // Логирование для отладки#}
+    // {#            console.log("Message sender ID:", messageData.message.sender_id, "Current User ID:", "{{ current_user.id }}");#}
+    // {##}
+    // {##}
+    // {#            const messageContent = document.createElement('div');#}
+    // {#            messageContent.className = "message-content";#}
+    // {##}
+    // {#            const senderNickname = messageData.message.sender_nickname;#}
+    // {#            if (senderNickname) {#}
+    // {#                const strongElement = document.createElement('strong');#}
+    // {#                strongElement.innerText = senderNickname;#}
+    // {#                messageContent.appendChild(strongElement);#}
+    // {#            }#}
+    // {##}
+    // {#            const textNode = document.createTextNode(" " + messageData.message.message);#}
+    // {#            messageContent.appendChild(textNode);#}
+    // {##}
+    // {#            const timeElement = document.createElement("small");#}
+    // {#            timeElement.innerText = "Отправлено: " + (messageData.message.timestamp || "undefined");#}
+    // {#            messageContent.appendChild(timeElement);#}
+    // {##}
+    // {#            // Добавление выпадающего меню для опций сообщения#}
+    // {#            const dropdown = document.createElement('div');#}
+    // {#            dropdown.className = "message-dropdown";#}
+    // {#            const dropdownIcon = document.createElement('img');#}
+    // {#            dropdownIcon.src = "/static/downarrow.png";#}
+    // {#            dropdownIcon.alt = "Options";#}
+    // {#            dropdownIcon.className = "message-options-icon";#}
+    // {##}
+    // {#            const messageOptions = document.createElement('div');#}
+    // {#            messageOptions.className = "message-options";#}
+    // {##}
+    // {#            // Опция удаления#}
+    // {#            const deleteOption = document.createElement('button');#}
+    // {#            deleteOption.className = "dropdown-item";#}
+    // {#            deleteOption.textContent = "Удалить сообщение";#}
+    // {#            deleteOption.onclick = function () {#}
+    // {#                ws.send(JSON.stringify({#}
+    // {#                    "action": "delete_message",#}
+    // {#                    "message_id": messageData.message.id#}
+    // {#                }));#}
+    // {#            };#}
+    // {##}
+    // {#            messageOptions.appendChild(deleteOption);#}
+    // {#            dropdown.appendChild(dropdownIcon);#}
+    // {#            dropdown.appendChild(messageOptions);#}
+    // {#            messageContent.appendChild(dropdown);#}
+    // {##}
+    // {#            newMessage.appendChild(messageContent);#}
+    // {#            messagesList.appendChild(newMessage);#}
+    // {#        }#}
+    // {##}
+    // {##}
+    // {#        ws.onmessage = function (event) {#}
+    // {#            let messageData;#}
+    // {#            try {#}
+    // {#                messageData = JSON.parse(event.data);#}
+    // {#            } catch (e) {#}
+    // {#                console.error("Invalid JSON", e);#}
+    // {#                return;#}
+    // {#            }#}
+    // {##}
+    // {#            const action = messageData.action;#}
+    // {##}
+    // {#            if (action === 'new_token') {#}
+    // {#                document.cookie = "access_token=" + messageData.token;#}
+    // {#            } else if (action === 'new_message') {#}
+    // {#                appendMessage(messageData); // Важно, чтобы функция appendMessage правильно обрабатывала классы сообщений#}
+    // {#            } else if (action === 'message_deleted') {#}
+    // {#                const messageId = messageData.message_id;#}
+    // {#                const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`);#}
+    // {#                if (messageElement) {#}
+    // {#                    messageElement.remove();#}
+    // {#                }#}
+    // {#            } else {#}
+    // {#                console.warn('Неожиданный формат сообщения: ', messageData);#}
+    // {#            }#}
+    // {#        };#}
+    // {##}
+    // {##}
+    // {#        // Обработчик кликов по иконке выпадающего списка#}
+    // {#        document.addEventListener('click', function (event) {#}
+    // {#            var messageOptionsIcon = event.target.closest('.message-options-icon');#}
+    // {#            if (messageOptionsIcon) {#}
+    // {#                var messageOptions = messageOptionsIcon.nextElementSibling;#}
+    // {#                messageOptions.style.display = messageOptions.style.display === 'block' ? 'none' : 'block';#}
+    // {#            } else {#}
+    // {#                // Закрытие всех открытых меню при клике вне их#}
+    // {#                var messageOptionsElements = document.querySelectorAll('.message-options');#}
+    // {#                messageOptionsElements.forEach(function (menu) {#}
+    // {#                    if (menu.style.display === 'block') {#}
+    // {#                        menu.style.display = 'none';#}
+    // {#                    }#}
+    // {#                });#}
+    // {#            }#}
+    // {#        });#}
+    // {#    })#}
+    // {#    #}
 </script>
 </body>
 </html>
