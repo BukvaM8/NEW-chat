@@ -175,143 +175,142 @@
             </form>
             <!-- Блок для отображения результатов поиска -->
             {% if search_query %}
-            <h2 class="small-header">Результаты поиска</h2>
-            <div class="search-results-list">
-                {% for chat in search_results_chats %}
-                <div class="container border-bottom mb-2">
-                    <div class="search-results-item small-title">
-                        <h3>{{ chat['chat_name'] }}</h3>
-                        <p>Владелец: {{ chat['owner_phone_number'] }}</p>
-                        <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
-                    </div>
+                <h2 class="small-header">Результаты поиска</h2>
+                <div class="search-results-list">
+                    {% for chat in search_results_chats %}
+                        <div class="container border-bottom mb-2">
+                            <div class="search-results-item small-title">
+                                <h3>{{ chat['chat_name'] }}</h3>
+                                <p>Владелец: {{ chat['owner_phone_number'] }}</p>
+                                <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    {% for channel in search_results_channels %}
+                        <div class="container border-bottom mb-2">
+                            <div class="search-results-item small-title">
+                                <h3>{{ channel['name'] }}</h3>
+                                <p>Владелец: {{ channel['owner_phone_number'] }}</p>
+                                <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
+                            </div>
+                        </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-                {% for channel in search_results_channels %}
-                <div class="container border-bottom mb-2">
-                    <div class="search-results-item small-title">
-                        <h3>{{ channel['name'] }}</h3>
-                        <p>Владелец: {{ channel['owner_phone_number'] }}</p>
-                        <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
             {% endif %}
 
             <div class="scrollable-content">
                 <h2 class="small-header">Ваши диалоги</h2>
                 <div class="dialogs-list">
                     {% for dialog in dialogs %}
-                    <div class="container border-bottom mb-2 clickable-dialog flex-container"
-                         data-dialog-id="{{ dialog.id }}">
-                        <!-- Фото собеседника -->
-                        <div class="profile-picture-container">
-                            <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
-                                 alt="Interlocutor's profile picture" width="50" height="50"
-                                 class="profile-picture">
-                        </div>
-                        <!-- Информация о диалоге -->
-                        <div class="dialogs-item small-title flex-grow">
-                            <div>
-                                <!-- Никнейм собеседника -->
-                                <strong>{{ dialog.interlocutor_nickname or dialog.interlocutor_phone_number }}</strong>
+                        <div class="container border-bottom mb-2 clickable-dialog flex-container"
+                             data-dialog-id="{{ dialog.id }}">
+                            <!-- Фото собеседника -->
+                            <div class="profile-picture-container">
+                                <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
+                                     alt="Interlocutor's profile picture" width="50" height="50"
+                                     class="profile-picture">
                             </div>
-                            <div>
-                                <!-- Последнее сообщение -->
-                                {% if '[[FILE]]' in dialog.last_message %}
-                                {% set file_message_parts = dialog.last_message.split('[[FILE]]') %}
-                                {% if ', ' in file_message_parts[1] %}
-                                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                                <small>{{ file_info_parts[1].split(': ')[1] }}</small>
-                                {% endif %}
-                                {% else %}
-                                {% set short_message = dialog.last_message[:25] + "..." if dialog.last_message|length >
+                            <!-- Информация о диалоге -->
+                            <div class="dialogs-item small-title flex-grow">
+                                <div>
+                                    <!-- Никнейм собеседника -->
+                                    <strong>{{ dialog.interlocutor_nickname or dialog.interlocutor_phone_number }}</strong>
+                                </div>
+                                <div>
+                                    <!-- Последнее сообщение -->
+                                    {% if '[[FILE]]' in dialog.last_message %}
+                                        {% set file_message_parts = dialog.last_message.split('[[FILE]]') %}
+                                        {% if ', ' in file_message_parts[1] %}
+                                            {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                                            <small>{{ file_info_parts[1].split(': ')[1] }}</small>
+                                        {% endif %}
+                                    {% else %}
+                                        {% set short_message = dialog.last_message[:25] + "..." if dialog.last_message|length >
                                 25 else dialog.last_message %}
-                                <small>{{ short_message }}</small>
-                                {% endif %}
+                                        <small>{{ short_message }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <!-- Действия с диалогом -->
+                            <div class="dialog-actions">
+                                <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">
+                                    <input type="submit" value="Удалить">
+                                </form>
                             </div>
                         </div>
-                        <!-- Действия с диалогом -->
-                        <div class="dialog-actions">
-                            <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">
-                                <input type="submit" value="Удалить">
-                            </form>
-                        </div>
-                    </div>
                     {% endfor %}
                 </div>
 
                 <h2 class="small-header">Ваши группы</h2>
                 <div class="chat-list">
                     {% for chat in chats %}
-                    <div class="container border-bottom mb-2 clickable-chat flex-container"
-                         data-chat-id="{{ chat.id }}">
-                        <!-- Фото чата -->
-                        <div class="profile-picture-container">
-                            <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
-                                 class="profile-picture">
-                        </div>
-                        <!-- Информация о чате -->
-                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column;">
-                            <div style="flex: 1;">
-                                <strong><h3>{{ chat['chat_name'] }}</h3></strong>
-                                <!-- Название группы жирным текстом -->
-                                {% if chat['id'] in left_chats %}
-                                <p>Вы покинули чат</p>
-                                {% endif %}
+                        <div class="container border-bottom mb-2 clickable-chat flex-container"
+                             data-chat-id="{{ chat.id }}">
+                            <!-- Фото чата -->
+                            <div class="profile-picture-container">
+                                <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
+                                     class="profile-picture">
                             </div>
-                            <div style="flex: 1;">
-                                {% if '[[FILE]]' in chat['last_message'] %}
-                                {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
-                                {% if ', ' in file_message_parts[1] %}
-                                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                                <p>
-                                    <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{
-                                    file_info_parts[1].split(': ')[1] }}
-                                </p>
-                                <!-- Никнейм пользователя жирным текстом -->
-                                {% endif %}
-                                {% else %}
-                                <p>
-                                    <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ chat['last_message'] }}
-                                </p> <!-- Никнейм пользователя жирным текстом -->
-                                {% endif %}
+                            <!-- Информация о чате -->
+                            <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column;">
+                                <div style="flex: 1;">
+                                    <strong><h3>{{ chat['chat_name'] }}</h3></strong>
+                                    <!-- Название группы жирным текстом -->
+                                    {% if chat['id'] in left_chats %}
+                                        <p>Вы покинули чат</p>
+                                    {% endif %}
+                                </div>
+                                <div style="flex: 1;">
+                                    {% if '[[FILE]]' in chat['last_message'] %}
+                                        {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
+                                        {% if ', ' in file_message_parts[1] %}
+                                            {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                                            <p>
+                                                <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ file_info_parts[1].split(': ')[1] }}
+                                            </p>
+                                            <!-- Никнейм пользователя жирным текстом -->
+                                        {% endif %}
+                                    {% else %}
+                                        <p>
+                                            <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ chat['last_message'] }}
+                                        </p> <!-- Никнейм пользователя жирным текстом -->
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
-                    </div>
                     {% endfor %}
                 </div>
 
                 <h2 class="small-header">Ваши каналы</h2>
                 <div class="channel-list">
                     {% for channel in channels %}
-                    <div class="container border-bottom mb-2">
-                        <div class="channel-item small-title">
-                            <h3>{{ channel['name'] }}</h3>
-                            <p>Владелец: {{ channel['owner_phone_number'] }}</p>
-                            {% if channel['owner_phone_number'] == current_user.phone_number and
+                        <div class="container border-bottom mb-2">
+                            <div class="channel-item small-title">
+                                <h3>{{ channel['name'] }}</h3>
+                                <p>Владелец: {{ channel['owner_phone_number'] }}</p>
+                                {% if channel['owner_phone_number'] == current_user.phone_number and
                             channel['last_owner_message'] %}
-                            <p>{{ channel['last_owner_message'] }}
-                                - {{ channel['last_owner_message_timestamp'] }}</p>
-                            {% if channel['last_owner_message_file'] %}
-                            <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть
-                                прикрепленный файл</a>
-                            {% endif %}
-                            {% elif channel['last_message'] %}
-                            <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>
-                            {% if channel['last_message_file'] %}
-                            <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный
-                                файл</a>
-                            {% endif %}
-                            {% endif %}
-                            <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
-                            {% if channel['owner_phone_number'] == current_user.phone_number %}
-                            <form action="/channels/{{ channel['id'] }}/delete" method="post">
-                                <input type="submit" value="Удалить канал">
-                            </form>
-                            {% endif %}
+                                    <p>{{ channel['last_owner_message'] }}
+                                        - {{ channel['last_owner_message_timestamp'] }}</p>
+                                    {% if channel['last_owner_message_file'] %}
+                                        <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть
+                                            прикрепленный файл</a>
+                                    {% endif %}
+                                {% elif channel['last_message'] %}
+                                    <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>
+                                    {% if channel['last_message_file'] %}
+                                        <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный
+                                            файл</a>
+                                    {% endif %}
+                                {% endif %}
+                                <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
+                                {% if channel['owner_phone_number'] == current_user.phone_number %}
+                                    <form action="/channels/{{ channel['id'] }}/delete" method="post">
+                                        <input type="submit" value="Удалить канал">
+                                    </form>
+                                {% endif %}
+                            </div>
                         </div>
-                    </div>
                     {% endfor %}
                 </div>
             </div>
@@ -414,65 +413,113 @@
     var ws;
 
     function editMessage(messageIdStr) {
-        console.log("Editing message with ID:", messageIdStr); // Для отладки
+        console.log("Editing message with ID:", messageIdStr);
         const messageId = parseInt(messageIdStr, 10);
         if (isNaN(messageId)) {
             console.error(`Invalid messageId: ${messageIdStr}`);
             return;
         }
 
-        const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"] .message-content`);
-        if (messageElement) {
-            let messageText = '';
-            messageElement.childNodes.forEach(function (node) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    messageText += node.textContent.trim();
-                } else if (node.tagName === 'A') {
-                    messageText += node.outerHTML.trim();
-                }
-            });
+        let messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        let messageText = '';
 
-            document.querySelector('textarea[name="message"]').value = messageText;
-            const submitButton = document.querySelector('#message-form button[type="submit"]');
+        if (messageElement) {
+            // Получаем весь текст из элемента сообщения
+            messageText = messageElement.textContent || '';
+
+            // Удаляем дополнительную информацию (например, "Отправлено:" и дату)
+            messageText = messageText.replace(/Отправлено:.*$/, '').trim();
+        } else {
+            console.error("Message element not found for ID:", messageId);
+            return;
+        }
+
+        const textArea = document.querySelector('textarea[name="message"]');
+        if (textArea) {
+            textArea.value = messageText;
+        } else {
+            console.error('Textarea for message not found');
+        }
+
+        const submitButton = document.querySelector('#message-form button[type="submit"]');
+        if (submitButton) {
             submitButton.textContent = 'Сохранить';
             submitButton.onclick = function (e) {
                 e.preventDefault();
                 saveEditedMessage(messageId);
             };
+        } else {
+            console.error('Submit button not found');
         }
     }
 
 
     function saveEditedMessage(messageId) {
         const newMessageText = document.querySelector('textarea[name="message"]').value;
+        const currentDate = new Date().toLocaleString();
 
-        // Отправляем запрос на сервер для обновления текста сообщения
         ws.send(JSON.stringify({
             action: 'edit_message',
             message_id: messageId,
             new_text: newMessageText
         }));
 
-        // Возвращаем кнопку отправки к исходному состоянию
+        let messageElement = document.querySelector(`[data-message-id="${messageId}"] .message-content`) ||
+            document.querySelector(`[data-message-id="${messageId}"] .message-self`);
+
+        if (messageElement) {
+            messageElement.innerHTML = newMessageText; // Обновить текст сообщения
+
+            // Добавить метку "изменено"
+            const editedMark = document.createElement('span');
+            editedMark.className = 'edited-mark';
+            editedMark.innerHTML = ` <br>Изменено: ${currentDate}`;
+            messageElement.appendChild(editedMark);
+
+            // Восстановить выпадающее меню (если оно уже есть, то не добавляем заново)
+            if (!messageElement.querySelector('.message-dropdown')) {
+                const dropdownMenu = messageElement.nextElementSibling;
+                if (dropdownMenu) {
+                    messageElement.appendChild(dropdownMenu.cloneNode(true));
+                }
+            }
+        }
+
+        // Вернуть кнопку к исходному состоянию и очистить текстовое поле
         const submitButton = document.querySelector('#message-form button[type="submit"]');
         submitButton.textContent = 'Отправить';
-        submitButton.onclick = null; // Удаляем обработчик сохранения измененного сообщения
-
-        // Очистка поля ввода
+        submitButton.onclick = null;
         document.querySelector('textarea[name="message"]').value = '';
     }
+
 
     // Инициализация кода для dialogs.html
     function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
             ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
         };
 
+        // Автоматическая прокрутка к последнему сообщению
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Обработчик события нажатия клавиши в текстовом поле формы
+        const textArea = document.querySelector('textarea[name="message"]');
+        textArea.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // предотвращаем перевод строки
+                document.getElementById('message-form').dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // Функция отправки сообщения
         const form = document.getElementById('message-form');
         form.addEventListener('submit', function (e) {
             e.preventDefault();
@@ -483,25 +530,35 @@
                 body: formData
             })
                 .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
+                    if (!response.ok) {
                         throw new Error('Failed to send message');
                     }
+                    return response.json();
                 })
                 .then(data => {
+                    if (data && data.message_id) {
+                        const messagesList = document.querySelector('.list-group');
+                        const newMessage = document.createElement('li');
+                        newMessage.className = "message-item user";
+                        newMessage.dataset.messageId = data.message_id;
+
+                        const messageContent = document.createElement('div');
+                        messageContent.className = "message-content";
+                        messageContent.dataset.messageId = data.message_id;
+
+                        // Создаем и добавляем текстовый узел для текста сообщения
+                        const messageTextNode = document.createTextNode(data.message_text);
+                        messageContent.appendChild(messageTextNode);
+
+                        newMessage.appendChild(messageContent);
+                        messagesList.appendChild(newMessage);
+                    }
+
+                    // Очищаем поля ввода после отправки
                     form.querySelector('textarea[name="message"]').value = '';
                     const fileInput = form.querySelector('input[type="file"]');
                     if (fileInput) {
                         fileInput.value = '';
-                    }
-
-                    if (data && data.message_id) {
-                        const messagesList = document.querySelector('.list-group');
-                        const lastMessage = messagesList.lastElementChild;
-                        if (lastMessage) {
-                            lastMessage.dataset.messageId = data.message_id;
-                        }
                     }
                 })
                 .catch(error => {
@@ -526,7 +583,7 @@
             } else if (action === 'message_deleted') {
                 const messageId = messageData.message_id;
                 console.log("Attempting to delete message with ID:", messageId);
-                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"], .message-self[data-message-id="${messageId}"]`);
                 if (messageElement) {
                     console.log(`Deleting message with id: ${messageId}`);
                     messageElement.remove();
@@ -537,7 +594,11 @@
                 const messageId = messageData.message_id;
                 const newMessageText = messageData.new_text;
 
-                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"] .message-content`);
+                let messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"] .message-content`);
+                if (!messageElement) {
+                    messageElement = document.querySelector(`.message-self[data-message-id="${messageId}"]`);
+                }
+
                 if (messageElement) {
                     messageElement.innerHTML = '';
                     const newTextElement = document.createElement('div');
@@ -553,11 +614,17 @@
                         editedMark.textContent = ' (ред.)';
                         messageElement.appendChild(editedMark);
                     }
+
+                    // Восстановление выпадающего меню
+                    const dropdown = messageElement.closest('.message-item, .message-self').querySelector('.message-dropdown');
+                    if (dropdown) {
+                        messageElement.appendChild(dropdown.cloneNode(true));
+                    }
                 }
             } else if (messageData.message && messageData.message.sender_id) {
-                const currentUserId = "{{ current_user.id }}"; // Подставьте ID текущего пользователя
+                const currentUserId = "{{ current_user.id }}";
                 const newMessage = document.createElement('li');
-                newMessage.className = "message-item";
+                newMessage.className = messageData.message.sender_id === parseInt(currentUserId) ? "message-item user" : "message-item";
                 newMessage.dataset.messageId = String(messageData.message.message_id);
 
                 const messageContent = document.createElement('div');
@@ -633,8 +700,6 @@
                     const forwardButton = document.createElement('button');
                     forwardButton.className = 'dropdown-item';
                     forwardButton.textContent = 'Переслать';
-                    // Добавьте здесь логику пересылки
-                    // forwardButton.onclick = function () { ... };
                     dropdownContent.appendChild(forwardButton);
 
                     dropdown.appendChild(dropdownIcon);
@@ -645,6 +710,11 @@
                 newMessage.appendChild(messageContent);
                 const messagesList = document.querySelector('.list-group');
                 messagesList.appendChild(newMessage);
+
+                // Прокрутка к последнему сообщению после добавления нового сообщения
+                setTimeout(() => {
+                    messagesList.scrollTop = messagesList.scrollHeight;
+                }, 100);
             }
         };
     }
@@ -794,7 +864,7 @@
     function initializeChatJS(chatId) {
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
