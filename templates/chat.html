@@ -79,6 +79,18 @@
             margin: 5px;
         }
 
+        /* Стилизация блока сообщения для обеспечения переноса текста и ограничения ширины */
+        .message-item .message-content, .message-self {
+            word-wrap: break-word; /* Разрешаем перенос слов */
+            max-width: 50%; /* Ограничиваем ширину до 50% контейнера сообщений */
+            overflow-wrap: break-word; /* Обеспечиваем перенос длинных слов */
+        }
+
+        /* Стиль для текстовой области с автоматическим переносом текста */
+        textarea[name="message"] {
+            white-space: pre-wrap;
+        }
+
         .message-header {
             display: flex;
             justify-content: space-between;
@@ -87,11 +99,23 @@
 
         .message-dropdown {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            cursor: pointer;
-            z-index: 11;
+            top: 0;
+            right: -150px; /* Расположите выпадающий список за пределами сообщения */
+            width: 150px; /* Установите ширину выпадающего списка */
+            transition: right 0.3s ease; /* Плавный переход при активации */
+            visibility: hidden; /* Скройте изначально */
         }
+
+        .message-item:hover .message-dropdown {
+            right: 0; /* Переместите выпадающий список на видимую область при наведении */
+            visibility: visible; /* Сделайте видимым */
+        }
+
+        .message-dropdown:hover .message-options,
+        .message-options-icon.active + .message-options {
+            display: block;
+        }
+
 
         .message-options-icon {
             width: 20px; /* изменено для уменьшения размера иконки */
@@ -238,7 +262,7 @@
     <a href="/chat/{{ chat.id }}/members" id="member-count" class="btn btn-info">{{ members|length }} участников</a>
 
     <!-- Добавленная кнопка "Вернуться домой" -->
-    <a href="/home" class="btn btn-secondary">Вернуться домой</a>
+    <a href="/home" class="btn btn-secondary">Вернуться назад</a>
 </div>
 
 
@@ -321,159 +345,159 @@
         </form>
         </div>
         </div>
-        <script>
-            // Функция для открытия и закрытия "шторки"
-            function toggleDrawer() {
-                const drawer = document.getElementById('chatDrawer');
-                drawer.classList.toggle('open');
-            }
-
-            document.addEventListener('DOMContentLoaded', function () {
-                const interlocutorInfo = document.querySelector('.interlocutor-info');
-                interlocutorInfo.addEventListener('click', toggleDrawer);
-
-                const chatImage = document.getElementById('chatImage');
-                const changePhotoButton = document.getElementById("change-photo-button");
-                const photoUpload = document.getElementById("photo-upload");
-                const chatId = "{{ chat.id }}";
-
-                changePhotoButton.addEventListener("click", function () {
-                    photoUpload.click();
-                });
-
-                photoUpload.addEventListener("change", function (event) {
-                    const fileInput = event.target;
-
-                    if (fileInput.files && fileInput.files[0]) {
-                        const formData = new FormData();
-                        formData.append("new_picture", fileInput.files[0]);
-                        fetch(`/chats/${chatId}/change_picture`, {
-                            method: "POST",
-                            body: formData,
-                        })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.status === "picture updated") {
-                                    const readerForDrawer = new FileReader();
-                                    readerForDrawer.onload = function (e) {
-                                        chatImage.src = e.target.result;
-                                    };
-                                    readerForDrawer.readAsDataURL(fileInput.files[0]);
-
-                                    const readerForContainer = new FileReader();
-                                    const interlocutorImage = document.querySelector('.interlocutor-info img');
-                                    readerForContainer.onload = function (e) {
-                                        interlocutorImage.src = e.target.result;
-                                    };
-                                    readerForContainer.readAsDataURL(fileInput.files[0]);
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error:', error);
-                            });
-                    }
-                });
-
-                const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-                const access_token = cookie ? cookie.split('=')[1] : null;
-                const ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
-
-                ws.onopen = function (event) {
-                    console.log("WebSocket connection opened.", event);
-                    ws.send(JSON.stringify({
-                        "action": "init_connection",
-                        "chat_id": chatId,
-                        "access_token": access_token
-                    }));
-                };
-
-                ws.onclose = function (event) {
-                    console.log("WebSocket connection closed:", event);
-                };
-
-                ws.onerror = function (error) {
-                    console.log(`WebSocket Error: ${error}`);
-                };
-
-                ws.onmessage = function (event) {
-                    const messageData = JSON.parse(event.data);
-                    const action = messageData.action;
-
-                    if (action === 'new_token') {
-                        document.cookie = "access_token=" + messageData.token;
-                    } else if (action === 'update_member_count') {
-                        document.getElementById('member-count').textContent = messageData.count + " участников";
-                    } else if (action === 'message_deleted') {
-                        const messageId = messageData.message_id;
-                        const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
-                        if (messageElement) {
-                            messageElement.remove();
-                        }
-                    } else {
-                        if (messageData.message && messageData.sender_phone_number) {
-                            const messagesList = document.getElementById('chat-history');
-                            const newMessageItem = document.createElement('div');
-                            newMessageItem.className = "message-item";
-                            if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
-                                newMessageItem.className += " user";
-                            }
-
-                            const messageContent = document.createElement('div');
-                            messageContent.className = "message-content";
-                            const nicknameElement = document.createElement("h4");
-                            nicknameElement.innerText = messageData.sender_nickname || "Unknown";
-                            messageContent.appendChild(nicknameElement);
-                            const messageTextElement = document.createElement('p');
-                            messageTextElement.innerText = messageData.message;
-                            messageContent.appendChild(messageTextElement);
-                            const timeElement = document.createElement("small");
-                            timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                            messageContent.appendChild(timeElement);
-                            newMessageItem.appendChild(messageContent);
-                            messagesList.appendChild(newMessageItem);
-                        } else {
-                            console.warn('Неожиданный формат сообщения: ', messageData);
-                        }
-                    }
-                };
-
-
-                const optionIcons = document.querySelectorAll('.message-options-icon');
-                optionIcons.forEach(function (icon) {
-                    icon.addEventListener('click', function () {
-                        const messageOptions = icon.nextElementSibling;
-                        messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
-                    });
-                });
-
-                const deleteButtons = document.querySelectorAll('.delete-message');
-                deleteButtons.forEach(function (button) {
-                    button.addEventListener('click', function () {
-                        const messageId = button.closest('.message-item').getAttribute('data-message-id');
-                        ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
-                    });
-                });
-
-                const messageForm = document.querySelector('form[action*="/send_message"]');
-                messageForm.addEventListener('submit', function (event) {
-                    event.preventDefault();
-                    const formData = new FormData(messageForm);
-                    fetch(messageForm.action, {
-                        method: 'POST',
-                        body: formData
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                messageForm.reset();
-                            }
-                        })
-                        .catch((error) => {
-                            console.error('Error:', error);
-                        });
-                });
-            });
-        </script>
+        {#        <script>#}
+        {#            // Функция для открытия и закрытия "шторки"#}
+        {#            function toggleDrawer() {#}
+        {#                const drawer = document.getElementById('chatDrawer');#}
+        {#                drawer.classList.toggle('open');#}
+        {#            }#}
+        {##}
+        {#            document.addEventListener('DOMContentLoaded', function () {#}
+        {#                const interlocutorInfo = document.querySelector('.interlocutor-info');#}
+        {#                interlocutorInfo.addEventListener('click', toggleDrawer);#}
+        {##}
+        {#                const chatImage = document.getElementById('chatImage');#}
+        {#                const changePhotoButton = document.getElementById("change-photo-button");#}
+        {#                const photoUpload = document.getElementById("photo-upload");#}
+        {#                const chatId = "{{ chat.id }}";#}
+        {##}
+        {#                changePhotoButton.addEventListener("click", function () {#}
+        {#                    photoUpload.click();#}
+        {#                });#}
+        {##}
+        {#                photoUpload.addEventListener("change", function (event) {#}
+        {#                    const fileInput = event.target;#}
+        {##}
+        {#                    if (fileInput.files && fileInput.files[0]) {#}
+        {#                        const formData = new FormData();#}
+        {#                        formData.append("new_picture", fileInput.files[0]);#}
+        {#                        fetch(`/chats/${chatId}/change_picture`, {#}
+        {#                            method: "POST",#}
+        {#                            body: formData,#}
+        {#                        })#}
+        {#                            .then(response => response.json())#}
+        {#                            .then(data => {#}
+        {#                                if (data.status === "picture updated") {#}
+        {#                                    const readerForDrawer = new FileReader();#}
+        {#                                    readerForDrawer.onload = function (e) {#}
+        {#                                        chatImage.src = e.target.result;#}
+        {#                                    };#}
+        {#                                    readerForDrawer.readAsDataURL(fileInput.files[0]);#}
+        {##}
+        {#                                    const readerForContainer = new FileReader();#}
+        {#                                    const interlocutorImage = document.querySelector('.interlocutor-info img');#}
+        {#                                    readerForContainer.onload = function (e) {#}
+        {#                                        interlocutorImage.src = e.target.result;#}
+        {#                                    };#}
+        {#                                    readerForContainer.readAsDataURL(fileInput.files[0]);#}
+        {#                                }#}
+        {#                            })#}
+        {#                            .catch(error => {#}
+        {#                                console.error('Error:', error);#}
+        {#                            });#}
+        {#                    }#}
+        {#                });#}
+        {##}
+        {#                const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));#}
+        {#                const access_token = cookie ? cookie.split('=')[1] : null;#}
+        {#                const ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);#}
+        {##}
+        {#                ws.onopen = function (event) {#}
+        {#                    console.log("WebSocket connection opened.", event);#}
+        {#                    ws.send(JSON.stringify({#}
+        {#                        "action": "init_connection",#}
+        {#                        "chat_id": chatId,#}
+        {#                        "access_token": access_token#}
+        {#                    }));#}
+        {#                };#}
+        {##}
+        {#                ws.onclose = function (event) {#}
+        {#                    console.log("WebSocket connection closed:", event);#}
+        {#                };#}
+        {##}
+        {#                ws.onerror = function (error) {#}
+        {#                    console.log(`WebSocket Error: ${error}`);#}
+        {#                };#}
+        {##}
+        {#                ws.onmessage = function (event) {#}
+        {#                    const messageData = JSON.parse(event.data);#}
+        {#                    const action = messageData.action;#}
+        {##}
+        {#                    if (action === 'new_token') {#}
+        {#                        document.cookie = "access_token=" + messageData.token;#}
+        {#                    } else if (action === 'update_member_count') {#}
+        {#                        document.getElementById('member-count').textContent = messageData.count + " участников";#}
+        {#                    } else if (action === 'message_deleted') {#}
+        {#                        const messageId = messageData.message_id;#}
+        {#                        const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);#}
+        {#                        if (messageElement) {#}
+        {#                            messageElement.remove();#}
+        {#                        }#}
+        {#                    } else {#}
+        {#                        if (messageData.message && messageData.sender_phone_number) {#}
+        {#                            const messagesList = document.getElementById('chat-history');#}
+        {#                            const newMessageItem = document.createElement('div');#}
+        {#                            newMessageItem.className = "message-item";#}
+        {#                            if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {#}
+        {#                                newMessageItem.className += " user";#}
+        {#                            }#}
+        {##}
+        {#                            const messageContent = document.createElement('div');#}
+        {#                            messageContent.className = "message-content";#}
+        {#                            const nicknameElement = document.createElement("h4");#}
+        {#                            nicknameElement.innerText = messageData.sender_nickname || "Unknown";#}
+        {#                            messageContent.appendChild(nicknameElement);#}
+        {#                            const messageTextElement = document.createElement('p');#}
+        {#                            messageTextElement.innerText = messageData.message;#}
+        {#                            messageContent.appendChild(messageTextElement);#}
+        {#                            const timeElement = document.createElement("small");#}
+        {#                            timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");#}
+        {#                            messageContent.appendChild(timeElement);#}
+        {#                            newMessageItem.appendChild(messageContent);#}
+        {#                            messagesList.appendChild(newMessageItem);#}
+        {#                        } else {#}
+        {#                            console.warn('Неожиданный формат сообщения: ', messageData);#}
+        {#                        }#}
+        {#                    }#}
+        {#                };#}
+        {##}
+        {##}
+        {#                const optionIcons = document.querySelectorAll('.message-options-icon');#}
+        {#                optionIcons.forEach(function (icon) {#}
+        {#                    icon.addEventListener('click', function () {#}
+        {#                        const messageOptions = icon.nextElementSibling;#}
+        {#                        messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';#}
+        {#                    });#}
+        {#                });#}
+        {##}
+        {#                const deleteButtons = document.querySelectorAll('.delete-message');#}
+        {#                deleteButtons.forEach(function (button) {#}
+        {#                    button.addEventListener('click', function () {#}
+        {#                        const messageId = button.closest('.message-item').getAttribute('data-message-id');#}
+        {#                        ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));#}
+        {#                    });#}
+        {#                });#}
+        {##}
+        {#                const messageForm = document.querySelector('form[action*="/send_message"]');#}
+        {#                messageForm.addEventListener('submit', function (event) {#}
+        {#                    event.preventDefault();#}
+        {#                    const formData = new FormData(messageForm);#}
+        {#                    fetch(messageForm.action, {#}
+        {#                        method: 'POST',#}
+        {#                        body: formData#}
+        {#                    })#}
+        {#                        .then(response => response.json())#}
+        {#                        .then(data => {#}
+        {#                            if (data.success) {#}
+        {#                                messageForm.reset();#}
+        {#                            }#}
+        {#                        })#}
+        {#                        .catch((error) => {#}
+        {#                            console.error('Error:', error);#}
+        {#                        });#}
+        {#                });#}
+        {#            });#}
+        {#        </script>#}
         </body>
         </html>
 
