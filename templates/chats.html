@@ -9,7 +9,7 @@
         body {
             background-color: rgba(211, 211, 211, 0.2);
             font-family: Times New Roman, sans-serif;
-            {#overflow: hidden;#}
+            /*{#overflow: hidden;#}*/
         }
 
         .left-panel {
@@ -310,7 +310,7 @@
                                         {% if ', ' in file_message_parts[1] %}
                                             {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
                                             <p class="last_message">
-                                                <strong class="last_message">{{ chat['last_message_sender_phone'] }}</strong class="last_message">: {{ file_info_parts[1].split(': ')[1] }}
+                                                <strong class="last_message">{{ chat['last_message_sender_phone'] }}</strong>: {{ file_info_parts[1].split(': ')[1] }}
                                             </p>
                                             <!-- Никнейм пользователя жирным текстом -->
                                         {% endif %}

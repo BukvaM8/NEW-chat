@@ -85,7 +85,7 @@
 
         .message-self {
             text-align: left; /* Изменение выравнивания текста на левое */
-            background-color: #37b612;
+            background-color:  #2A88B9;
             color: white;
             border-radius: 10px;
             margin-bottom: 5px;
@@ -267,15 +267,19 @@
                     <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer;" multiple>
                 </div>
             </div>
-            <div class="col-md-11" style="padding: 0">
+            <div class="col-md-7" style="padding: 0">
                 <div class="form-group">
                     <textarea name="message" id="message-input" class="form-control textarea"
                               placeholder="Введите сообщение" rows="1" style="resize: none;"></textarea>
                 </div>
             </div>
+            <div class="col-md-4" style="padding: 0">
+                <div class="form-group">
+                    <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
+                </div>
+            </div>
         </div>
 
-        {#        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>#}
     </form>
 </div>
 {#<div class="mt-4">#}
