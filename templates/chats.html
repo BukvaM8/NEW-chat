@@ -9,7 +9,7 @@
         body {
             background-color: #ECE5DD;
             font-family: Times New Roman, sans-serif;
-        {#overflow: hidden;#}
+            /*{#overflow: hidden;#}*/
         }
 
         .left-panel {
@@ -191,10 +191,14 @@
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="/profile">Личный профиль</a></li>
                             <li><a class="dropdown-item create-chat-link" href="#">Создать новую группу</a></li>
-                            {#                            <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>#}
+                            {#
+                            <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>
+                            #}
                             <li><a class="dropdown-item create-dialog-link" href="/create_dialog">Создать новый
                                 диалог</a></li>
-                            {#                            <li><a class="dropdown-item" href="/favorites">Избранное</a></li>#}
+                            {#
+                            <li><a class="dropdown-item" href="/favorites">Избранное</a></li>
+                            #}
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
@@ -206,142 +210,161 @@
 
             <!-- Блок для отображения результатов поиска -->
             {% if search_query %}
-                <h2 class="small-header">Результаты поиска</h2>
-                <div class="search-results-list">
-                    {% for chat in search_results_chats %}
-                        <div class="container border-bottom mb-2">
-                            <div class="search-results-item small-title">
-                                <h3>{{ chat['chat_name'] }}</h3>
-                                <p>Владелец: {{ chat['owner_phone_number'] }}</p>
-                                <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
-                            </div>
-                        </div>
-                    {% endfor %}
-                    {% for channel in search_results_channels %}
-                        <div class="container border-bottom mb-2">
-                            <div class="search-results-item small-title">
-                                <h3>{{ channel['name'] }}</h3>
-                                <p>Владелец: {{ channel['owner_phone_number'] }}</p>
-                                <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
-                            </div>
-                        </div>
-                    {% endfor %}
+            <h2 class="small-header">Результаты поиска</h2>
+            <div class="search-results-list">
+                {% for chat in search_results_chats %}
+                <div class="container border-bottom mb-2">
+                    <div class="search-results-item small-title">
+                        <h3>{{ chat['chat_name'] }}</h3>
+                        <p>Владелец: {{ chat['owner_phone_number'] }}</p>
+                        <a href="/chat/{{ chat['id'] }}">Перейти в чат</a>
+                    </div>
                 </div>
+                {% endfor %}
+                {% for channel in search_results_channels %}
+                <div class="container border-bottom mb-2">
+                    <div class="search-results-item small-title">
+                        <h3>{{ channel['name'] }}</h3>
+                        <p>Владелец: {{ channel['owner_phone_number'] }}</p>
+                        <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
             {% endif %}
 
             <div class="scrollable-content" style="padding-bottom: 55px;">
                 <div class="dialogs-list">
                     {% for dialog in dialogs %}
-                        <div class="container border-bottom mb-2 clickable-dialog flex-container"
-                             data-dialog-id="{{ dialog.id }}">
-                            <!-- Фото собеседника -->
-                            <div class="profile-picture-container">
-                                <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
-                                     alt="Interlocutor's profile picture" width="50" height="50"
-                                     class="profile-picture">
-                            </div>
-                            <!-- Информация о диалоге -->
-                            <div class="dialogs-item small-title flex-grow">
-                                <div>
-                                    <strong>{{ dialog.user_fio }}</strong>
-                                </div>
-                                <div>
-                                    <!-- Последнее сообщение -->
-                                    {% if '[[FILE]]' in dialog.last_message %}
-                                        {% set file_message_parts = dialog.last_message.split('[[FILE]]') %}
-                                        {% if ', ' in file_message_parts[1] %}
-                                            {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                                            <small>{{ file_info_parts[1].split(': ')[1] }}</small>
-                                        {% endif %}
-                                    {% else %}
-                                        {% set short_message = dialog.last_message[:25] + "..." if dialog.last_message|length >
-                                25 else dialog.last_message %}
-                                        <small>{{ short_message }}</small>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <!-- Действия с диалогом -->
-                            {#                            <div class="dialog-actions">#}
-                            {#                                <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">#}
-                            {#                                    <input type="submit" value="Удалить">#}
-                            {#                                </form>#}
-                            {#                            </div>#}
+                    <div class="container border-bottom mb-2 clickable-dialog flex-container"
+                         data-dialog-id="{{ dialog.id }}">
+                        <!-- Фото собеседника -->
+                        <div class="profile-picture-container">
+                            <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
+                                 alt="Interlocutor's profile picture" width="50" height="50"
+                                 class="profile-picture">
                         </div>
+                        <!-- Информация о диалоге -->
+                        <div class="dialogs-item small-title flex-grow">
+                            <div>
+                                <strong>{{ dialog.user_fio }}</strong>
+                            </div>
+                            <div>
+                                <!-- Последнее сообщение -->
+                                {% if '[[FILE]]' in dialog.last_message %}
+                                {% set file_message_parts = dialog.last_message.split('[[FILE]]') %}
+                                {% if ', ' in file_message_parts[1] %}
+                                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                                <small>{{ file_info_parts[1].split(': ')[1] }}</small>
+                                {% endif %}
+                                {% else %}
+                                {% set short_message = dialog.last_message[:25] + "..." if dialog.last_message|length >
+                                25 else dialog.last_message %}
+                                <small>{{ short_message }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <!-- Действия с диалогом -->
+                        {#
+                        <div class="dialog-actions">#}
+                            {#
+                            <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">#}
+                                {# <input type="submit" value="Удалить">#}
+                                {#
+                            </form>
+                            #}
+                            {#
+                        </div>
+                        #}
+                    </div>
                     {% endfor %}
                 </div>
 
                 <h2 class="small-header">Ваши группы</h2>
                 <div class="chat-list">
                     {% for chat in chats %}
-                        <div class="container border-bottom mb-2 clickable-chat flex-container"
-                             data-chat-id="{{ chat.id }}">
-                            <!-- Фото чата -->
-                            <div class="profile-picture-container">
-                                <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
-                                     class="profile-picture">
+                    <div class="container border-bottom mb-2 clickable-chat flex-container"
+                         data-chat-id="{{ chat.id }}">
+                        <!-- Фото чата -->
+                        <div class="profile-picture-container">
+                            <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
+                                 class="profile-picture">
+                        </div>
+                        <!-- Информация о чате -->
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column;">
+                            <div style="flex: 1;">
+                                <strong><h3>{{ chat['chat_name'] }}</h3></strong>
+                                <!-- Название группы жирным текстом -->
+                                {% if chat['id'] in left_chats %}
+                                <p>Вы покинули чат</p>
+                                {% endif %}
                             </div>
-                            <!-- Информация о чате -->
-                            <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column;">
-                                <div style="flex: 1;">
-                                    <strong><h3>{{ chat['chat_name'] }}</h3></strong>
-                                    <!-- Название группы жирным текстом -->
-                                    {% if chat['id'] in left_chats %}
-                                        <p>Вы покинули чат</p>
-                                    {% endif %}
-                                </div>
-                                <div style="flex: 1;">
-                                    {% if '[[FILE]]' in chat['last_message'] %}
-                                        {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
-                                        {% if ', ' in file_message_parts[1] %}
-                                            {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                                            <p>
-                                                <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ file_info_parts[1].split(': ')[1] }}
-                                            </p>
-                                            <!-- Никнейм пользователя жирным текстом -->
-                                        {% endif %}
-                                    {% else %}
-                                        <p>
-                                            <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ chat['last_message'] }}
-                                        </p> <!-- Никнейм пользователя жирным текстом -->
-                                    {% endif %}
-                                </div>
+                            <div style="flex: 1;">
+                                {% if '[[FILE]]' in chat['last_message'] %}
+                                {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
+                                {% if ', ' in file_message_parts[1] %}
+                                {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
+                                <p>
+                                    <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{
+                                    file_info_parts[1].split(': ')[1] }}
+                                </p>
+                                <!-- Никнейм пользователя жирным текстом -->
+                                {% endif %}
+                                {% else %}
+                                <p>
+                                    <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ chat['last_message'] }}
+                                </p> <!-- Никнейм пользователя жирным текстом -->
+                                {% endif %}
                             </div>
                         </div>
+                    </div>
                     {% endfor %}
                 </div>
 
-                {#                <h2 class="small-header">Ваши каналы</h2>#}
-                {#                <div class="channel-list">#}
-                {#                    {% for channel in channels %}#}
-                {#                        <div class="container border-bottom mb-2">#}
-                {#                            <div class="channel-item small-title">#}
-                {#                                <h3>{{ channel['name'] }}</h3>#}
-                {#                                <p>Владелец: {{ channel['owner_phone_number'] }}</p>#}
-                {#                                {% if channel['owner_phone_number'] == current_user.phone_number and#}
-                {#                            channel['last_owner_message'] %}#}
-                {#                                    <p>{{ channel['last_owner_message'] }}#}
-                {#                                        - {{ channel['last_owner_message_timestamp'] }}</p>#}
-                {#                                    {% if channel['last_owner_message_file'] %}#}
-                {#                                        <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть#}
-                {#                                            прикрепленный файл</a>#}
-                {#                                    {% endif %}#}
-                {#                                {% elif channel['last_message'] %}#}
-                {#                                    <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>#}
-                {#                                    {% if channel['last_message_file'] %}#}
-                {#                                        <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный#}
-                {#                                            файл</a>#}
-                {#                                    {% endif %}#}
-                {#                                {% endif %}#}
-                {#                                <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>#}
-                {#                                {% if channel['owner_phone_number'] == current_user.phone_number %}#}
-                {#                                    <form action="/channels/{{ channel['id'] }}/delete" method="post">#}
-                {#                                        <input type="submit" value="Удалить канал">#}
-                {#                                    </form>#}
-                {#                                {% endif %}#}
-                {#                            </div>#}
-                {#                        </div>#}
-                {#                    {% endfor %}#}
-                {#                </div>#}
+                {# <h2 class="small-header">Ваши каналы</h2>#}
+                {#
+                <div class="channel-list">#}
+                    {# {% for channel in channels %}#}
+                    {#
+                    <div class="container border-bottom mb-2">#}
+                        {#
+                        <div class="channel-item small-title">#}
+                            {# <h3>{{ channel['name'] }}</h3>#}
+                            {# <p>Владелец: {{ channel['owner_phone_number'] }}</p>#}
+                            {# {% if channel['owner_phone_number'] == current_user.phone_number and#}
+                            {# channel['last_owner_message'] %}#}
+                            {# <p>{{ channel['last_owner_message'] }}#}
+                                {# - {{ channel['last_owner_message_timestamp'] }}</p>#}
+                            {# {% if channel['last_owner_message_file'] %}#}
+                            {# <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть#}
+                                {# прикрепленный файл</a>#}
+                            {# {% endif %}#}
+                            {# {% elif channel['last_message'] %}#}
+                            {# <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>#}
+                            {# {% if channel['last_message_file'] %}#}
+                            {# <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный#}
+                                {# файл</a>#}
+                            {# {% endif %}#}
+                            {# {% endif %}#}
+                            {# <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>#}
+                            {# {% if channel['owner_phone_number'] == current_user.phone_number %}#}
+                            {#
+                            <form action="/channels/{{ channel['id'] }}/delete" method="post">#}
+                                {# <input type="submit" value="Удалить канал">#}
+                                {#
+                            </form>
+                            #}
+                            {# {% endif %}#}
+                            {#
+                        </div>
+                        #}
+                        {#
+                    </div>
+                    #}
+                    {# {% endfor %}#}
+                    {#
+                </div>
+                #}
 
             </div>
         </div>
@@ -547,7 +570,7 @@
     function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -908,7 +931,7 @@
     function initializeChatJS(chatId) {
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -954,9 +977,14 @@
 
         document.querySelector('.right-panel').addEventListener('click', function (event) {
             // Закрытие всех открытых выпадающих списков
-            document.querySelectorAll('.message-options').forEach(function (dropdown) {
-                dropdown.style.display = 'none';
-            });
+            if (!event.target.closest('.message-options-icon')) {
+                document.querySelectorAll('.message-options').forEach(dropdown => {
+                    dropdown.style.display = 'none';
+                });
+                document.querySelectorAll('.message-options-icon').forEach(icon => {
+                    icon.classList.remove('active');
+                });
+            }
 
             // Проверяем, был ли клик сделан по иконке выпадающего списка
             if (event.target.closest('.message-options-icon')) {
@@ -993,8 +1021,6 @@
                 }
             }
         });
-
-
 
 
         ws.onmessage = function (event) {
