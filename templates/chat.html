@@ -79,6 +79,18 @@
             margin: 5px;
         }
 
+        /* Стилизация блока сообщения для обеспечения переноса текста и ограничения ширины */
+        .message-item .message-content, .message-self {
+            word-wrap: break-word; /* Разрешаем перенос слов */
+            max-width: 50%; /* Ограничиваем ширину до 50% контейнера сообщений */
+            overflow-wrap: break-word; /* Обеспечиваем перенос длинных слов */
+        }
+
+        /* Стиль для текстовой области с автоматическим переносом текста */
+        textarea[name="message"] {
+            white-space: pre-wrap;
+        }
+
         .message-header {
             display: flex;
             justify-content: space-between;
@@ -87,11 +99,23 @@
 
         .message-dropdown {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            cursor: pointer;
-            z-index: 11;
+            top: 0;
+            right: -150px; /* Расположите выпадающий список за пределами сообщения */
+            width: 150px; /* Установите ширину выпадающего списка */
+            transition: right 0.3s ease; /* Плавный переход при активации */
+            visibility: hidden; /* Скройте изначально */
         }
+
+        .message-item:hover .message-dropdown {
+            right: 0; /* Переместите выпадающий список на видимую область при наведении */
+            visibility: visible; /* Сделайте видимым */
+        }
+
+        .message-dropdown:hover .message-options,
+        .message-options-icon.active + .message-options {
+            display: block;
+        }
+
 
         .message-options-icon {
             width: 20px; /* изменено для уменьшения размера иконки */
@@ -238,7 +262,7 @@
     <a href="/chat/{{ chat.id }}/members" id="member-count" class="btn btn-info">{{ members|length }} участников</a>
 
     <!-- Добавленная кнопка "Вернуться домой" -->
-    <a href="/home" class="btn btn-secondary">Вернуться домой</a>
+    <a href="/home" class="btn btn-secondary">Вернуться назад</a>
 </div>
 
 

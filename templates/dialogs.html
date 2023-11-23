@@ -178,6 +178,18 @@
             font-weight: 400;
             line-height: 16px;
         }
+
+        /* Стилизация блока сообщения для обеспечения переноса текста и ограничения ширины */
+        .message-item .message-content, .message-self {
+            word-wrap: break-word; /* Разрешаем перенос слов */
+            max-width: 50%; /* Ограничиваем ширину до 50% контейнера сообщений */
+            overflow-wrap: break-word; /* Обеспечиваем перенос длинных слов */
+        }
+
+        /* Стиль для текстовой области с автоматическим переносом текста */
+        textarea[name="message"] {
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>

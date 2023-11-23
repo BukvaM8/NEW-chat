@@ -49,6 +49,7 @@ from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, Boolean, BLOB, Text, Float, JSON, delete, create_engine, update
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -236,9 +237,9 @@ dialog_messages = Table(
     metadata,
     Column("id", Integer, primary_key=True),
     Column("dialog_id", Integer, ForeignKey('Dialogs.id')),
-    Column("sender_id", Integer, ForeignKey('Users.nickname')),
-    Column("message", String),
-    Column("file_id", Integer, ForeignKey('Files.id')),  # новая колонка
+    Column("sender_id", Integer, ForeignKey('Users.id')),  # Изменено на Users.id
+    Column("message", MEDIUMTEXT),  # Изменено на MEDIUMTEXT
+    Column("file_id", Integer, ForeignKey('Files.id')),  # Новая колонка
     Column("timestamp", DateTime(timezone=True), default=datetime.now(moscow_tz)),
     Column("delete_timestamp", DateTime),
 )
@@ -301,7 +302,6 @@ files = Table(
     Column("file", LargeBinary),
     Column("file_extension", String(255)),
 )
-
 
 channel_history = Table(
     "Channel_history",
@@ -1293,6 +1293,26 @@ async def save_file(nickname: str, file_path: str, file_content: bytes, file_ext
     file_id = await database.execute(query)
     return file_id
 
+
+# Удаляет файл по его идентификатору
+async def delete_file(file_id: int) -> bool:
+    logging.info(f"Deleting file with ID: {file_id}")
+    conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
+    cur = await conn.cursor()
+    try:
+        await cur.execute("""
+            DELETE FROM Files
+            WHERE id = %s
+        """, (file_id,))
+        await conn.commit()
+        logging.info("File deletion successful")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to delete file: {e}")
+        return False
+    finally:
+        await cur.close()
+        conn.close()
 
 
 # БЛОК УДАЛЕНИЯ СООБЩЕНИЙ ИЗ ЧАТА
@@ -2953,8 +2973,8 @@ async def read_contacts(request: Request, db: Session = Depends(get_db),
         user = db.execute(select(User).where(User.id == contact.get("nickname"))).first()[0]
         fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=user.id).first().FIO
         users_in_contacts.append({"current_user_nickname": current_user.nickname, "show": True, "id": user.id,
-                                      "photo": user.profile_picture, "fio": fio, "nickname": user.nickname,
-                                      "status": user.status, "status_visibility": user.status_visibility})
+                                  "photo": user.profile_picture, "fio": fio, "nickname": user.nickname,
+                                  "status": user.status, "status_visibility": user.status_visibility})
     response = templates.TemplateResponse(
         "contacts.html",
         {"request": request, "contacts": users_in_contacts}
@@ -4190,7 +4210,6 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
     return result
 
 
-# Добавляет новое сообщение в базу данных
 # Добавляет новое сообщение в базу данных и отправляет уведомление через WebSocket
 async def send_message(dialog_id: int, sender_id: int, message: str):
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
@@ -4227,22 +4246,24 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
         # Обработка случая, когда сообщение не было вставлено
         logging.error("Failed to insert message into the database.")
 
-async def update_message(message_id: int, new_message: str) -> bool:
+
+async def update_message(message_id: int, new_message: str, new_file_id: int = None, new_file_path: str = None) -> bool:
     logging.info(f"Attempting to update message with ID: {message_id}, New message: {new_message}")
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     try:
+        # Обновление сообщения с новым файлом, если он предоставлен
         await cur.execute("""
             UPDATE DialogMessages
-            SET message = %s
+            SET message = %s, file_id = %s, file_path = %s
             WHERE id = %s
-        """, (new_message, message_id))
+        """, (new_message, new_file_id, new_file_path, message_id))
         await conn.commit()
         logging.info("Message update successful")
         return True
     except Exception as e:
         logging.error(f"Failed to update message: {e}")
-        logging.error("Exception details:", exc_info=True)  # Добавлено для более детального логирования
+        logging.error("Exception details:", exc_info=True)
         return False
     finally:
         await cur.close()
@@ -4311,6 +4332,7 @@ async def update_last_online(user_id: int):
 # Обработчик отправки сообщения в диалог
 @app.post("/dialogs/{dialog_id}/send_message")
 async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file: UploadFile = File(None),
+                                 message_id_for_edit: int = Form(None),
                                  current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
@@ -4331,12 +4353,18 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
         file_content = await file.read()
         file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
 
-    # Формирование текста сообщения
+    message_content = message if message else ""
     if file_id:
-        message = f'[[FILE]]File ID: {file_id}, File Path: {file.filename}[[/FILE]]'
+        file_info = f'[[FILE]]File ID: {file_id}, File Path: {file.filename}[[/FILE]]'
+        message_content = f'{message_content}{file_info}'
 
-    # Сохранение сообщения в базу данных (предполагается, что эта функция уже реализована)
-    await send_message(dialog_id, sender_id, message)
+    if message_id_for_edit:
+        # Логика для редактирования сообщения
+        await update_message(message_id_for_edit, message_content, new_file_id=file_id,
+                             new_file_path=file.filename if file_id else None)
+    else:
+        # Сохранение сообщения в базу данных
+        await send_message(dialog_id, sender_id, message_content)
 
     # Обновление времени последнего онлайна пользователя
     await update_last_online(sender_id)
@@ -4632,8 +4660,9 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-# Запуск метода keep_alive в фоне
 
+
+# Запуск метода keep_alive в фоне
 
 
 # Функция, которая будет отправлять обновленное число участников:
@@ -4827,7 +4856,6 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         raise
 
 
-
 async def handle_heartbeat(websocket: WebSocket, last_heartbeat, interval=30):
     current_time = datetime.utcnow()
     if (current_time - last_heartbeat).seconds >= interval:
@@ -4885,17 +4913,18 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
             elif action == 'send_message':
                 message = received_data.get('message')
                 file_name = received_data.get('file')
-
+                # Проверяем, есть ли файл и формируем сообщение
                 file_content = None
                 file_extension = None
-
                 file_id = None
                 if file_name and file_content and file_extension:
                     file_id = await save_file(user.phone_number, file_name, file_content, file_extension)
-
+                    file_info = f'[[FILE]]File ID: {file_id}, File Path: {file_name}[[/FILE]]'
+                    message = f"{message}\n{file_info}" if message else file_info
                 dialog_id = int(room_name.split('_')[1])
                 current_user = user
                 await handle_dialog_message(dialog_id, message, current_user, file_id=file_id, file_path=file_name)
+
 
             elif action == 'delete_message':
                 message_id = received_data.get('message_id')
@@ -4908,8 +4937,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                         delete_status = await delete_message_by_id(message_id)
                     else:
                         # Логика удаления сообщений из чата
+                        logging.info(f"Deleting message in chat: {room_name}, message_id: {message_id}")
                         delete_status = await delete_message_from_db(message_id)
-
                     if delete_status:
                         # Если удаление прошло успешно, отправляем сообщение всем участникам комнаты
                         await manager.broadcast({"action": "message_deleted", "message_id": message_id}, room=room_name)
@@ -4922,7 +4951,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                 new_text = received_data.get('new_text')
                 if message_id and new_text:
                     update_status = await update_message(message_id, new_text)
-                    logging.info(f"Update status for message ID {message_id}: {update_status}")  # Добавлено логирование статуса
+                    logging.info(
+                        f"Update status for message ID {message_id}: {update_status}")  # Добавлено логирование статуса
                     if update_status:
                         # Если обновление прошло успешно, отправляем обновленное сообщение в комнату
                         await manager.broadcast(
