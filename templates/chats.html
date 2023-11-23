@@ -7,9 +7,9 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         body {
-            background-color: #ECE5DD;
+            background-color: rgba(211, 211, 211, 0.2);
             font-family: Times New Roman, sans-serif;
-        {#overflow: hidden;#}
+            {#overflow: hidden;#}
         }
 
         .left-panel {
@@ -21,7 +21,7 @@
 
         .right-panel {
             /* Изменим цвет фона на бежевый */
-            background-color: #F5ECE5;
+            background-color: white;
             height: 100vh;
             padding: 20px;
         }
@@ -159,13 +159,29 @@
         .scrollable-content::-webkit-scrollbar-track {
             background-color: transparent;
         }
+        .username {
+            font-family: Roboto, serif;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 400;
+            line-height: 16px;
+        }
+
+        .last_message {
+            font-family: Roboto, serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 400;
+            line-height: 16px;
+            color: #928F8F;
+        }
     </style>
 </head>
 <body>
 <div class="container-fluid">
     <div class="row">
         <!-- Left Panel -->
-        <div class="col-md-3 left-panel" style="min-width: 429px;">
+        <div class="col-md-3 left-panel pb-0" style="min-width: 429px;">
             <!-- Profile Section -->
             <div class="d-flex align-items-center mb-4">
                 <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic"
@@ -232,7 +248,7 @@
             <div class="scrollable-content" style="padding-bottom: 55px;">
                 <div class="dialogs-list">
                     {% for dialog in dialogs %}
-                        <div class="container border-bottom mb-2 clickable-dialog flex-container"
+                        <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
                              data-dialog-id="{{ dialog.id }}">
                             <!-- Фото собеседника -->
                             <div class="profile-picture-container">
@@ -243,7 +259,7 @@
                             <!-- Информация о диалоге -->
                             <div class="dialogs-item small-title flex-grow">
                                 <div>
-                                    <strong>{{ dialog.user_fio }}</strong>
+                                    <strong class="username">{{ dialog.user_fio }}</strong>
                                 </div>
                                 <div>
                                     <!-- Последнее сообщение -->
@@ -251,12 +267,12 @@
                                         {% set file_message_parts = dialog.last_message.split('[[FILE]]') %}
                                         {% if ', ' in file_message_parts[1] %}
                                             {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                                            <small>{{ file_info_parts[1].split(': ')[1] }}</small>
+                                            <small class="last_message">{{ file_info_parts[1].split(': ')[1] }}</small>
                                         {% endif %}
                                     {% else %}
                                         {% set short_message = dialog.last_message[:25] + "..." if dialog.last_message|length >
                                 25 else dialog.last_message %}
-                                        <small>{{ short_message }}</small>
+                                        <small class="last_message">{{ short_message }}</small>
                                     {% endif %}
                                 </div>
                             </div>
@@ -270,10 +286,9 @@
                     {% endfor %}
                 </div>
 
-                <h2 class="small-header">Ваши группы</h2>
                 <div class="chat-list">
                     {% for chat in chats %}
-                        <div class="container border-bottom mb-2 clickable-chat flex-container"
+                        <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container"
                              data-chat-id="{{ chat.id }}">
                             <!-- Фото чата -->
                             <div class="profile-picture-container">
@@ -283,7 +298,7 @@
                             <!-- Информация о чате -->
                             <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column;">
                                 <div style="flex: 1;">
-                                    <strong><h3>{{ chat['chat_name'] }}</h3></strong>
+                                    <strong class="username">{{ chat['chat_name'] }}</strong>
                                     <!-- Название группы жирным текстом -->
                                     {% if chat['id'] in left_chats %}
                                         <p>Вы покинули чат</p>
@@ -294,14 +309,15 @@
                                         {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
                                         {% if ', ' in file_message_parts[1] %}
                                             {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                                            <p>
-                                                <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ file_info_parts[1].split(': ')[1] }}
+                                            <p class="last_message">
+                                                <strong class="last_message">{{ chat['last_message_sender_phone'] }}</strong class="last_message">: {{ file_info_parts[1].split(': ')[1] }}
                                             </p>
                                             <!-- Никнейм пользователя жирным текстом -->
                                         {% endif %}
                                     {% else %}
                                         <p>
-                                            <strong>{{ chat['last_message_sender_phone'] }}</strong>: {{ chat['last_message'] }}
+                                            <strong class="last_message" style="font-weight: 500">{{ chat['last_message_sender_phone'] }}</strong>
+                                            <strong class="last_message">: {{ chat['last_message'] }}</strong>
                                         </p> <!-- Никнейм пользователя жирным текстом -->
                                     {% endif %}
                                 </div>
@@ -502,7 +518,7 @@
     function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -869,7 +885,7 @@
     function initializeChatJS(chatId) {
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);

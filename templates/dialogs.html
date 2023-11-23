@@ -8,7 +8,7 @@
     <style>
         /*Устанавливает фон всей страницы на светло-серый и задает основной шрифт*/
         body {
-            background-color: #ECE5DD;
+            background-color: rgba(211, 211, 211, 0.2);
             font-family: Times New Roman, sans-serif;
         }
 
@@ -19,7 +19,7 @@
 
         /*Устанавливает высоту контейнера сообщений и делает его прокручиваемым по вертикали.*/
         .messages-container {
-            height: calc(50vh - 100px);
+            height: calc(85vh - 100px);
             overflow-y: auto;
         }
 
@@ -58,7 +58,8 @@
         /* Устанавливает фон, отступы и скругление углов для блока содержимого каждого сообщения. */
         .message-item .message-content {
             position: relative;
-            background-color: #ffffff;
+            background-color: rgba(42, 136, 185, 0.1);
+            color: black;
             padding: 10px;
             border-radius: 10px;
             margin-right: 30px; /* Добавлено место для иконки выпадающего меню */
@@ -67,8 +68,8 @@
 
         /*Определяет стиль для сообщений, отправленных пользователем, с зеленым фоном и белым текстом.*/
         .message-item.user .message-content {
-            background-color: #37b612;
-            color: #ffffff;
+            background-color: #2A88B9;
+            color: white;
             margin: 5px;
             justify-content: flex-end;
         }
@@ -150,18 +151,49 @@
             background-color: #ddd;
         }
 
+        .username {
+            font-family: Roboto, serif;
+            font-size: 18px;
+            font-style: normal;
+            font-weight: 500;
+            line-height: 16px;
+            color: black;
+        }
+
+        .last_online {
+            font-family: Roboto, serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 400;
+            line-height: 16px;
+            color: #928F8F;
+        }
+
+        .textarea {
+            border: none;
+            outline: none;
+            font-family: Roboto, serif;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 400;
+            line-height: 16px;
+        }
     </style>
 </head>
 <body>
 <div class="container mt-0">
-    <div class="interlocutor-info mb-4">
+    <div class="interlocutor-info mb-0 pb-0">
         <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}" alt="Interlocutor's profile picture"
              width="50" height="50">
-        <div class="interlocutor-details">
-            <h5> <a href="/profile/{{ dialog.interlocutor_phone_number }}" style="text-decoration: none"> {{ dialog.user_fio }} </a></h5>
-            <small>Онлайн: {{ dialog.last_online }}</small>
+        <div class="interlocutor-details" style="margin-left: 8px">
+            <h5 class="username" style="margin-bottom: 0"><a href="/profile/{{ dialog.interlocutor_phone_number }}"
+                                                             style="text-decoration: none; color: black"> {{ dialog.user_fio }} </a>
+            </h5>
+            <small class="last_online">Онлайн: {{ dialog.last_online }}</small>
         </div>
+        <hr class="my-0">
     </div>
+    <hr>
     <div class="mt-4 messages-container">
         <ul class="list-group">
             {% for message in messages %}
@@ -213,26 +245,55 @@
     </div>
 </div>
 
-
-<div class="mt-4">
-    <form id="message-form">
+<div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle">
+    <form id="message-form" style="padding-top: 10px">
         <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
         <input type="hidden" name="sender_id" value="{{ current_user.id }}">
-        <div class="form-group">
-            <textarea name="message" class="form-control" rows="4"></textarea>
+        <div class="row">
+            <div class="col-md-1" style="padding: 0">
+                <div class="form-group">
+                    <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer;" multiple>
+                </div>
+            </div>
+            <div class="col-md-11" style="padding: 0">
+                <div class="form-group">
+                    <textarea name="message" id="message-input" class="form-control textarea"
+                              placeholder="Введите сообщение" rows="1" style="resize: none;"></textarea>
+                </div>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="file">Attach files (up to 10):</label>
-            <input type="file" id="file" name="file" class="form-control-file" multiple>
-        </div>
-        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
+
+        {#        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>#}
     </form>
 </div>
-<div class="mt-4">
-    <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
-</div>
-</div>
+{#<div class="mt-4">#}
+{#    <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>#}
+{#</div>#}
+
 <script>
+    document.getElementById('message-input').addEventListener('keypress', function (event) {
+        // Проверяем, была ли нажата клавиша Enter
+        if (event.key === 'Enter') {
+            // Отменяем стандартное поведение (предотвращаем перенос строки)
+            event.preventDefault();
+            // Вызываем функцию, которая обрабатывает отправку формы
+            submitForm();
+        }
+    });
+
+    // Добавляем обработчик события для кнопки отправки
+    document.getElementById('send-button').addEventListener('click', function (event) {
+        // Отменяем стандартное поведение кнопки, чтобы форма не отправлялась дважды
+        event.preventDefault();
+        // Вызываем функцию, которая обрабатывает отправку формы
+        submitForm();
+    });
+
+    function submitForm() {
+        // Получаем форму по её ID и вызываем метод submit()
+        document.getElementById('message-form').submit();
+    }
+
     // {#    document.addEventListener('DOMContentLoaded', function () {#}
     // {#        const dialogId = "{{ dialog.id }}";#}
     // {#        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));#}
