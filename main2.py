@@ -4269,6 +4269,21 @@ async def update_message(message_id: int, new_message: str, new_file_id: int = N
         await cur.close()
         conn.close()
 
+async def update_chat_message(message_id: int, new_message: str) -> bool:
+    logging.info(f"Attempting to update chat message with ID: {message_id}")
+
+    query = chatmessages.update().\
+            where(chatmessages.c.id == message_id).\
+            values(message=new_message)
+    try:
+        await database.execute(query)
+        logging.info("Chat message update successful")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to update chat message: {e}")
+        return False
+
+
 
 # Общая функция для получения данных о диалоге и сообщениях
 async def get_dialog_and_messages(dialog_id: int, current_user):

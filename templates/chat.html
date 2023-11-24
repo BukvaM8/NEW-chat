@@ -52,10 +52,6 @@
             z-index: 1;
         }
 
-        .message-item:hover {
-            z-index: 10;
-        }
-
         .message-item.user {
             justify-content: flex-end;
         }
@@ -83,9 +79,9 @@
 
         /* Стилизация блока сообщения для обеспечения переноса текста и ограничения ширины */
         .message-item .message-content, .message-self {
-            word-wrap: break-word; /* Разрешаем перенос слов */
-            max-width: 50%; /* Ограничиваем ширину до 50% контейнера сообщений */
-            overflow-wrap: break-word; /* Обеспечиваем перенос длинных слов */
+            word-wrap: break-word;
+            max-width: 50%;
+            overflow-wrap: break-word;
         }
 
         /* Стиль для текстовой области с автоматическим переносом текста */
@@ -101,26 +97,14 @@
 
         .message-dropdown {
             position: absolute;
-            top: 0;
-            right: -150px; /* Расположите выпадающий список за пределами сообщения */
-            width: 150px; /* Установите ширину выпадающего списка */
-            transition: right 0.3s ease; /* Плавный переход при активации */
-            visibility: hidden; /* Скройте изначально */
+            top: 5px;
+            right: -1px;
+            z-index: 10;
+            visibility: hidden;
         }
-
-        .message-item:hover .message-dropdown {
-            right: 0; /* Переместите выпадающий список на видимую область при наведении */
-            visibility: visible; /* Сделайте видимым */
-        }
-
-        .message-dropdown:hover .message-options,
-        .message-options-icon.active + .message-options {
-            display: block;
-        }
-
 
         .message-options-icon {
-            width: 20px; /* изменено для уменьшения размера иконки */
+            width: 20px;
             height: 20px;
         }
 
@@ -128,34 +112,40 @@
             display: none;
             position: absolute;
             right: 0;
-            top: 20px; /* изменено для расположения ниже иконки */
+            top: 20px;
             background-color: #f9f9f9;
             border: 1px solid #ccc;
-            z-index: 12;
-            /* остальные стили */
+            border-radius: 5px;
+            z-index: 1000;
+            padding: 5px 0;
         }
 
-        .message-dropdown:hover .message-options {
-            display: block;
+        .message-item:hover .message-dropdown {
+            visibility: visible;
+        }
+
+        .message-item .message-content:hover .message-dropdown {
+            visibility: visible;
         }
 
         .message-options button {
-            width: 100%;
-            padding: 10px;
-            border: none;
             background-color: transparent;
+            border: none;
+            width: 100%;
+            padding: 5px 10px;
             text-align: left;
             cursor: pointer;
-            border-top: 1px solid #ccc; /* Добавлена верхняя граница */
+            border-bottom: 1px solid #ccc;
         }
 
-        .message-options button:first-child {
-            border-top: none; /* Удалена верхняя граница у первой кнопки */
+        .message-options button:last-child {
+            border-bottom: none;
         }
 
         .message-options button:hover {
             background-color: #ddd;
         }
+
 
         .drawer {
             z-index: 1000;
@@ -262,14 +252,14 @@
 
     <!-- Остальные действия -->
     {% if chat.owner_phone_number == current_user.phone_number %}
-        <a href="/chat/{{ chat.id }}/members/add" class="btn btn-primary">Пригласить</a>
-        <form action="/chats/{{ chat.id }}/delete" method="post">
-            <button type="submit" class="btn btn-danger">Удалить чат</button>
-        </form>
+    <a href="/chat/{{ chat.id }}/members/add" class="btn btn-primary">Пригласить</a>
+    <form action="/chats/{{ chat.id }}/delete" method="post">
+        <button type="submit" class="btn btn-danger">Удалить чат</button>
+    </form>
     {% else %}
-        <form action="/chats/{{ chat.id }}/leave" method="post">
-            <button type="submit" class="btn btn-warning">Покинуть чат</button>
-        </form>
+    <form action="/chats/{{ chat.id }}/leave" method="post">
+        <button type="submit" class="btn btn-warning">Покинуть чат</button>
+    </form>
     {% endif %}
     <a href="/chat/{{ chat.id }}/members" id="member-count" class="btn btn-info">{{ members|length }} участников</a>
 
@@ -283,57 +273,57 @@
     <!-- Список сообщений -->
     <ul class="messages-list" id="chat-history">
         {% for message in messages %}
-            <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
-                 data-message-id="{{ message.id }}">
-                <div class="message-content">
-                    <div class="message-header">
-                        {% if message.sender_phone_number == "deleted" %}
-                            <h4>Deleted message</h4>
-                        {% else %}
-                            <a href="/profile/{{ message.sender_nickname }}"><h4>{{ message.sender_nickname }}</h4></a>
-                        {% endif %}
+        <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
+             data-message-id="{{ message.id }}">
+            <div class="message-content">
+                <div class="message-header">
+                    {% if message.sender_phone_number == "deleted" %}
+                    <h4>Deleted message</h4>
+                    {% else %}
+                    <a href="/profile/{{ message.sender_nickname }}"><h4>{{ message.sender_nickname }}</h4></a>
+                    {% endif %}
 
-                        <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
-                        <div class="message-dropdown">
-                            {% if message.sender_phone_number != "deleted" %}
-                                <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
-                                <div class="message-options">
-                                    {% if chat.owner_phone_number == current_user.phone_number or message.sender_phone_number ==
+                    <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
+                    <div class="message-dropdown">
+                        {% if message.sender_phone_number != "deleted" %}
+                        <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
+                        <div class="message-options">
+                            {% if chat.owner_phone_number == current_user.phone_number or message.sender_phone_number ==
                             current_user.phone_number %}
-                                        <button class="delete-message-button">Удалить сообщение</button>
-                                    {% endif %}
-                                    <button class="forward-message">Переслать</button>
-                                    {% if message.sender_phone_number == current_user.phone_number %}
-                                        <button class="edit-message">Изменить</button>
-                                    {% endif %}
-                                </div>
+                            <button class="delete-message-button">Удалить сообщение</button>
+                            {% endif %}
+                            <button class="forward-message">Переслать</button>
+                            {% if message.sender_phone_number == current_user.phone_number %}
+                            <button class="edit-message">Изменить</button>
                             {% endif %}
                         </div>
-
+                        {% endif %}
                     </div>
 
-                    <p>
-                        <!-- Обработка вложенных файлов в сообщении -->
-                        {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
-                            {% set raw_message = message.message.split('[[FILE]]') %}
-                            {{ raw_message[0] }}
-                            {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
-                            {% if ', ' in file_info %}
-                                {% set file_id_info, file_name_info = file_info.split(', ') %}
-                            {% else %}
-                                {% set file_id_info = file_info %}
-                                {% set file_name_info = "Unknown" %}
-                            {% endif %}
-                            {% set file_id = file_id_info.split(': ')[1] if ': ' in file_id_info else file_id_info %}
-                            {% set file_name = file_name_info.split(': ')[1] if ': ' in file_name_info else file_name_info %}
-                            <a href="/files/{{ file_id }}">{{ file_name }}</a>
-                        {% else %}
-                            {{ message.message }}
-                        {% endif %}
-                    </p>
-                    <small>Отправлено: {{ message.timestamp }}</small>
                 </div>
+
+                <p>
+                    <!-- Обработка вложенных файлов в сообщении -->
+                    {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+                    {% set raw_message = message.message.split('[[FILE]]') %}
+                    {{ raw_message[0] }}
+                    {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
+                    {% if ', ' in file_info %}
+                    {% set file_id_info, file_name_info = file_info.split(', ') %}
+                    {% else %}
+                    {% set file_id_info = file_info %}
+                    {% set file_name_info = "Unknown" %}
+                    {% endif %}
+                    {% set file_id = file_id_info.split(': ')[1] if ': ' in file_id_info else file_id_info %}
+                    {% set file_name = file_name_info.split(': ')[1] if ': ' in file_name_info else file_name_info %}
+                    <a href="/files/{{ file_id }}">{{ file_name }}</a>
+                    {% else %}
+                    {{ message.message }}
+                    {% endif %}
+                </p>
+                <small>Отправлено: {{ message.timestamp }}</small>
             </div>
+        </div>
         {% endfor %}
     </ul>
 </div>
@@ -363,236 +353,235 @@
     </form>
 </div>
 
-<script>
-    // Функция для открытия и закрытия "шторки"
-    function toggleDrawer() {
-        const drawer = document.getElementById('chatDrawer');
-        drawer.classList.toggle('open');
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const interlocutorInfo = document.querySelector('.interlocutor-info');
-        interlocutorInfo.addEventListener('click', toggleDrawer);
-
-        const chatImage = document.getElementById('chatImage');
-        const changePhotoButton = document.getElementById("change-photo-button");
-        const photoUpload = document.getElementById("photo-upload");
-        const chatId = "{{ chat.id }}";
-
-        changePhotoButton.addEventListener("click", function () {
-            photoUpload.click();
-        });
-
-        photoUpload.addEventListener("change", function (event) {
-            const fileInput = event.target;
-
-            if (fileInput.files && fileInput.files[0]) {
-                const formData = new FormData();
-                formData.append("new_picture", fileInput.files[0]);
-                fetch(`/chats/${chatId}/change_picture`, {
-                    method: "POST",
-                    body: formData,
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === "picture updated") {
-                            const readerForDrawer = new FileReader();
-                            readerForDrawer.onload = function (e) {
-                                chatImage.src = e.target.result;
-                            };
-                            readerForDrawer.readAsDataURL(fileInput.files[0]);
-
-                            const readerForContainer = new FileReader();
-                            const interlocutorImage = document.querySelector('.interlocutor-info img');
-                            readerForContainer.onload = function (e) {
-                                interlocutorImage.src = e.target.result;
-                            };
-                            readerForContainer.readAsDataURL(fileInput.files[0]);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                    });
-            }
-        });
-
-        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-        const access_token = cookie ? cookie.split('=')[1] : null;
-        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
-
-        ws.onopen = function (event) {
-            console.log("WebSocket connection opened.", event);
-            ws.send(JSON.stringify({
-                "action": "init_connection",
-                "chat_id": chatId,
-                "access_token": access_token
-            }));
-        };
-
-        ws.onclose = function (event) {
-            console.log("WebSocket connection closed:", event);
-        };
-
-        ws.onerror = function (error) {
-            console.log(`WebSocket Error: ${error}`);
-        };
-
-        ws.onmessage = function (event) {
-            const messageData = JSON.parse(event.data);
-            const action = messageData.action;
-
-            if (action === 'new_token') {
-                document.cookie = "access_token=" + messageData.token;
-            } else if (action === 'update_member_count') {
-                document.getElementById('member-count').textContent = messageData.count + " участников";
-            } else if (action === 'message_deleted') {
-                const messageId = messageData.message_id;
-                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
-                if (messageElement) {
-                    messageElement.remove();
-                }
-            } else {
-                if (messageData.message && messageData.sender_phone_number) {
-                    const messagesList = document.getElementById('chat-history');
-                    const newMessageItem = document.createElement('div');
-                    newMessageItem.className = "message-item";
-                    if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
-                        newMessageItem.className += " user";
-                    }
-
-                    const messageContent = document.createElement('div');
-                    messageContent.className = "message-content";
-                    const nicknameElement = document.createElement("h4");
-                    nicknameElement.innerText = messageData.sender_nickname || "Unknown";
-                    messageContent.appendChild(nicknameElement);
-                    const messageTextElement = document.createElement('p');
-                    messageTextElement.innerText = messageData.message;
-                    messageContent.appendChild(messageTextElement);
-                    const timeElement = document.createElement("small");
-                    timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                    messageContent.appendChild(timeElement);
-                    newMessageItem.appendChild(messageContent);
-                    messagesList.appendChild(newMessageItem);
-                } else {
-                    console.warn('Неожиданный формат сообщения: ', messageData);
-                }
-            }
-        };
-
-
-        const optionIcons = document.querySelectorAll('.message-options-icon');
-        optionIcons.forEach(function (icon) {
-            icon.addEventListener('click', function () {
-                const messageOptions = icon.nextElementSibling;
-                messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
-            });
-        });
-
-        const deleteButtons = document.querySelectorAll('.delete-message');
-        deleteButtons.forEach(function (button) {
-            button.addEventListener('click', function () {
-                const messageId = button.closest('.message-item').getAttribute('data-message-id');
-                ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
-            });
-        });
-
-        const messageForm = document.querySelector('form[action*="/send_message"]');
-        messageForm.addEventListener('submit', function (event) {
-            event.preventDefault();
-            const formData = new FormData(messageForm);
-            fetch(messageForm.action, {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        messageForm.reset();
-                    }
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                });
-        });
-    });
-</script>
+<!--        {#        <script>#}-->
+<!--        {#            // Функция для открытия и закрытия "шторки"#}-->
+<!--        {#            function toggleDrawer() {#}-->
+<!--        {#                const drawer = document.getElementById('chatDrawer');#}-->
+<!--        {#                drawer.classList.toggle('open');#}-->
+<!--        {#            }#}-->
+<!--        {##}-->
+<!--        {#            document.addEventListener('DOMContentLoaded', function () {#}-->
+<!--        {#                const interlocutorInfo = document.querySelector('.interlocutor-info');#}-->
+<!--        {#                interlocutorInfo.addEventListener('click', toggleDrawer);#}-->
+<!--        {##}-->
+<!--        {#                const chatImage = document.getElementById('chatImage');#}-->
+<!--        {#                const changePhotoButton = document.getElementById("change-photo-button");#}-->
+<!--        {#                const photoUpload = document.getElementById("photo-upload");#}-->
+<!--        {#                const chatId = "{{ chat.id }}";#}-->
+<!--        {##}-->
+<!--        {#                changePhotoButton.addEventListener("click", function () {#}-->
+<!--        {#                    photoUpload.click();#}-->
+<!--        {#                });#}-->
+<!--        {##}-->
+<!--        {#                photoUpload.addEventListener("change", function (event) {#}-->
+<!--        {#                    const fileInput = event.target;#}-->
+<!--        {##}-->
+<!--        {#                    if (fileInput.files && fileInput.files[0]) {#}-->
+<!--        {#                        const formData = new FormData();#}-->
+<!--        {#                        formData.append("new_picture", fileInput.files[0]);#}-->
+<!--        {#                        fetch(`/chats/${chatId}/change_picture`, {#}-->
+<!--        {#                            method: "POST",#}-->
+<!--        {#                            body: formData,#}-->
+<!--        {#                        })#}-->
+<!--        {#                            .then(response => response.json())#}-->
+<!--        {#                            .then(data => {#}-->
+<!--        {#                                if (data.status === "picture updated") {#}-->
+<!--        {#                                    const readerForDrawer = new FileReader();#}-->
+<!--        {#                                    readerForDrawer.onload = function (e) {#}-->
+<!--        {#                                        chatImage.src = e.target.result;#}-->
+<!--        {#                                    };#}-->
+<!--        {#                                    readerForDrawer.readAsDataURL(fileInput.files[0]);#}-->
+<!--        {##}-->
+<!--        {#                                    const readerForContainer = new FileReader();#}-->
+<!--        {#                                    const interlocutorImage = document.querySelector('.interlocutor-info img');#}-->
+<!--        {#                                    readerForContainer.onload = function (e) {#}-->
+<!--        {#                                        interlocutorImage.src = e.target.result;#}-->
+<!--        {#                                    };#}-->
+<!--        {#                                    readerForContainer.readAsDataURL(fileInput.files[0]);#}-->
+<!--        {#                                }#}-->
+<!--        {#                            })#}-->
+<!--        {#                            .catch(error => {#}-->
+<!--        {#                                console.error('Error:', error);#}-->
+<!--        {#                            });#}-->
+<!--        {#                    }#}-->
+<!--        {#                });#}-->
+<!--        {##}-->
+<!--        {#                const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));#}-->
+<!--        {#                const access_token = cookie ? cookie.split('=')[1] : null;#}-->
+<!--        {#                const ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);#}-->
+<!--        {##}-->
+<!--        {#                ws.onopen = function (event) {#}-->
+<!--        {#                    console.log("WebSocket connection opened.", event);#}-->
+<!--        {#                    ws.send(JSON.stringify({#}-->
+<!--        {#                        "action": "init_connection",#}-->
+<!--        {#                        "chat_id": chatId,#}-->
+<!--        {#                        "access_token": access_token#}-->
+<!--        {#                    }));#}-->
+<!--        {#                };#}-->
+<!--        {##}-->
+<!--        {#                ws.onclose = function (event) {#}-->
+<!--        {#                    console.log("WebSocket connection closed:", event);#}-->
+<!--        {#                };#}-->
+<!--        {##}-->
+<!--        {#                ws.onerror = function (error) {#}-->
+<!--        {#                    console.log(`WebSocket Error: ${error}`);#}-->
+<!--        {#                };#}-->
+<!--        {##}-->
+<!--        {#                ws.onmessage = function (event) {#}-->
+<!--        {#                    const messageData = JSON.parse(event.data);#}-->
+<!--        {#                    const action = messageData.action;#}-->
+<!--        {##}-->
+<!--        {#                    if (action === 'new_token') {#}-->
+<!--        {#                        document.cookie = "access_token=" + messageData.token;#}-->
+<!--        {#                    } else if (action === 'update_member_count') {#}-->
+<!--        {#                        document.getElementById('member-count').textContent = messageData.count + " участников";#}-->
+<!--        {#                    } else if (action === 'message_deleted') {#}-->
+<!--        {#                        const messageId = messageData.message_id;#}-->
+<!--        {#                        const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);#}-->
+<!--        {#                        if (messageElement) {#}-->
+<!--        {#                            messageElement.remove();#}-->
+<!--        {#                        }#}-->
+<!--        {#                    } else {#}-->
+<!--        {#                        if (messageData.message && messageData.sender_phone_number) {#}-->
+<!--        {#                            const messagesList = document.getElementById('chat-history');#}-->
+<!--        {#                            const newMessageItem = document.createElement('div');#}-->
+<!--        {#                            newMessageItem.className = "message-item";#}-->
+<!--        {#                            if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {#}-->
+<!--        {#                                newMessageItem.className += " user";#}-->
+<!--        {#                            }#}-->
+<!--        {##}-->
+<!--        {#                            const messageContent = document.createElement('div');#}-->
+<!--        {#                            messageContent.className = "message-content";#}-->
+<!--        {#                            const nicknameElement = document.createElement("h4");#}-->
+<!--        {#                            nicknameElement.innerText = messageData.sender_nickname || "Unknown";#}-->
+<!--        {#                            messageContent.appendChild(nicknameElement);#}-->
+<!--        {#                            const messageTextElement = document.createElement('p');#}-->
+<!--        {#                            messageTextElement.innerText = messageData.message;#}-->
+<!--        {#                            messageContent.appendChild(messageTextElement);#}-->
+<!--        {#                            const timeElement = document.createElement("small");#}-->
+<!--        {#                            timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");#}-->
+<!--        {#                            messageContent.appendChild(timeElement);#}-->
+<!--        {#                            newMessageItem.appendChild(messageContent);#}-->
+<!--        {#                            messagesList.appendChild(newMessageItem);#}-->
+<!--        {#                        } else {#}-->
+<!--        {#                            console.warn('Неожиданный формат сообщения: ', messageData);#}-->
+<!--        {#                        }#}-->
+<!--        {#                    }#}-->
+<!--        {#                };#}-->
+<!--        {##}-->
+<!--        {##}-->
+<!--        {#                const optionIcons = document.querySelectorAll('.message-options-icon');#}-->
+<!--        {#                optionIcons.forEach(function (icon) {#}-->
+<!--        {#                    icon.addEventListener('click', function () {#}-->
+<!--        {#                        const messageOptions = icon.nextElementSibling;#}-->
+<!--        {#                        messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';#}-->
+<!--        {#                    });#}-->
+<!--        {#                });#}-->
+<!--        {##}-->
+<!--        {#                const deleteButtons = document.querySelectorAll('.delete-message');#}-->
+<!--        {#                deleteButtons.forEach(function (button) {#}-->
+<!--        {#                    button.addEventListener('click', function () {#}-->
+<!--        {#                        const messageId = button.closest('.message-item').getAttribute('data-message-id');#}-->
+<!--        {#                        ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));#}-->
+<!--        {#                    });#}-->
+<!--        {#                });#}-->
+<!--        {##}-->
+<!--        {#                const messageForm = document.querySelector('form[action*="/send_message"]');#}-->
+<!--        {#                messageForm.addEventListener('submit', function (event) {#}-->
+<!--        {#                    event.preventDefault();#}-->
+<!--        {#                    const formData = new FormData(messageForm);#}-->
+<!--        {#                    fetch(messageForm.action, {#}-->
+<!--        {#                        method: 'POST',#}-->
+<!--        {#                        body: formData#}-->
+<!--        {#                    })#}-->
+<!--        {#                        .then(response => response.json())#}-->
+<!--        {#                        .then(data => {#}-->
+<!--        {#                            if (data.success) {#}-->
+<!--        {#                                messageForm.reset();#}-->
+<!--        {#                            }#}-->
+<!--        {#                        })#}-->
+<!--        {#                        .catch((error) => {#}-->
+<!--        {#                            console.error('Error:', error);#}-->
+<!--        {#                        });#}-->
+<!--        {#                });#}-->
+<!--        {#            });#}-->
+<!--        {#        </script>#}-->
 </body>
 </html>
 
+<!--    &lt;!&ndash; Добавленная секция для отображения опросов &ndash;&gt;-->
+<!--    {% for poll in polls %}-->
+<!--    <div id="poll-{{ poll.id }}" class="poll card">-->
+<!--        <div class="card-header">-->
+<!--            Опрос: {{ poll.question }}-->
+<!--        </div>-->
+<!--        <div class="card-body">-->
+<!--            {% if poll.user_voted %}-->
+<!--            <ul class="list-group">-->
+<!--                {% for option_id, option in poll.options.items() %}-->
+<!--                <li class="list-group-item d-flex justify-content-between align-items-center">-->
+<!--                    {{ option }}-->
+<!--                    <span class="badge badge-primary badge-pill">{{ poll_results[poll.id][option_id][1]|round(2) }}% ({{ poll_results[poll.id][option_id][0] }} голосов)</span>-->
+<!--                </li>-->
+<!--                {% endfor %}-->
+<!--            </ul>-->
+<!--            {% else %}-->
+<!--            <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/vote" method="post">-->
+<!--                {% for option_id, option in poll.options.items() %}-->
+<!--                <div class="form-check">-->
+<!--                    <input class="form-check-input" type="radio" name="option_id" id="option-{{ option_id }}"-->
+<!--                           value="{{ option_id }}">-->
+<!--                    <label class="form-check-label" for="option-{{ option_id }}">-->
+<!--                        {{ option }}-->
+<!--                    </label>-->
+<!--                </div>-->
+<!--                {% endfor %}-->
+<!--                &lt;!&ndash; Добавление скрытого поля для номера телефона голосующего &ndash;&gt;-->
+<!--                <input type="hidden" name="voter_phone_number" value="{{ current_user.phone_number }}">-->
+<!--                <button type="submit" class="btn btn-primary">Проголосовать</button>-->
+<!--            </form>-->
+<!--            {% endif %}-->
+<!--        </div>-->
+<!--    </div>-->
+<!--    {% endfor %}-->
+<!--    &lt;!&ndash; Конец добавленной секции &ndash;&gt;-->
+<!--        &lt;!&ndash; Poll creation form &ndash;&gt;-->
+<!--        <button onclick="document.getElementById('poll-form').style.display='block'">Создать опрос</button>-->
+<!--        <div id="poll-form" style="display: none;">-->
+<!--            <input type="hidden" name="creator_phone_number" value="{{ current_user.phone_number }}">-->
+<!--            <label for="poll-question">Вопрос:</label>-->
+<!--            <input type="text" id="poll-question" name="question"><br>-->
+<!--            <div id="poll-options">-->
+<!--                <label for="pollInput">Варианты ответа:</label>-->
+<!--                <input type="text" id="pollInput" name="options"><br>-->
+<!--            </div>-->
+<!--            <button type="button" onclick="addOption()">Добавить вариант ответа</button>-->
+<!--            <button type="button" onclick="createPoll()">Создать</button>-->
+<!--        </div>-->
+<!--        {% endif %}-->
+<!--    </div>-->
+<!--</div>div-->
 
-{#<!--    &lt;!&ndash; Добавленная секция для отображения опросов &ndash;&gt;-->#}
-{#<!--    {% for poll in polls %}-->#}
-{#    <!--    <div id="poll-{{ poll.id }}" class="poll card">-->#}
-{#    <!--        <div class="card-header">-->#}
-{#    <!--            Опрос: {{ poll.question }}-->#}
-{#    <!--        </div>-->#}
-{#    <!--        <div class="card-body">-->#}
-{#    <!--            {% if poll.user_voted %}-->#}
-{#        <!--            <ul class="list-group">-->#}
-{#        <!--                {% for option_id, option in poll.options.items() %}-->#}
-{#            <!--                <li class="list-group-item d-flex justify-content-between align-items-center">-->#}
-{#            <!--                    {{ option }}-->#}
-{#            <!--                    <span class="badge badge-primary badge-pill">{{ poll_results[poll.id][option_id][1]|round(2) }}% ({{ poll_results[poll.id][option_id][0] }} голосов)</span>-->#}
-{#            <!--                </li>-->#}
-{#            <!--                {% endfor %}-->#}
-{#        <!--            </ul>-->#}
-{#        <!--            {% else %}-->#}
-{#        <!--            <form action="/chats/{{ chat.id }}/polls/{{ poll.id }}/vote" method="post">-->#}
-{#        <!--                {% for option_id, option in poll.options.items() %}-->#}
-{#            <!--                <div class="form-check">-->#}
-{#            <!--                    <input class="form-check-input" type="radio" name="option_id" id="option-{{ option_id }}"-->#}
-{#            <!--                           value="{{ option_id }}">-->#}
-{#            <!--                    <label class="form-check-label" for="option-{{ option_id }}">-->#}
-{#            <!--                        {{ option }}-->#}
-{#            <!--                    </label>-->#}
-{#            <!--                </div>-->#}
-{#            <!--                {% endfor %}-->#}
-{#        <!--                &lt;!&ndash; Добавление скрытого поля для номера телефона голосующего &ndash;&gt;-->#}
-{#        <!--                <input type="hidden" name="voter_phone_number" value="{{ current_user.phone_number }}">-->#}
-{#        <!--                <button type="submit" class="btn btn-primary">Проголосовать</button>-->#}
-{#        <!--            </form>-->#}
-{#        <!--            {% endif %}-->#}
-{#    <!--        </div>-->#}
-{#    <!--    </div>-->#}
-{#    <!--    {% endfor %}-->#}
-{#<!--    &lt;!&ndash; Конец добавленной секции &ndash;&gt;-->#}
-{#<!--        &lt;!&ndash; Poll creation form &ndash;&gt;-->#}
-{#<!--        <button onclick="document.getElementById('poll-form').style.display='block'">Создать опрос</button>-->#}
-{#<!--        <div id="poll-form" style="display: none;">-->#}
-{#<!--            <input type="hidden" name="creator_phone_number" value="{{ current_user.phone_number }}">-->#}
-{#<!--            <label for="poll-question">Вопрос:</label>-->#}
-{#<!--            <input type="text" id="poll-question" name="question"><br>-->#}
-{#<!--            <div id="poll-options">-->#}
-{#<!--                <label for="pollInput">Варианты ответа:</label>-->#}
-{#<!--                <input type="text" id="pollInput" name="options"><br>-->#}
-{#<!--            </div>-->#}
-{#<!--            <button type="button" onclick="addOption()">Добавить вариант ответа</button>-->#}
-{#<!--            <button type="button" onclick="createPoll()">Создать</button>-->#}
-{#<!--        </div>-->#}
-{#<!--        {% endif %}-->#}
-{#<!--    </div>-->#}
-{#<!--</div>div-->#}
-{##}
-{#<!--// function addOption() {-->#}
-{#<!--    //     const newOption = document.createElement('input');-->#}
-{#<!--    //     newOption.type = 'text';-->#}
-{#<!--    //     newOption.name = 'options';-->#}
-{#<!--    //     newOption.placeholder = 'New poll option';-->#}
-{#<!--    //     document.getElementById('poll-options').appendChild(newOption);-->#}
-{#<!--    // }-->#}
-{#<!--    //-->#}
-{#<!--    // function createPoll() {-->#}
-{#<!--    //     const question = document.getElementById("poll-question").value;-->#}
-{#<!--    //     const optionsNodes = document.getElementsByName("options");-->#}
-{#<!--    //     const options = Array.from(optionsNodes).map(node => node.value);-->#}
-{#<!--    //     if (question === '' || options.some(option => option === '')) {-->#}
-{#<!--    //         alert('Вопрос и варианты ответа не должны быть пустыми.');-->#}
-{#<!--    //         return;-->#}
-{#<!--    //     }-->#}
-{#<!--    //     const pollData = {-->#}
-{#<!--    //         "action": "create_poll",-->#}
-{#<!--    //         "question": question,-->#}
-{#<!--    //         "options": options,-->#}
-{#<!--    //         "creator_phone_number": "{{ current_user.phone_number }}"-->#}
-{#<!--    //     };-->#}
-{#<!--    //     ws.send(JSON.stringify(pollData));-->#}
+<!--// function addOption() {-->
+<!--    //     const newOption = document.createElement('input');-->
+<!--    //     newOption.type = 'text';-->
+<!--    //     newOption.name = 'options';-->
+<!--    //     newOption.placeholder = 'New poll option';-->
+<!--    //     document.getElementById('poll-options').appendChild(newOption);-->
+<!--    // }-->
+<!--    //-->
+<!--    // function createPoll() {-->
+<!--    //     const question = document.getElementById("poll-question").value;-->
+<!--    //     const optionsNodes = document.getElementsByName("options");-->
+<!--    //     const options = Array.from(optionsNodes).map(node => node.value);-->
+<!--    //     if (question === '' || options.some(option => option === '')) {-->
+<!--    //         alert('Вопрос и варианты ответа не должны быть пустыми.');-->
+<!--    //         return;-->
+<!--    //     }-->
+<!--    //     const pollData = {-->
+<!--    //         "action": "create_poll",-->
+<!--    //         "question": question,-->
+<!--    //         "options": options,-->
+<!--    //         "creator_phone_number": "{{ current_user.phone_number }}"-->
+<!--    //     };-->
+<!--    //     ws.send(JSON.stringify(pollData));-->

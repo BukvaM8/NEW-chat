@@ -9,7 +9,7 @@
         body {
             background-color: rgba(211, 211, 211, 0.2);
             font-family: Times New Roman, sans-serif;
-            {#overflow: hidden;#}
+            /*{#overflow: hidden;#}*/
         }
 
         .left-panel {
@@ -277,11 +277,11 @@
                                 </div>
                             </div>
                             <!-- Действия с диалогом -->
-                            {#                            <div class="dialog-actions">#}
-                            {#                                <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">#}
-                            {#                                    <input type="submit" value="Удалить">#}
-                            {#                                </form>#}
-                            {#                            </div>#}
+<!--                            {#                            <div class="dialog-actions">#}-->
+<!--                            {#                                <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">#}-->
+<!--                            {#                                    <input type="submit" value="Удалить">#}-->
+<!--                            {#                                </form>#}-->
+<!--                            {#                            </div>#}-->
                         </div>
                     {% endfor %}
                 </div>
@@ -326,38 +326,38 @@
                     {% endfor %}
                 </div>
 
-                {#                <h2 class="small-header">Ваши каналы</h2>#}
-                {#                <div class="channel-list">#}
-                {#                    {% for channel in channels %}#}
-                {#                        <div class="container border-bottom mb-2">#}
-                {#                            <div class="channel-item small-title">#}
-                {#                                <h3>{{ channel['name'] }}</h3>#}
-                {#                                <p>Владелец: {{ channel['owner_phone_number'] }}</p>#}
-                {#                                {% if channel['owner_phone_number'] == current_user.phone_number and#}
-                {#                            channel['last_owner_message'] %}#}
-                {#                                    <p>{{ channel['last_owner_message'] }}#}
-                {#                                        - {{ channel['last_owner_message_timestamp'] }}</p>#}
-                {#                                    {% if channel['last_owner_message_file'] %}#}
-                {#                                        <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть#}
-                {#                                            прикрепленный файл</a>#}
-                {#                                    {% endif %}#}
-                {#                                {% elif channel['last_message'] %}#}
-                {#                                    <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>#}
-                {#                                    {% if channel['last_message_file'] %}#}
-                {#                                        <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный#}
-                {#                                            файл</a>#}
-                {#                                    {% endif %}#}
-                {#                                {% endif %}#}
-                {#                                <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>#}
-                {#                                {% if channel['owner_phone_number'] == current_user.phone_number %}#}
-                {#                                    <form action="/channels/{{ channel['id'] }}/delete" method="post">#}
-                {#                                        <input type="submit" value="Удалить канал">#}
-                {#                                    </form>#}
-                {#                                {% endif %}#}
-                {#                            </div>#}
-                {#                        </div>#}
-                {#                    {% endfor %}#}
-                {#                </div>#}
+<!--                {#                <h2 class="small-header">Ваши каналы</h2>#}-->
+<!--                {#                <div class="channel-list">#}-->
+<!--                {#                    {% for channel in channels %}#}-->
+<!--                {#                        <div class="container border-bottom mb-2">#}-->
+<!--                {#                            <div class="channel-item small-title">#}-->
+<!--                {#                                <h3>{{ channel['name'] }}</h3>#}-->
+<!--                {#                                <p>Владелец: {{ channel['owner_phone_number'] }}</p>#}-->
+<!--                {#                                {% if channel['owner_phone_number'] == current_user.phone_number and#}-->
+<!--                {#                            channel['last_owner_message'] %}#}-->
+<!--                {#                                    <p>{{ channel['last_owner_message'] }}#}-->
+<!--                {#                                        - {{ channel['last_owner_message_timestamp'] }}</p>#}-->
+<!--                {#                                    {% if channel['last_owner_message_file'] %}#}-->
+<!--                {#                                        <a href="/files/{{ channel['last_owner_message_file'] }}">Посмотреть#}-->
+<!--                {#                                            прикрепленный файл</a>#}-->
+<!--                {#                                    {% endif %}#}-->
+<!--                {#                                {% elif channel['last_message'] %}#}-->
+<!--                {#                                    <p>{{ channel['last_message'] }} - {{ channel['last_message_timestamp'] }}</p>#}-->
+<!--                {#                                    {% if channel['last_message_file'] %}#}-->
+<!--                {#                                        <a href="/files/{{ channel['last_message_file'] }}">Посмотреть прикрепленный#}-->
+<!--                {#                                            файл</a>#}-->
+<!--                {#                                    {% endif %}#}-->
+<!--                {#                                {% endif %}#}-->
+<!--                {#                                <a href="/channels/{{ channel['id'] }}">Перейти в канал</a>#}-->
+<!--                {#                                {% if channel['owner_phone_number'] == current_user.phone_number %}#}-->
+<!--                {#                                    <form action="/channels/{{ channel['id'] }}/delete" method="post">#}-->
+<!--                {#                                        <input type="submit" value="Удалить канал">#}-->
+<!--                {#                                    </form>#}-->
+<!--                {#                                {% endif %}#}-->
+<!--                {#                            </div>#}-->
+<!--                {#                        </div>#}-->
+<!--                {#                    {% endfor %}#}-->
+<!--                {#                </div>#}-->
 
             </div>
         </div>
