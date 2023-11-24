@@ -369,7 +369,7 @@
             </div>
         </div>
         <!-- Правая панель -->
-        <div class="col-md-8 right-panel" style="width: 1490px">
+        <div class="col-md-8 right-panel" style="width: 1490px;">
             <!-- добавленные стили для "шторки" -->
             <style>
                 .drawer {
@@ -389,6 +389,8 @@
                 }
             </style>
             <div id="dialog-panel">
+                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170" style=""> <br><br>
+                <img src="../static/picture.svg" alt="Картинка" width="510">
                 <div id="dialog-container">
                     <ul class="list-group"></ul>
                     <div id="dialog-history">
@@ -919,7 +921,7 @@
                         fetch(`/dialogs/${dialogId}`)
                             .then(response => response.text())
                             .then(html => {
-                                document.querySelector('.right-panel').innerHTML = html;
+                                document.querySelector('#dialog-panel').innerHTML = html;
                                 initializeDialogJS(dialogId);  // Инициализация JS для нового диалога
                             });
                     })
@@ -942,7 +944,7 @@
                     .then(response => response.text())
                     .then(html => {
                         // Вставляем HTML в правую панель
-                        document.querySelector('.right-panel').innerHTML = html;
+                        document.querySelector('#dialog-panel').innerHTML = html;
 
                         // Инициализируем JS для create_dialog.html (если необходимо)
                         initializeCreateDialogJS();
@@ -968,7 +970,7 @@
                 fetch(`/chat/${chatId}`)
                     .then(response => response.text())
                     .then(html => {
-                        document.querySelector('.right-panel').innerHTML = html;
+                        document.querySelector('#dialog-panel').innerHTML = html;
                         initializeChatJS(chatId);
                     })
                     .catch(error => {
@@ -1276,7 +1278,7 @@
                             fetch(`/chat/${data.chat_id}`)
                                 .then(response => response.text())
                                 .then(html => {
-                                    document.querySelector('.right-panel').innerHTML = html;
+                                    document.querySelector('#dialog-panel').innerHTML = html;
                                     initializeChatJS(data.chat_id);
                                 })
                                 .catch(error => {
@@ -1302,7 +1304,7 @@
                 fetch('/create_chat')
                     .then(response => response.text())
                     .then(html => {
-                        document.querySelector('.right-panel').innerHTML = html;
+                        document.querySelector('#dialog-panel').innerHTML = html;
                         initializeCreateChatJS();  // Важно: инициализация скриптов для новой формы
                     })
                     .catch(error => {
