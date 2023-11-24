@@ -477,19 +477,35 @@
         });
     });
     $(document).ready(function () {
+        // Обработчик клика для ссылки профиля
         $("#profile-link").on("click", function (e) {
-            e.preventDefault(); // Предотвращаем стандартное поведение ссылки
+            e.preventDefault();
+            loadProfile('/profile'); // Путь к profile2.html для ссылки профиля
+        });
+
+        // Обработчик клика для изображения профиля
+        $(".profile-pic").on("click", function () {
+            loadProfile('/profile'); // Путь к profile2.html для фотографии профиля
+        });
+
+        // Обработчик клика для никнейма пользователя
+        $(".my_nickname").on("click", function () {
+            loadProfile('/profile'); // Путь к profile2.html для никнейма
+        });
+
+        // Функция для загрузки профиля
+        function loadProfile(url) {
             $.ajax({
-                url: '/profile', // Путь к profile2.html
+                url: url,
                 type: 'GET',
                 success: function (response) {
-                    $('.left-panel').html(response); // Заменяем содержимое левой панели
+                    $('.left-panel').html(response); // Замена содержимого левой панели
                 },
                 error: function () {
                     console.error('Ошибка при загрузке профиля');
                 }
             });
-        });
+        }
     });
 
 
@@ -1222,6 +1238,45 @@
                 }
             });
         }
+        // Обработчик для закрытия "шторки" при клике вне её области
+        $(document).on('click', function (event) {
+            if (!$(event.target).closest('#chatDrawer, .interlocutor-info').length) {
+                if ($('#chatDrawer').hasClass('open')) {
+                    toggleDrawer();
+                }
+            }
+        });
+        $(document).ready(function () {
+            // Делегирование событий для обработки отправки формы изменения названия чата
+            $(document).on('submit', '.change-chat-name-form', function (e) {
+                e.preventDefault();
+                let form = $(this);
+                let url = form.attr('action');
+                let newNameInput = form.find('input[name="new_name"]');
+                let newName = newNameInput.val();
+
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: {new_name: newName},
+                    success: function (response) {
+                        if (response.status === 'success') {
+                            // Обновляем название в шапке чата
+                            $('.chat-name').text(response.new_name);
+
+                            // Очищаем поле ввода
+                            newNameInput.val('');
+                        } else {
+                            alert('Ошибка при изменении названия чата');
+                        }
+                    },
+                    error: function () {
+                        alert('Ошибка при отправке запроса');
+                    }
+                });
+            });
+        });
+
 
         // Код для управления "шторкой"
         const interlocutorInfo = document.querySelector('.interlocutor-info');

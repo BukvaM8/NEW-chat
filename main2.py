@@ -3501,6 +3501,35 @@ async def create_chat(request: Request, chat_name: str = Form(...), user_phone: 
 
     return JSONResponse(content={"chat_id": chat_id, "status": "created"})
 
+@app.post("/chats/{chat_id}/change_name", response_class=JSONResponse)
+async def change_chat_name(request: Request, chat_id: int, new_name: str = Form(...),
+                           current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    # Проверяем, является ли текущий пользователь владельцем чата
+    owner = await get_chat_owner(chat_id)
+    if current_user.phone_number != owner:
+        raise HTTPException(status_code=403, detail="Only the chat owner can change the name")
+
+    # Обновляем название чата в базе данных
+    try:
+        query = userchats.update().\
+            where(userchats.c.id == chat_id).\
+            values(chat_name=new_name)
+        await database.execute(query)
+        return JSONResponse(content={"status": "success", "new_name": new_name})
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error updating chat name")
+
+async def get_chat_owner(chat_id: int) -> str:
+    query = select([userchats.c.owner_phone_number]).where(userchats.c.id == chat_id)
+    result = await database.fetch_one(query)
+    if result:
+        return result['owner_phone_number']
+    else:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
 
 # Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
 @app.get("/chats/{chat_id}", response_class=HTMLResponse)
