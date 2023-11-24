@@ -77,13 +77,6 @@
             text-decoration: underline;
         }
 
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
 
         .code-input {
             display: flex;
@@ -287,17 +280,22 @@
     const profileImage = document.getElementById("profile-image");
     const userId = document.getElementById("user_id").value;
 
-    document.addEventListener("DOMContentLoaded", function () {
-        let img = document.getElementById('profile-image');
-        img.src = `/get/${userId}/profile_picture/`;
+
+
+    $(document).ready(function () {
+        let img = $('#profile-image');
+        let userId = $('#user_id').val(); // Предполагается, что userId берется из элемента с id user_id
+        img.attr('src', `/get/${userId}/profile_picture/`);
+        console.log('here');
 
         let userPassword = "{{ user.password }}"; // Здесь подставьте значение реального пароля
 
-        let passwordDisplay = document.getElementById("password");
+        let passwordDisplay = $("#password");
         let hiddenPassword = userPassword.substring(0, 8).replace(/./g, "&#8226; "); // Заменяем каждый символ на точку с пробелом
 
-        passwordDisplay.innerHTML = hiddenPassword;
+        passwordDisplay.html(hiddenPassword);
     });
+
 
     function moveToNextOrPrevious(input) {
         var maxLength = input.maxLength;

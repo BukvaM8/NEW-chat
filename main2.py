@@ -4269,12 +4269,13 @@ async def update_message(message_id: int, new_message: str, new_file_id: int = N
         await cur.close()
         conn.close()
 
+
 async def update_chat_message(message_id: int, new_message: str) -> bool:
     logging.info(f"Attempting to update chat message with ID: {message_id}")
 
-    query = chatmessages.update().\
-            where(chatmessages.c.id == message_id).\
-            values(message=new_message)
+    query = chatmessages.update(). \
+        where(chatmessages.c.id == message_id). \
+        values(message=new_message)
     try:
         await database.execute(query)
         logging.info("Chat message update successful")
@@ -4282,7 +4283,6 @@ async def update_chat_message(message_id: int, new_message: str) -> bool:
     except Exception as e:
         logging.error(f"Failed to update chat message: {e}")
         return False
-
 
 
 # Общая функция для получения данных о диалоге и сообщениях
@@ -4965,9 +4965,14 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                 message_id = received_data.get('message_id')
                 new_text = received_data.get('new_text')
                 if message_id and new_text:
-                    update_status = await update_message(message_id, new_text)
-                    logging.info(
-                        f"Update status for message ID {message_id}: {update_status}")  # Добавлено логирование статуса
+                    if room_name.startswith('dialog_'):
+                        # Редактирование сообщения в диалоге
+                        update_status = await update_message(message_id, new_text)
+                    else:
+                        # Редактирование сообщения в чате
+                        update_status = await update_chat_message(message_id, new_text)
+
+                    logging.info(f"Update status for message ID {message_id}: {update_status}")
                     if update_status:
                         # Если обновление прошло успешно, отправляем обновленное сообщение в комнату
                         await manager.broadcast(
@@ -4980,7 +4985,6 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                         )
                     else:
                         logging.error(f"Failed to update message with id {message_id}")
-
     except WebSocketDisconnect:
         manager.disconnect(user.id, room_name)
         logging.warning(f"WebSocket disconnected for user {user.id}")

@@ -1543,7 +1543,7 @@ async def user_profile(request: Request):
         raise HTTPException(status_code=404, detail="User not found")
 
     # Передаем информацию о пользователе в шаблон
-    return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+    return templates.TemplateResponse("profile2.html", {"request": request, "user": user})
 
 
 @app.get("/profile/{phone_number}", response_class=HTMLResponse)
@@ -1551,7 +1551,7 @@ async def profile(request: Request, phone_number: str):
     user = await get_user_by_phone(phone_number)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+    return templates.TemplateResponse("profile2.html", {"request": request, "user": user})
 
 
 async def update_user_profile(phone_number, nickname, profile_picture, status):
