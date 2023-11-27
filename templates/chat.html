@@ -54,6 +54,7 @@
 
         .message-item.user {
             justify-content: flex-end;
+            z-index: 1;
         }
 
         .message-content h4 {
@@ -69,6 +70,7 @@
             border-radius: 10px;
             max-width: 50%;
             position: relative;
+            z-index: 1;
         }
 
         .message-item.user .message-content {
@@ -99,13 +101,14 @@
             position: absolute;
             top: 5px;
             right: -1px;
-            z-index: 10;
+            z-index: 2;
             visibility: hidden;
         }
 
         .message-options-icon {
             width: 20px;
             height: 20px;
+            z-index: 10;
         }
 
         .message-options {
@@ -136,6 +139,7 @@
             text-align: left;
             cursor: pointer;
             border-bottom: 1px solid #ccc;
+            z-index: 1000;
         }
 
         .message-options button:last-child {
@@ -145,7 +149,6 @@
         .message-options button:hover {
             background-color: #ddd;
         }
-
 
         .drawer {
             z-index: 1000;
@@ -466,13 +469,7 @@
         };
 
 
-        const optionIcons = document.querySelectorAll('.message-options-icon');
-        optionIcons.forEach(function (icon) {
-            icon.addEventListener('click', function () {
-                const messageOptions = icon.nextElementSibling;
-                messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
-            });
-        });
+
 
         const deleteButtons = document.querySelectorAll('.delete-message');
         deleteButtons.forEach(function (button) {
