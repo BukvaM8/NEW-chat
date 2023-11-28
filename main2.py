@@ -4302,9 +4302,10 @@ async def update_message(message_id: int, new_message: str, new_file_id: int = N
 async def update_chat_message(message_id: int, new_message: str) -> bool:
     logging.info(f"Attempting to update chat message with ID: {message_id}")
 
+    current_time = datetime.utcnow()  # Получаем текущее время
     query = chatmessages.update(). \
         where(chatmessages.c.id == message_id). \
-        values(message=new_message)
+        values(message=new_message, edit_timestamp=current_time)  # Обновляем время редактирования
     try:
         await database.execute(query)
         logging.info("Chat message update successful")
@@ -5008,7 +5009,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                             {
                                 "action": "message_updated",
                                 "message_id": message_id,
-                                "new_text": new_text
+                                "new_text": new_text,
+                                "edit_timestamp": datetime.utcnow().isoformat()  # Добавьте метку времени
                             },
                             room=room_name
                         )

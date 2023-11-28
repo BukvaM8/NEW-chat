@@ -68,10 +68,11 @@
             color: black;
             padding: 10px;
             border-radius: 10px;
-            max-width: 50%;
+            max-width: 75%;
             position: relative;
             z-index: 1;
         }
+
 
         .message-item.user .message-content {
             background-color: #2A88B9;
@@ -82,14 +83,28 @@
         /* Стилизация блока сообщения для обеспечения переноса текста и ограничения ширины */
         .message-item .message-content, .message-self {
             word-wrap: break-word;
-            max-width: 50%;
+            max-width: 75%;
             overflow-wrap: break-word;
         }
 
         /* Стиль для текстовой области с автоматическим переносом текста */
         textarea[name="message"] {
             white-space: pre-wrap;
+            overflow-y: hidden; /* Убрать скроллбар */
         }
+
+        /* Стиль для адаптивного textarea */
+        textarea.message_input {
+            width: 100%; /* Занимает всю доступную ширину */
+            min-height: 20px; /* Минимальная начальная высота */
+            max-height: 100px; /* Максимальная высота до 4 строк текста */
+            height: auto; /* Автоматическая высота */
+            overflow-y: hidden; /* Убрать вертикальный скролл */
+            resize: none; /* Убрать возможность изменения размера */
+            text-align: left; /* Выравнивание текста по левому краю */
+            padding: 5px; /* Отступы внутри поля ввода */
+        }
+
 
         .message-header {
             display: flex;
@@ -130,6 +145,7 @@
         .message-item .message-content:hover .message-dropdown {
             visibility: visible;
         }
+
 
         .message-options button {
             background-color: transparent;
@@ -222,6 +238,11 @@
             font-style: normal;
             font-weight: 400;
             line-height: 16px;
+            text-align: left; /* Выравнивание текста слева */
+            height: auto; /* Автоматическая высота */
+            overflow-y: auto; /* Скролл для переполнения */
+            resize: none; /* Убрать возможность ручного изменения размера */
+            max-height: 100px; /* Максимальная высота до 4 строк текста */
         }
     </style>
 </head>
@@ -249,23 +270,23 @@
 
     <!-- Поле для изменения названия -->
     {% if chat.owner_phone_number == current_user.phone_number %}
-    <form class="change-chat-name-form" action="/chats/{{ chat.id }}/change_name" method="post">
-        <input type="text" name="new_name" placeholder="Новое название">
-        <button type="submit">Изменить название</button>
-    </form>
+        <form class="change-chat-name-form" action="/chats/{{ chat.id }}/change_name" method="post">
+            <input type="text" name="new_name" placeholder="Новое название">
+            <button type="submit">Изменить название</button>
+        </form>
 
     {% endif %}
 
     <!-- Остальные действия -->
     {% if chat.owner_phone_number == current_user.phone_number %}
-    <a href="/chat/{{ chat.id }}/members/add" class="btn btn-primary">Пригласить</a>
-    <form action="/chats/{{ chat.id }}/delete" method="post">
-        <button type="submit" class="btn btn-danger">Удалить чат</button>
-    </form>
+        <a href="/chat/{{ chat.id }}/members/add" class="btn btn-primary">Пригласить</a>
+        <form action="/chats/{{ chat.id }}/delete" method="post">
+            <button type="submit" class="btn btn-danger">Удалить чат</button>
+        </form>
     {% else %}
-    <form action="/chats/{{ chat.id }}/leave" method="post">
-        <button type="submit" class="btn btn-warning">Покинуть чат</button>
-    </form>
+        <form action="/chats/{{ chat.id }}/leave" method="post">
+            <button type="submit" class="btn btn-warning">Покинуть чат</button>
+        </form>
     {% endif %}
     <a href="/chat/{{ chat.id }}/members" id="member-count" class="btn btn-info">{{ members|length }} участников</a>
 
@@ -279,83 +300,91 @@
     <!-- Список сообщений -->
     <ul class="messages-list" id="chat-history">
         {% for message in messages %}
-        <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
-             data-message-id="{{ message.id }}">
-            <div class="message-content">
-                <div class="message-header">
-                    {% if message.sender_phone_number == "deleted" %}
-                    <h4>Deleted message</h4>
-                    {% else %}
-                    <a href="/profile/{{ message.sender_nickname }}"><h4>{{ message.sender_nickname }}</h4></a>
-                    {% endif %}
+            <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
+                 data-message-id="{{ message.id }}">
+                <div class="message-content">
+                    <div class="message-header">
+                        {% if message.sender_phone_number == "deleted" %}
+                            <h4>Deleted message</h4>
+                        {% else %}
+                            <a href="/profile/{{ message.sender_nickname }}"><h4>{{ message.sender_nickname }}</h4></a>
+                        {% endif %}
 
-                    <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
-                    <div class="message-dropdown">
-                        {% if message.sender_phone_number != "deleted" %}
-                        <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
-                        <div class="message-options">
-                            {% if chat.owner_phone_number == current_user.phone_number or message.sender_phone_number ==
+                        <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
+                        <div class="message-dropdown">
+                            {% if message.sender_phone_number != "deleted" %}
+                                <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
+                                <div class="message-options">
+                                    {% if chat.owner_phone_number == current_user.phone_number or message.sender_phone_number ==
                             current_user.phone_number %}
-                            <button class="delete-message-button">Удалить сообщение</button>
-                            {% endif %}
-                            <button class="forward-message">Переслать</button>
-                            {% if message.sender_phone_number == current_user.phone_number %}
-                            <button class="edit-message">Изменить</button>
+                                        <button class="delete-message-button">Удалить сообщение</button>
+                                    {% endif %}
+                                    <button class="forward-message">Переслать</button>
+                                    {% if message.sender_phone_number == current_user.phone_number %}
+                                        <button class="dropdown-item edit-message-button">Редактировать</button>
+                                    {% endif %}
+                                </div>
                             {% endif %}
                         </div>
-                        {% endif %}
                     </div>
+                    <p>
+                        <!-- Обработка вложенных файлов в сообщении -->
+                        {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+                            {% set raw_message = message.message.split('[[FILE]]') %}
+                            {{ raw_message[0] }}
+                            {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
+                            {% if ', ' in file_info %}
+                                {% set file_id_info, file_name_info = file_info.split(', ') %}
+                            {% else %}
+                                {% set file_id_info = file_info %}
+                                {% set file_name_info = "Unknown" %}
+                            {% endif %}
+                            {% set file_id = file_id_info.split(': ')[1] if ': ' in file_id_info else file_id_info %}
+                            {% set file_name = file_name_info.split(': ')[1] if ': ' in file_name_info else file_name_info %}
+                            <a href="/files/{{ file_id }}">{{ file_name }}</a>
+                        {% else %}
+                            {{ message.message }}
+                        {% endif %}
+                    </p>
+                    <small>
+                        {% if message.edited %}
+                            Изменено: {{ message.edit_timestamp }}
+                        {% else %}
+                            Отправлено: {{ message.timestamp }}
+                        {% endif %}
+                    </small>
                 </div>
-                <p>
-                    <!-- Обработка вложенных файлов в сообщении -->
-                    {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
-                    {% set raw_message = message.message.split('[[FILE]]') %}
-                    {{ raw_message[0] }}
-                    {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
-                    {% if ', ' in file_info %}
-                    {% set file_id_info, file_name_info = file_info.split(', ') %}
-                    {% else %}
-                    {% set file_id_info = file_info %}
-                    {% set file_name_info = "Unknown" %}
-                    {% endif %}
-                    {% set file_id = file_id_info.split(': ')[1] if ': ' in file_id_info else file_id_info %}
-                    {% set file_name = file_name_info.split(': ')[1] if ': ' in file_name_info else file_name_info %}
-                    <a href="/files/{{ file_id }}">{{ file_name }}</a>
-                    {% else %}
-                    {{ message.message }}
-                    {% endif %}
-                </p>
-                <small>Отправлено: {{ message.timestamp }}</small>
             </div>
-        </div>
         {% endfor %}
     </ul>
 </div>
 
 <!-- Форма для отправки сообщения -->
-<div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle"
+<div class="mt-4 border-top" style="position: fixed; bottom: 10px; width: 60%; vertical-align: middle"
      id="message-form-container">
+    <!-- Область для отображения информации о прикрепленном файле -->
+    <div id="file-display-area" style="padding: 10px;">
+        <!-- Информация о файле и кнопка удаления файла будут отображаться здесь -->
+    </div>
+
     <form action="/chats/{{ chat.id }}/send_message" method="post" enctype="multipart/form-data"
-          style="padding-top: 10px">
+          style="padding-top: 10px; display: flex; align-items: center;">
         <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
 
-        <div class="row">
-            <div class="col-md-1" style="padding: 0">
-                <div class="form-group">
-                    <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer;"
-                         multiple>
-                    {# <input type="file" id="file-input" name="file" class="form-control" for="file-input"><br>#}
-                </div>
-            </div>
-            <div class="col-md-11" style="padding: 0">
-                <div class="form-group">
-                    <input type="text" id="message-input" name="message_text" class="form-control message_input"
-                           placeholder="Введите сообщение" for="message-input"><br>
-                </div>
-            </div>
-        </div>
+        <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer; margin-right: 10px;"
+             multiple>
+        <input type="file" id="file-input" name="file" class="form-control" style="display:none;" for="file-input">
+
+        <!-- Обновленное поле ввода текста с невидимым скролл-баром -->
+        <textarea id="message-input" name="message_text" class="form-control message_input"
+                  placeholder="Введите сообщение"
+                  style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"></textarea>
+
+        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
     </form>
 </div>
+
+
 <script>
     $(document).ready(function () {
 
@@ -401,8 +430,6 @@
                     });
             }
         });
-
-
 
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
@@ -467,8 +494,6 @@
                 }
             }
         };
-
-
 
 
         const deleteButtons = document.querySelectorAll('.delete-message');

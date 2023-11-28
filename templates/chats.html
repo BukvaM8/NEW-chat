@@ -1043,162 +1043,232 @@
                     });
             }
         });
+function editChatMessage(messageId) {
+    const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+    if (!messageElement) {
+        console.error("Message element not found for ID:", messageId);
+        return;
+    }
 
-        document.querySelector('.right-panel').addEventListener('click', function (event) {
-    // Сброс `z-index` для всех элементов сообщений
-    document.querySelectorAll('.message-item').forEach(function(messageItem) {
-        messageItem.style.zIndex = 1;
-    });
+    let messageTextElement = messageElement.querySelector('.message-content p') || messageElement.querySelector('.message-content div');
+    if (!messageTextElement) {
+        console.error("Message text element not found for ID:", messageId);
+        return;
+    }
 
-    // Закрытие всех открытых выпадающих списков
-    document.querySelectorAll('.message-options').forEach(function (dropdown) {
-        dropdown.style.display = 'none';
-    });
+    const messageInput = document.getElementById('message-input');
+    const submitButton = document.getElementById('send-button');
 
-    // Проверяем, был ли клик сделан по иконке выпадающего списка
-    if (event.target.closest('.message-options-icon')) {
-        const messageOptions = event.target.closest('.message-dropdown').querySelector('.message-options');
-        const messageItem = event.target.closest('.message-item');
+    // Удаляем начальные и конечные пробелы перед установкой текста в поле ввода
+    messageInput.value = messageTextElement.textContent.trimStart().trimEnd();
 
-        if (messageOptions.style.display === 'none') {
-            // Показываем выпадающий список и устанавливаем высокий `z-index` для родительского элемента сообщения
-            messageOptions.style.display = 'block';
-            messageItem.style.zIndex = 10000;
+    submitButton.textContent = 'Сохранить';
+    submitButton.onclick = function (e) {
+        e.preventDefault();
+        saveEditedChatMessage(messageId);
+    };
+}
+
+
+
+
+function saveEditedChatMessage(messageId) {
+    const newMessageText = document.getElementById('message-input').value.trim();
+
+    ws.send(JSON.stringify({
+        "action": "edit_message",
+        "message_id": messageId,
+        "new_text": newMessageText
+    }));
+
+    const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+    if (messageElement) {
+        const messageTextElement = messageElement.querySelector('.message-content p');
+        if (messageTextElement) {
+            // Обновляем текст сообщения в элементе интерфейса
+            messageTextElement.textContent = newMessageText;
+        }
+
+        // Обновляем метку времени (если есть)
+        let timeElement = messageElement.querySelector('.message-content small');
+        if (!timeElement) {
+            timeElement = document.createElement('small');
+            messageElement.querySelector('.message-content').appendChild(timeElement);
+        }
+        timeElement.textContent = `Изменено: ${new Date().toLocaleString()}`;
+    }
+
+    // Сброс формы
+    const submitButton = document.getElementById('send-button');
+    submitButton.textContent = 'Отправить';
+    submitButton.onclick = null;
+    document.getElementById('message-input').value = '';
+}
+
+
+
+ // Обработчик клика в правой панели для управления выпадающими списками и кнопками в сообщениях
+    document.querySelector('.right-panel').addEventListener('click',
+        function (event) {
+            // Сброс `z-index` для всех элементов сообщений
+            document.querySelectorAll('.message-item').forEach(function (messageItem) {
+                messageItem.style.zIndex = 1;
+            });
+
+            // Закрытие всех открытых выпадающих списков
+            document.querySelectorAll('.message-options').forEach(function (dropdown) {
+                dropdown.style.display = 'none';
+            });
+
+            // Проверка клика по иконке выпадающего списка
+            if (event.target.closest('.message-options-icon')) {
+                const messageOptions = event.target.closest('.message-dropdown').querySelector('.message-options');
+                const messageItem = event.target.closest('.message-item');
+
+                messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
+                messageItem.style.zIndex = messageOptions.style.display === 'block' ? 10000 : 1;
+            }
+
+            // Обработчик клика для кнопки "Удалить сообщение"
+            if (event.target.closest('.delete-message-button')) {
+                const messageElement = event.target.closest('.message-item');
+                const messageId = messageElement ? messageElement.dataset.messageId : null;
+                if (messageId) {
+                    const messageIdNumber = parseInt(messageId, 10);
+                    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
+                }
+            }
+
+            if (event.target.classList.contains('edit-message-button')) {
+        const messageId = event.target.closest('.message-item').dataset.messageId;
+        editChatMessage(messageId);
+    }
+
+        });
+
+    // Обработчик клика в списке сообщений для обработки удаления сообщений
+    document.querySelector('.messages-list').addEventListener('click', function (event) {
+        if (event.target.className === 'dropdown-item' && event.target.textContent === 'Удалить сообщение') {
+            const messageElement = event.target.closest('.message-item');
+            const messageId = messageElement ? messageElement.dataset.messageId : null;
+            if (messageId) {
+                const messageIdNumber = parseInt(messageId, 10);
+                ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
+            }
+        }
+        });
+
+ws.onmessage = function (event) {
+    let messageData;
+    try {
+        messageData = JSON.parse(event.data);
+    } catch (e) {
+        console.error("Invalid JSON", e);
+        return;
+    }
+
+    const action = messageData.action;
+
+    if (action === 'new_token') {
+        document.cookie = "access_token=" + messageData.token;
+    } else if (action === 'message_deleted') {
+        const messageId = messageData.message_id;
+        const messageElement = document.querySelector(`.message-item[data-message-id="${String(messageId)}"]`);
+        if (messageElement) {
+            messageElement.remove();
+            console.log(`Сообщение с ID: ${messageId} удалено`);
         } else {
-            // Скрываем выпадающий список и возвращаем `z-index` родительского элемента сообщения к исходному
-            messageOptions.style.display = 'none';
-            messageItem.style.zIndex = 1;
+            console.warn(`Message with id: ${messageId} not found for deletion`);
         }
-    }
+    } else if (action === 'message_updated') {
+        const messageId = messageData.message_id;
+        const newMessageText = messageData.new_text;
+        const editTimestamp = messageData.edit_timestamp;
 
-    // Обработчик клика для кнопки "Удалить сообщение"
-    if (event.target.closest('.delete-message-button')) {
-        const messageElement = event.target.closest('.message-item');
-        const messageId = messageElement ? messageElement.dataset.messageId : null;
-        if (messageId) {
-            const messageIdNumber = parseInt(messageId, 10);
-            ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
-        }
-    }
-});
-
-document.querySelector('.messages-list').addEventListener('click', function (event) {
-    // Проверяем, была ли нажата кнопка "Удалить сообщение"
-    if (event.target.className === 'dropdown-item' && event.target.textContent === 'Удалить сообщение') {
-        const messageElement = event.target.closest('.message-item');
-        const messageId = messageElement ? messageElement.dataset.messageId : null;
-        if (messageId) {
-            const messageIdNumber = parseInt(messageId, 10);
-            ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
-        }
-    }
-});
-
-
-
-        ws.onmessage = function (event) {
-            let messageData;
-            try {
-                messageData = JSON.parse(event.data);
-            } catch (e) {
-                console.error("Invalid JSON", e);
-                return;
+        const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const messageTextElement = messageElement.querySelector('.message-content p');
+            if (messageTextElement) {
+                messageTextElement.innerText = newMessageText;
             }
 
-            const action = messageData.action;
-
-            if (action === 'new_token') {
-                document.cookie = "access_token=" + messageData.token;
-            } else if (action === 'message_deleted') {
-                const messageId = messageData.message_id;
-                const messageElement = document.querySelector(`.message-item[data-message-id="${String(messageId)}"]`);
-                if (messageElement) {
-                    messageElement.remove();
-                    console.log(`Сообщение с ID: ${messageId} удалено`);
-                } else {
-                    console.warn(`Message with id: ${messageId} not found for deletion`);
-                }
-            } else if (action === 'message_updated') {
-                const messageId = messageData.message_id;
-                const newMessageText = messageData.new_text;
-                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
-                if (messageElement) {
-                    const messageContentElement = messageElement.querySelector('.message-content div:first-child');
-                    messageContentElement.innerText = newMessageText;
-
-                    const editTimestampElement = messageElement.querySelector('.message-content small');
-                    editTimestampElement.innerText = `Изменено: ${new Date().toLocaleString()}`;
-                }
-            } else if (messageData.message && messageData.sender_phone_number) {
-                const messagesList = document.getElementById('chat-history');
-                const newMessageItem = document.createElement('div');
-                newMessageItem.className = "message-item";
-                newMessageItem.dataset.messageId = messageData.message.id;
-
-                if (messageData.sender_nickname === "{{ current_user.nickname }}") {
-                    newMessageItem.className += " user";
-                }
-
-                const messageContent = document.createElement('div');
-                messageContent.className = 'message-content';
-                const rawMessage = messageData.message;
-
-                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                    const [text, fileInfo] = rawMessage.split('[[FILE]]');
-                    const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
-                    const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
-                    const fileId = fileIdInfo.split(': ')[1];
-                    const fileName = fileNameInfo.split(': ')[1];
-
-                    const messageTextElement = document.createElement('div');
-                    messageTextElement.innerText = text;
-                    messageContent.appendChild(messageTextElement);
-
-                    const fileLink = document.createElement('div');
-                    const fileAnchor = document.createElement('a');
-                    fileAnchor.href = `/files/${fileId}`;
-                    fileAnchor.innerText = fileName;
-                    fileLink.appendChild(fileAnchor);
-                    messageContent.appendChild(fileLink);
-                } else {
-                    const messageTextElement = document.createElement('div');
-                    messageTextElement.innerText = rawMessage;
-                    messageContent.appendChild(messageTextElement);
-                }
-
-                const timeElement = document.createElement('div');
-                timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
-                messageContent.appendChild(timeElement);
-
-                const dropdown = document.createElement('div');
-                dropdown.className = 'message-dropdown';
-                const dropdownIcon = document.createElement('img');
-                dropdownIcon.src = '/static/downarrow.png';
-                dropdownIcon.alt = 'Options';
-                dropdownIcon.className = 'message-options-icon';
-
-                const dropdownContent = document.createElement('div');
-                dropdownContent.className = 'message-options';
-                dropdownContent.style.display = 'none';
-
-                const deleteButton = document.createElement('button');
-                deleteButton.className = 'dropdown-item';
-                deleteButton.textContent = 'Удалить сообщение';
-                deleteButton.onclick = function () {
-                    const messageIdToDelete = this.parentElement.parentElement.parentElement.dataset.messageId;
-                    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdToDelete}));
-                };
-                dropdownContent.appendChild(deleteButton);
-
-                dropdown.appendChild(dropdownIcon);
-                dropdown.appendChild(dropdownContent);
-                messageContent.appendChild(dropdown);
-                newMessageItem.appendChild(messageContent);
-                messagesList.appendChild(newMessageItem);
-            } else {
-                console.warn('Неожиданный формат сообщения: ', messageData);
+            let timeElement = messageElement.querySelector('.message-content small');
+            if (!timeElement) {
+                timeElement = document.createElement('small');
+                messageElement.querySelector('.message-content').appendChild(timeElement);
             }
+            timeElement.textContent = `Изменено: ${new Date(editTimestamp).toLocaleString()}`;
+        }
+    } else if (messageData.message && messageData.sender_phone_number) {
+        const messagesList = document.getElementById('chat-history');
+        const newMessageItem = document.createElement('div');
+        newMessageItem.className = "message-item";
+        newMessageItem.dataset.messageId = messageData.message.id;
+
+        if (messageData.sender_nickname === "{{ current_user.nickname }}") {
+            newMessageItem.className += " user";
+        }
+
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        const rawMessage = messageData.message;
+
+        if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+            // Код для обработки сообщений с файлами
+        } else {
+            const messageTextElement = document.createElement('div');
+            messageTextElement.innerText = rawMessage;
+            messageContent.appendChild(messageTextElement);
+        }
+
+        const timeElement = document.createElement('div');
+        timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
+        messageContent.appendChild(timeElement);
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'message-dropdown';
+        const dropdownIcon = document.createElement('img');
+        dropdownIcon.src = '/static/downarrow.png';
+        dropdownIcon.alt = 'Options';
+        dropdownIcon.className = 'message-options-icon';
+
+        const dropdownContent = document.createElement('div');
+        dropdownContent.className = 'message-options';
+        dropdownContent.style.display = 'none';
+
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'dropdown-item';
+        deleteButton.textContent = 'Удалить сообщение';
+        deleteButton.onclick = function () {
+            const messageIdToDelete = newMessageItem.dataset.messageId;
+            ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdToDelete}));
         };
+        dropdownContent.appendChild(deleteButton);
+
+        const editButton = document.createElement('button');
+        editButton.className = 'dropdown-item edit-message-button';
+        editButton.textContent = 'Редактировать';
+        editButton.onclick = function () {
+            const messageIdToEdit = newMessageItem.dataset.messageId;
+            editChatMessage(messageIdToEdit);
+        };
+        dropdownContent.appendChild(editButton);
+
+        const forwardButton = document.createElement('button');
+        forwardButton.className = 'dropdown-item';
+        forwardButton.textContent = 'Переслать';
+        // Добавьте здесь обработчик для кнопки "Переслать"
+        dropdownContent.appendChild(forwardButton);
+
+        dropdown.appendChild(dropdownIcon);
+        dropdown.appendChild(dropdownContent);
+        messageContent.appendChild(dropdown);
+        newMessageItem.appendChild(messageContent);
+        messagesList.appendChild(newMessageItem);
+    } else {
+        console.warn('Неожиданный формат сообщения: ', messageData);
+    }
+};
 
 
         // Функция для открытия и закрытия "шторки"
