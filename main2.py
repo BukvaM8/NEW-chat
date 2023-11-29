@@ -242,6 +242,7 @@ dialog_messages = Table(
     Column("file_id", Integer, ForeignKey('Files.id')),  # Новая колонка
     Column("timestamp", DateTime(timezone=True), default=datetime.now(moscow_tz)),
     Column("delete_timestamp", DateTime),
+    Column("edit_timestamp", DateTime)  # Новый столбец для отметки времени редактирования
 )
 
 chatmessages = Table(
@@ -252,10 +253,12 @@ chatmessages = Table(
     Column("sender_phone_number", String, ForeignKey('Users.nickname')),
     Column("message", String),
     Column("timestamp", DateTime, default=func.now()),
+    Column("edit_timestamp", DateTime),  # Новый столбец для времени редактирования сообщения
     Column("delete_timestamp", DateTime),
-    Column("deleted_by_users", JSON),  # Новый столбец для хранения информации о удалении
-    Column("message_type", String(255))  # Новый столбец для типа сообщения
+    Column("deleted_by_users", JSON),
+    Column("message_type", String(255))
 )
+
 
 voicemessages = Table(
     "VoiceMessages",
@@ -4276,17 +4279,17 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
         logging.error("Failed to insert message into the database.")
 
 
-async def update_message(message_id: int, new_message: str, new_file_id: int = None, new_file_path: str = None) -> bool:
+async def update_message(message_id: int, new_message: str, new_file_id: int = None) -> bool:
     logging.info(f"Attempting to update message with ID: {message_id}, New message: {new_message}")
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     try:
-        # Обновление сообщения с новым файлом, если он предоставлен
+        # Обновляем только сообщение и время его редактирования
         await cur.execute("""
             UPDATE DialogMessages
-            SET message = %s, file_id = %s, file_path = %s
+            SET message = %s, file_id = %s, edit_timestamp = NOW()
             WHERE id = %s
-        """, (new_message, new_file_id, new_file_path, message_id))
+        """, (new_message, new_file_id, message_id))
         await conn.commit()
         logging.info("Message update successful")
         return True
@@ -4297,6 +4300,7 @@ async def update_message(message_id: int, new_message: str, new_file_id: int = N
     finally:
         await cur.close()
         conn.close()
+
 
 
 async def update_chat_message(message_id: int, new_message: str) -> bool:

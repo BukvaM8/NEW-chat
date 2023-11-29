@@ -21,6 +21,7 @@
         .messages-container {
             height: calc(85vh - 100px);
             overflow-y: auto;
+            scroll-behavior: smooth;
         }
 
         .messages-container::-webkit-scrollbar {
@@ -85,7 +86,7 @@
 
         .message-self {
             text-align: left; /* Изменение выравнивания текста на левое */
-            background-color:  #2A88B9;
+            background-color: #2A88B9;
             color: white;
             border-radius: 10px;
             margin-bottom: 5px;
@@ -230,7 +231,14 @@
                                 <!-- Сообщение пустое или удалено -->
                             {% endif %}
                             <br>
-                            <small>Отправлено: {{ message.timestamp }}</small>
+                            <!-- Проверка на наличие времени редактирования и отображение соответствующего текста -->
+                            <small>
+                                {% if message.edit_timestamp %}
+                                    Изменено: {{ message.edit_timestamp }}
+                                {% else %}
+                                    Отправлено: {{ message.timestamp }}
+                                {% endif %}
+                            </small>
                             <!-- Dropdown menu for message options -->
                             <div class="message-dropdown">
                                 <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
@@ -256,6 +264,7 @@
         </ul>
     </div>
 </div>
+
 
 <div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle">
     <form id="message-form" style="padding-top: 10px">
