@@ -77,13 +77,6 @@
             text-decoration: underline;
         }
 
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
 
         .code-input {
             display: flex;
@@ -147,22 +140,24 @@
             </div>
             <br>
             {% if user.status_visibility %}
-                <div class="d-flex flex-column align-items-start">
-                    <div class="text-left text-blue mb-2"><strong>Статус:</strong></div>
-                    <div class="text-left mb-2" id="user-status">
-                        {{ user.status }}
-                    </div>
+            <div class="d-flex flex-column align-items-start">
+                <div class="text-left text-blue mb-2"><strong>Статус:</strong></div>
+                <div class="text-left mb-2" id="user-status">
+                    {{ user.status }}
                 </div>
+            </div>
             {% endif %}
             <br>
             {% if user.email_visibility %}
-                <div class="d-flex flex-column align-items-start">
-                    <div class="text-left text-blue mb-2"><strong>Почта:</strong></div>
-                    <div class="text-left mb-2" id="email">
-                        {{ user.email }}
-                    </div>
-                    <!-- Добавляем кнопку для изменения почты -->
+            <div class="d-flex flex-column align-items-start">
+                <div class="text-left text-blue mb-2"><strong>Почта:</strong></div>
+                <div class="text-left mb-2" id="email">
+                    {{ user.email }}
                 </div>
+                <!-- Добавляем кнопку для удаления диалога -->
+                <!-- Кнопка "Удалить диалог" -->
+                <button id="delete-dialog-button" data-dialog-id="{{ dialog_id }}">Удалить диалог</button>
+            </div>
             {% endif %}
         </div>
     </div>
