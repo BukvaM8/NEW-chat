@@ -388,8 +388,9 @@
                 }
             </style>
             <div id="dialog-panel">
-                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170" style="margin-left: 100px"> <br><br>
-                <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 120px">
+                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170"
+                     style="margin-left: 23%"> <br><br>
+                <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 23%">
                 <div id="dialog-container">
                     <ul class="list-group"></ul>
                     <div id="dialog-history">
@@ -662,6 +663,19 @@
         if (lastMessage) {
             lastMessage.scrollIntoView();
         }
+
+        // Динамическое изменение размера текстовой области:
+        document.addEventListener('DOMContentLoaded', function () {
+            const textArea = document.getElementById('message-input');
+
+            const updateTextAreaHeight = () => {
+                textArea.style.height = 'auto';
+                textArea.style.height = textArea.scrollHeight + 'px';
+            };
+
+            textArea.addEventListener('input', updateTextAreaHeight);
+            updateTextAreaHeight(); // Для начальной установки высоты при загрузке страницы
+        });
 
 
         // Обработчик события нажатия клавиши в текстовом поле формы
@@ -940,6 +954,8 @@
     // Функция для обработки клика на никнейм пользователя
     function handleUsernameClick(event) {
         event.preventDefault();
+        event.stopPropagation(); // Добавлено для предотвращения всплытия события
+
         const userProfileSidebar = document.getElementById('user-profile-sidebar');
         // Проверяем, открыта ли шторка
         if (userProfileSidebar && userProfileSidebar.classList.contains('open')) {
@@ -976,8 +992,6 @@
             console.error('Элемент с классом .username a не найден');
         }
     });
-
-
 
 
     // Добавьте обработчик клика на элемент с никнеймом пользователя
@@ -1049,18 +1063,23 @@
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.clickable-dialog').forEach(function (container) {
             container.addEventListener('click', function (event) {
-                // Не выполняем действие, если клик был по кнопке "Перейти в диалог"
                 if (event.target.classList.contains('load-dialog')) return;
-
                 const dialogId = event.currentTarget.getAttribute('data-dialog-id');
                 const currentUserId = "{{ current_user.id }}"; // Получение ID текущего пользователя
-                console.log("Current User ID:", currentUserId); // Логирование для отладки
 
                 fetch(`/dialogs/${dialogId}`)
-                    .then(response => response.text())
+                    .then(response => {
+                        if (response.status == 410) { // Dialog was deleted by the user
+                            // Здесь можно добавить логику для обработки удаленных диалогов, например, удалить элемент из списка
+                            console.error('Dialog was deleted by both users.');
+                        } else if (!response.ok) {
+                            throw new Error(`Server responded with status: ${response.status}`);
+                        }
+                        return response.text();
+                    })
                     .then(html => {
                         document.querySelector('#dialog-panel').innerHTML = html;
-                        initializeDialogJS(dialogId, currentUserId); // Передаем ID диалога и ID пользователя
+                        initializeDialogJS(dialogId, currentUserId);
                     })
                     .catch(error => {
                         console.error('Ошибка:', error);
@@ -1080,17 +1099,28 @@
                 fetch(`/create_dialog/${userId}`, {
                     method: 'POST'
                 })
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Server responded with status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
-                        const dialogId = data.dialog_id;
+                        if (data.error) {
+                            console.error('Server error:', data.error);
+                        } else if (data.dialog_id) {
+                            const dialogId = data.dialog_id;
 
-                        // Загружаем содержимое dialogs.html в правую панель
-                        fetch(`/dialogs/${dialogId}`)
-                            .then(response => response.text())
-                            .then(html => {
-                                document.querySelector('#dialog-panel').innerHTML = html;
-                                initializeDialogJS(dialogId);  // Инициализация JS для нового диалога
-                            });
+                            // Загружаем содержимое dialogs.html в правую панель
+                            fetch(`/dialogs/${dialogId}`)
+                                .then(response => response.text())
+                                .then(html => {
+                                    document.querySelector('#dialog-panel').innerHTML = html;
+                                    initializeDialogJS(dialogId);
+                                });
+                        } else {
+                            throw new Error('Invalid response from server');
+                        }
                     })
                     .catch(error => {
                         console.error('Ошибка:', error);
@@ -1098,6 +1128,7 @@
             });
         });
     }
+
 
     // Добавление обработчика для кнопки "Создать новый диалог"
     document.addEventListener('DOMContentLoaded', function () {
@@ -1128,27 +1159,34 @@
     // ... (ваш текущий код для dialogs)
 
     // Загрузка chat.html в правую панель
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.clickable-chat').forEach(function (container) {
-            container.addEventListener('click', function (event) {
-                if (event.target.classList.contains('load-chat')) return;
+    document.querySelectorAll('.clickable-chat').forEach(function (container) {
+        container.addEventListener('click', function (event) {
+            if (event.target.classList.contains('load-chat')) return;
 
-                const chatId = event.currentTarget.getAttribute('data-chat-id');
-                fetch(`/chat/${chatId}`)
-                    .then(response => response.text())
-                    .then(html => {
-                        document.querySelector('#dialog-panel').innerHTML = html;
-                        initializeChatJS(chatId);
-                    })
-                    .catch(error => {
-                        console.error('Ошибка:', error);
-                    });
-            });
+            const chatId = event.currentTarget.getAttribute('data-chat-id');
+            console.log(`Переключение на чат с ID: ${chatId}`);
+
+            fetch(`/chat/${chatId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при загрузке чата');
+                    }
+                    return response.text();
+                })
+                .then(html => {
+                    document.querySelector('#dialog-panel').innerHTML = html;
+                    initializeChatJS(chatId); // Вызывайте initializeChatJS после того, как HTML чата вставлен в DOM
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
         });
     });
 
+
     // Инициализация кода для chat.html
     function initializeChatJS(chatId) {
+
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
         var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
