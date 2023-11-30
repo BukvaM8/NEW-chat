@@ -9,8 +9,6 @@
         body {
             background-color: rgba(211, 211, 211, 0.2);
             font-family: Times New Roman, sans-serif;
-            /*
-        {#overflow: hidden;#} */
         }
 
         .left-panel {
@@ -183,9 +181,9 @@
 <div class="container-fluid">
     <div class="row">
         <!-- Left Panel -->
-        <div class="col-md-3 left-panel pb-0" style="min-width: 429px;">
+        <div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding-top: 0">
             <!-- Profile Section -->
-            <div class="d-flex align-items-center mb-4">
+            <div class="d-flex align-items-center mb-2" style="padding-top: 13px">
                 <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic"
                      width="50" height="50">
                 <div class="ms-3">
@@ -370,7 +368,7 @@
             </div>
         </div>
         <!-- Правая панель -->
-        <div class="col-md-8 right-panel" style="width: 1490px;">
+        <div class="col-md-8 right-panel" style="width: 1490px; padding-top: 4px">
             <!-- добавленные стили для "шторки" -->
             <style>
                 .drawer {
@@ -390,8 +388,8 @@
                 }
             </style>
             <div id="dialog-panel">
-                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170" style=""> <br><br>
-                <img src="../static/picture.svg" alt="Картинка" width="510">
+                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170" style="margin-left: 100px"> <br><br>
+                <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 120px">
                 <div id="dialog-container">
                     <ul class="list-group"></ul>
                     <div id="dialog-history">
@@ -407,6 +405,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
+    function submitForm(event) {
+        event.preventDefault();
+        document.getElementById('dialogForm').submit();
+    }
 
     $(document).ready(function () {
         var dropdownVisible = false;
@@ -948,6 +950,44 @@
             openUserProfileSidebar(phoneNumber, dialogId); // Открываем шторку, если она закрыта
         }
     }
+
+    // Добавление обработчика клика на шапку диалога
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.interlocutor-info, .interlocutor-info *').forEach(function (element) {
+            element.addEventListener('click', function (event) {
+                event.preventDefault();
+                const dialogContainer = this.closest('.container');
+                const dialogId = dialogContainer.querySelector('input[name="dialog_id"]').value;
+                const phoneNumber = dialogContainer.querySelector('.username a').getAttribute('href').split('/').pop();
+                openUserProfileSidebar(phoneNumber, dialogId);
+            });
+        });
+    });
+
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const usernameLink = document.querySelector('.username a');
+        if (usernameLink) {
+            usernameLink.addEventListener('click', function (event) {
+                event.preventDefault();
+                openUserProfileSidebar();
+            });
+        } else {
+            console.error('Элемент с классом .username a не найден');
+        }
+    });
+
+
+
+
+    // Добавьте обработчик клика на элемент с никнеймом пользователя
+    document.addEventListener('click', function (event) {
+        if (event.target.matches('.username')) {
+            event.preventDefault();
+            const phoneNumber = event.target.getAttribute('href').split('/').pop();
+            openUserProfileSidebar(phoneNumber);
+        }
+    });
 
 
     // Функция для закрытия шторки

@@ -216,6 +216,21 @@
             margin-top: 20px; /* отступ сверху для эстетики */
         }
 
+        .message_input {
+            border: none;
+            outline: none;
+            font-family: Roboto, serif;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 400;
+            line-height: 16px;
+            text-align: left; /* Выравнивание текста слева */
+            height: auto; /* Автоматическая высота */
+            overflow-y: auto; /* Скролл для переполнения */
+            resize: none; /* Убрать возможность ручного изменения размера */
+            max-height: 100px; /* Максимальная высота до 4 строк текста */
+        }
+
     </style>
 </head>
 <body>
@@ -236,101 +251,92 @@
         <hr class="my-0">
     </div>
     <hr>
-</div>
 
-
-<div class="mt-4 messages-container">
-    <ul class="list-group">
-        {% for message in messages %}
-        {% if not message.delete_timestamp %}
-        <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
-            data-message-id="{{ message.id }}">
-            <div class="message-content">
-                {% if message.sender_nickname %}
-                <strong>{{ message.sender_nickname }}</strong>
-                {% endif %}
-                {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
-                {% set raw_message = message.message.split('[[FILE]]') %}
-                {{ raw_message[0] }}
-                {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
-                {% set file_id_info, file_name_info = file_info.split(', ') %}
-                {% set file_id = file_id_info.split(': ')[1] %}
-                {% set file_name = file_name_info.split(': ')[1] %}
-                <a href="/files/{{ file_id }}">{{ file_name }}</a>
-                {% elif message.message %}
-                {{ message.message }}
-                {% else %}
-                <!-- Сообщение пустое или удалено -->
-                {% endif %}
-                <br>
-                <!-- Проверка на наличие времени редактирования и отображение соответствующего текста -->
-                <small>
-                    {% if message.edit_timestamp %}
-                    Изменено: {{ message.edit_timestamp }}
-                    {% else %}
-                    Отправлено: {{ message.timestamp }}
+    <div class="mt-4 messages-container">
+        <ul class="list-group">
+            {% for message in messages %}
+            {% if not message.delete_timestamp %}
+            <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
+                data-message-id="{{ message.id }}">
+                <div class="message-content">
+                    {% if message.sender_nickname %}
+                    <strong>{{ message.sender_nickname }}</strong>
                     {% endif %}
-                </small>
-                <!-- Dropdown menu for message options -->
-                <div class="message-dropdown">
-                    <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
-                         onclick="toggleDropdownMenu(event)">
-                    <div class="message-options" style="display: none;">
-                        {% if message.sender_id == current_user.id %}
-                        <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">
-                            Удалить сообщение
-                        </button>
-                        <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">
-                            Изменить
-                        </button>
+                    {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+                    {% set raw_message = message.message.split('[[FILE]]') %}
+                    {{ raw_message[0] }}
+                    {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
+                    {% set file_id_info, file_name_info = file_info.split(', ') %}
+                    {% set file_id = file_id_info.split(': ')[1] %}
+                    {% set file_name = file_name_info.split(': ')[1] %}
+                    <a href="/files/{{ file_id }}">{{ file_name }}</a>
+                    {% elif message.message %}
+                    {{ message.message }}
+                    {% else %}
+                    <!-- Сообщение пустое или удалено -->
+                    {% endif %}
+                    <br>
+                    <!-- Проверка на наличие времени редактирования и отображение соответствующего текста -->
+                    <small>
+                        {% if message.edit_timestamp %}
+                        Изменено: {{ message.edit_timestamp }}
+                        {% else %}
+                        Отправлено: {{ message.timestamp }}
                         {% endif %}
-                        <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">
-                            Переслать
-                        </button>
+                    </small>
+                    <!-- Dropdown menu for message options -->
+                    <div class="message-dropdown">
+                        <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
+                             onclick="toggleDropdownMenu(event)">
+                        <div class="message-options" style="display: none;">
+                            {% if message.sender_id == current_user.id %}
+                            <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">
+                                Удалить сообщение
+                            </button>
+                            <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">
+                                Изменить
+                            </button>
+                            {% endif %}
+                            <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">
+                                Переслать
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </li>
-        {% endif %}
-        {% endfor %}
-    </ul>
-</div>
+            </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
 </div>
 
 
 <div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle">
-    <form id="message-form" style="padding-top: 10px">
+    <form id="message-form" style="padding-top: 10px; display: flex; align-items: center;">
         <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
         <input type="hidden" name="sender_id" value="{{ current_user.id }}">
-        <div class="row">
-            <div class="col-md-1" style="padding: 0">
-                <div class="form-group">
-                    <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer;" multiple>
-                </div>
-            </div>
-            <div class="col-md-7" style="padding: 0">
-                <div class="form-group">
-                    <textarea name="message" id="message-input" class="form-control textarea"
-                              placeholder="Введите сообщение" rows="1" style="resize: none;"></textarea>
-                </div>
-            </div>
-            <div class="col-md-4" style="padding: 0">
-                <div class="form-group">
-                    <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
-                </div>
-            </div>
-        </div>
+        <input type="file" id="fileInput" name="file" class="form-control-file" multiple
+               style="display: none;">
+        <label for="fileInput" id="fileInputLabel">
+            <img src="../static/attach_files.svg" alt="Attach Files" style="cursor: pointer; margin-right: 10px;">
+        </label>
+        <textarea name="message" id="message-input" class="form-control message_input"
+                  placeholder="Введите сообщение" rows="1"
+                  style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"
+        ></textarea>
+        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
 
     </form>
 </div>
-{#
-<div class="mt-4">#}
-    {#
-    <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>
-    #}
-    {#
-</div>
-#}
+
+
+<!--<div class="mt-4">#}-->
+<!--    {#-->
+<!--    <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>-->
+<!--    #}-->
+<!--    {#-->
+<!--</div>-->
+
 
 <script>
 
