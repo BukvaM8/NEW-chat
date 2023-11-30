@@ -242,6 +242,7 @@ dialog_messages = Table(
     Column("file_id", Integer, ForeignKey('Files.id')),  # Новая колонка
     Column("timestamp", DateTime(timezone=True), default=datetime.now(moscow_tz)),
     Column("delete_timestamp", DateTime),
+    Column("edit_timestamp", DateTime)  # Новый столбец для отметки времени редактирования
 )
 
 chatmessages = Table(
@@ -252,10 +253,12 @@ chatmessages = Table(
     Column("sender_phone_number", String, ForeignKey('Users.nickname')),
     Column("message", String),
     Column("timestamp", DateTime, default=func.now()),
+    Column("edit_timestamp", DateTime),  # Новый столбец для времени редактирования сообщения
     Column("delete_timestamp", DateTime),
-    Column("deleted_by_users", JSON),  # Новый столбец для хранения информации о удалении
-    Column("message_type", String(255))  # Новый столбец для типа сообщения
+    Column("deleted_by_users", JSON),
+    Column("message_type", String(255))
 )
+
 
 voicemessages = Table(
     "VoiceMessages",
@@ -3501,6 +3504,35 @@ async def create_chat(request: Request, chat_name: str = Form(...), user_phone: 
 
     return JSONResponse(content={"chat_id": chat_id, "status": "created"})
 
+@app.post("/chats/{chat_id}/change_name", response_class=JSONResponse)
+async def change_chat_name(request: Request, chat_id: int, new_name: str = Form(...),
+                           current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    # Проверяем, является ли текущий пользователь владельцем чата
+    owner = await get_chat_owner(chat_id)
+    if current_user.phone_number != owner:
+        raise HTTPException(status_code=403, detail="Only the chat owner can change the name")
+
+    # Обновляем название чата в базе данных
+    try:
+        query = userchats.update().\
+            where(userchats.c.id == chat_id).\
+            values(chat_name=new_name)
+        await database.execute(query)
+        return JSONResponse(content={"status": "success", "new_name": new_name})
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail="Error updating chat name")
+
+async def get_chat_owner(chat_id: int) -> str:
+    query = select([userchats.c.owner_phone_number]).where(userchats.c.id == chat_id)
+    result = await database.fetch_one(query)
+    if result:
+        return result['owner_phone_number']
+    else:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
 
 # Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
 @app.get("/chats/{chat_id}", response_class=HTMLResponse)
@@ -4248,17 +4280,17 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
         logging.error("Failed to insert message into the database.")
 
 
-async def update_message(message_id: int, new_message: str, new_file_id: int = None, new_file_path: str = None) -> bool:
+async def update_message(message_id: int, new_message: str, new_file_id: int = None) -> bool:
     logging.info(f"Attempting to update message with ID: {message_id}, New message: {new_message}")
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
     try:
-        # Обновление сообщения с новым файлом, если он предоставлен
+        # Обновляем только сообщение и время его редактирования
         await cur.execute("""
             UPDATE DialogMessages
-            SET message = %s, file_id = %s, file_path = %s
+            SET message = %s, file_id = %s, edit_timestamp = NOW()
             WHERE id = %s
-        """, (new_message, new_file_id, new_file_path, message_id))
+        """, (new_message, new_file_id, message_id))
         await conn.commit()
         logging.info("Message update successful")
         return True
@@ -4271,12 +4303,14 @@ async def update_message(message_id: int, new_message: str, new_file_id: int = N
         conn.close()
 
 
+
 async def update_chat_message(message_id: int, new_message: str) -> bool:
     logging.info(f"Attempting to update chat message with ID: {message_id}")
 
+    current_time = datetime.utcnow()  # Получаем текущее время
     query = chatmessages.update(). \
         where(chatmessages.c.id == message_id). \
-        values(message=new_message)
+        values(message=new_message, edit_timestamp=current_time)  # Обновляем время редактирования
     try:
         await database.execute(query)
         logging.info("Chat message update successful")
@@ -4980,7 +5014,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                             {
                                 "action": "message_updated",
                                 "message_id": message_id,
-                                "new_text": new_text
+                                "new_text": new_text,
+                                "edit_timestamp": datetime.utcnow().isoformat()  # Добавьте метку времени
                             },
                             room=room_name
                         )

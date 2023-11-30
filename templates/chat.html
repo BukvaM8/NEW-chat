@@ -37,6 +37,7 @@
             background-color: white;
             scrollbar-width: thin;
             scrollbar-color: transparent transparent;
+            scroll-behavior: smooth;
         }
 
         .messages-container::-webkit-scrollbar {
@@ -54,6 +55,7 @@
 
         .message-item.user {
             justify-content: flex-end;
+            z-index: 1;
         }
 
         .message-content h4 {
@@ -67,9 +69,11 @@
             color: black;
             padding: 10px;
             border-radius: 10px;
-            max-width: 50%;
+            max-width: 75%;
             position: relative;
+            z-index: 1;
         }
+
 
         .message-item.user .message-content {
             background-color: #2A88B9;
@@ -80,14 +84,28 @@
         /* Стилизация блока сообщения для обеспечения переноса текста и ограничения ширины */
         .message-item .message-content, .message-self {
             word-wrap: break-word;
-            max-width: 50%;
+            max-width: 75%;
             overflow-wrap: break-word;
         }
 
         /* Стиль для текстовой области с автоматическим переносом текста */
         textarea[name="message"] {
             white-space: pre-wrap;
+            overflow-y: hidden; /* Убрать скроллбар */
         }
+
+        /* Стиль для адаптивного textarea */
+        textarea.message_input {
+            width: 100%; /* Занимает всю доступную ширину */
+            min-height: 20px; /* Минимальная начальная высота */
+            max-height: 100px; /* Максимальная высота до 4 строк текста */
+            height: auto; /* Автоматическая высота */
+            overflow-y: hidden; /* Убрать вертикальный скролл */
+            resize: none; /* Убрать возможность изменения размера */
+            text-align: left; /* Выравнивание текста по левому краю */
+            padding: 5px; /* Отступы внутри поля ввода */
+        }
+
 
         .message-header {
             display: flex;
@@ -99,13 +117,14 @@
             position: absolute;
             top: 5px;
             right: -1px;
-            z-index: 10;
+            z-index: 2;
             visibility: hidden;
         }
 
         .message-options-icon {
             width: 20px;
             height: 20px;
+            z-index: 10;
         }
 
         .message-options {
@@ -128,6 +147,7 @@
             visibility: visible;
         }
 
+
         .message-options button {
             background-color: transparent;
             border: none;
@@ -136,6 +156,7 @@
             text-align: left;
             cursor: pointer;
             border-bottom: 1px solid #ccc;
+            z-index: 1000;
         }
 
         .message-options button:last-child {
@@ -145,7 +166,6 @@
         .message-options button:hover {
             background-color: #ddd;
         }
-
 
         .drawer {
             z-index: 1000;
@@ -220,6 +240,11 @@
             font-style: normal;
             font-weight: 400;
             line-height: 16px;
+            text-align: left; /* Выравнивание текста слева */
+            height: auto; /* Автоматическая высота */
+            overflow-y: auto; /* Скролл для переполнения */
+            resize: none; /* Убрать возможность ручного изменения размера */
+            max-height: 100px; /* Максимальная высота до 4 строк текста */
         }
 
         .username {
@@ -284,7 +309,7 @@
 </head>
 <body>
 <!-- "Шторка" с дополнительными опциями -->
-<div class="drawer" id="chatDrawer text-center" style="text-align: left">
+<div class="drawer" id="chatDrawer" style="text-align: left">
     <!-- Фотография чата -->
     <div class="profile-picture-overlay">
         <label class="edit-photo-label" id="change-photo-button">Изменить фото</label>
@@ -302,10 +327,10 @@
     <hr>
 
     <!-- Поле для изменения названия -->
-{#    <form action="/chats/{{ chat.id }}/change_name" method="post">#}
-{#        <input type="text" name="new_name" placeholder="Новое название">#}
-{#        <button type="submit">Изменить название</button>#}
-{#    </form>#}
+    {#    <form action="/chats/{{ chat.id }}/change_name" method="post">#}
+    {#        <input type="text" name="new_name" placeholder="Новое название">#}
+    {#        <button type="submit">Изменить название</button>#}
+    {#    </form>#}
 
     <div class="text-center" style="width: 413px; margin: 0 auto; text-align: left;">
         <div class="mt-3">
@@ -322,9 +347,9 @@
             <div class="d-flex flex-column align-items-start">
                 <div class="text-left text-blue mb-2"><strong>Участники:</strong></div>
             </div>
-{#            <form action="/chats/{{ chat.id }}/delete" method="post">#}
-                <button type="submit" class="btn btn-primary button">Добавить участника</button>
-{#            </form>#}
+            {#            <form action="/chats/{{ chat.id }}/delete" method="post">#}
+            <button type="submit" class="btn btn-primary button">Добавить участника</button>
+            {#            </form>#}
         </div>
     </div>
 
@@ -341,8 +366,8 @@
             <button type="submit" class="btn btn-primary button">Покинуть чат</button>
         </form>
     {% endif %}
-{#    <a href="/chat/{{ chat.id }}/members" id="member-count" class="btn btn-info">{{ members|length }}#}
-{#        участников</a>#}
+    {#    <a href="/chat/{{ chat.id }}/members" id="member-count" class="btn btn-info">{{ members|length }}#}
+    {#        участников</a>#}
 
     <!-- Добавленная кнопка "Вернуться домой" -->
     <a href="/home" class="btn btn-secondary" style="visibility: hidden">Вернуться назад</a>
@@ -359,10 +384,27 @@
     </div>
     <hr>
 
+    {#    <!-- Контейнер для сообщений -->#}
+    {#    <div class="messages-container" style="padding-left: 0">#}
+    {#        <!-- Список сообщений -->#}
+    {#        <ul class="messages-list" id="chat-history" style="padding-left: 0">#}
+    {#            {% for message in messages %}#}
+    {#                <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"#}
+    {#                     data-message-id="{{ message.id }}">#}
+    {#                    <div class="message-content">#}
+    {#                        <div class="message-header">#}
+    {#                            {% if message.sender_phone_number == "deleted" %}#}
+    {#                                <h4>Deleted message</h4>#}
+    {#                            {% else %}#}
+    {#                                {% if current_user.nickname != message.sender_nickname %}#}
+    {#                                    <a href="/profile/{{ message.sender_nickname }}">#}
+    {#                                        <h4>{{ message.sender_nickname }}</h4></a>#}
+    {#                                {% endif %}#}
+    {#                            {% endif %}#}
     <!-- Контейнер для сообщений -->
-    <div class="messages-container" style="padding-left: 0">
+    <div class="messages-container">
         <!-- Список сообщений -->
-        <ul class="messages-list" id="chat-history" style="padding-left: 0">
+        <ul class="messages-list" id="chat-history">
             {% for message in messages %}
                 <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
                      data-message-id="{{ message.id }}">
@@ -371,17 +413,14 @@
                             {% if message.sender_phone_number == "deleted" %}
                                 <h4>Deleted message</h4>
                             {% else %}
-                                {% if current_user.nickname != message.sender_nickname %}
-                                    <a href="/profile/{{ message.sender_nickname }}">
-                                        <h4>{{ message.sender_nickname }}</h4></a>
-                                {% endif %}
+                                <a href="/profile/{{ message.sender_nickname }}"><h4>{{ message.sender_nickname }}</h4>
+                                </a>
                             {% endif %}
 
                             <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
                             <div class="message-dropdown">
                                 {% if message.sender_phone_number != "deleted" %}
-                                    <img src="/static/downarrow.png" alt="Options"
-                                         class="message-options-icon">
+                                    <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
                                     <div class="message-options">
                                         {% if chat.owner_phone_number == current_user.phone_number or message.sender_phone_number ==
                             current_user.phone_number %}
@@ -389,7 +428,7 @@
                                         {% endif %}
                                         <button class="forward-message">Переслать</button>
                                         {% if message.sender_phone_number == current_user.phone_number %}
-                                            <button class="edit-message">Изменить</button>
+                                            <button class="dropdown-item edit-message-button">Редактировать</button>
                                         {% endif %}
                                     </div>
                                 {% endif %}
@@ -414,49 +453,50 @@
                                 {{ message.message }}
                             {% endif %}
                         </p>
-                        <small>Отправлено: {{ message.timestamp }}</small>
+                        <small>
+                            {% if message.edit_timestamp %}
+                                Изменено: {{ message.edit_timestamp }}
+                            {% else %}
+                                Отправлено: {{ message.timestamp }}
+                            {% endif %}
+                        </small>
                     </div>
+
                 </div>
             {% endfor %}
         </ul>
+
+    </div>
+    <!-- Форма для отправки сообщения -->
+    <div class="mt-4 border-top" style="position: fixed; bottom: 10px; width: 60%; vertical-align: middle"
+         id="message-form-container">
+        <!-- Область для отображения информации о прикрепленном файле -->
+        <div id="file-display-area" style="padding: 10px;">
+            <!-- Информация о файле и кнопка удаления файла будут отображаться здесь -->
+        </div>
+
+        <form action="/chats/{{ chat.id }}/send_message" method="post" enctype="multipart/form-data"
+              style="padding-top: 10px; display: flex; align-items: center;">
+            <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
+
+            <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer; margin-right: 10px;"
+                 multiple>
+            <input type="file" id="file-input" name="file" class="form-control" style="display:none;" for="file-input">
+
+            <!-- Обновленное поле ввода текста с невидимым скролл-баром -->
+            <textarea id="message-input" name="message_text" class="form-control message_input"
+                      placeholder="Введите сообщение"
+                      style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"></textarea>
+
+            <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
+        </form>
     </div>
 </div>
-<!-- Форма для отправки сообщения -->
-<div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle"
-     id="message-form-container">
-    <form action="/chats/{{ chat.id }}/send_message" method="post" enctype="multipart/form-data"
-          style="padding-top: 10px">
-        <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
 
-        <div class="row">
-            <div class="col-md-1" style="padding: 0">
-                <div class="form-group">
-                    <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer;"
-                         multiple>
-                    {#                    <input type="file" id="file-input" name="file" class="form-control" for="file-input"><br>#}
-                </div>
-            </div>
-            <div class="col-md-11" style="padding: 0">
-                <div class="form-group">
-                    <input type="text" id="message-input" name="message_text"
-                           class="form-control message_input"
-                           placeholder="Введите сообщение" for="message-input"><br>
-                </div>
-            </div>
-        </div>
-    </form>
-</div>
 <script>
-    // Функция для открытия и закрытия "шторки"
-    function toggleDrawer() {
-        const drawer = document.getElementById('chatDrawer');
-        drawer.classList.toggle('open');
-    }
+    $(document).ready(function () {
 
-    document.addEventListener('DOMContentLoaded', function () {
-        const interlocutorInfo = document.querySelector('.interlocutor-info');
-        interlocutorInfo.addEventListener('click', toggleDrawer);
-
+        // Обработчики событий для изменения фотографии чата
         const chatImage = document.getElementById('chatImage');
         const changePhotoButton = document.getElementById("change-photo-button");
         const photoUpload = document.getElementById("photo-upload");
@@ -498,6 +538,7 @@
                     });
             }
         });
+
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
@@ -563,14 +604,6 @@
         };
 
 
-        const optionIcons = document.querySelectorAll('.message-options-icon');
-        optionIcons.forEach(function (icon) {
-            icon.addEventListener('click', function () {
-                const messageOptions = icon.nextElementSibling;
-                messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
-            });
-        });
-
         const deleteButtons = document.querySelectorAll('.delete-message');
         deleteButtons.forEach(function (button) {
             button.addEventListener('click', function () {
@@ -597,7 +630,8 @@
                     console.error('Error:', error);
                 });
         });
-    });
+    })
+    ;
 </script>
 </div>
 <!--        {#        <script>#}-->

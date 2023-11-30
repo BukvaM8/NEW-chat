@@ -21,6 +21,7 @@
         .messages-container {
             height: calc(85vh - 100px);
             overflow-y: auto;
+            scroll-behavior: smooth;
         }
 
         .messages-container::-webkit-scrollbar {
@@ -190,6 +191,21 @@
         textarea[name="message"] {
             white-space: pre-wrap;
         }
+
+        .message_input {
+            border: none;
+            outline: none;
+            font-family: Roboto, serif;
+            font-size: 14px;
+            font-style: normal;
+            font-weight: 400;
+            line-height: 16px;
+            text-align: left; /* Выравнивание текста слева */
+            height: auto; /* Автоматическая высота */
+            overflow-y: auto; /* Скролл для переполнения */
+            resize: none; /* Убрать возможность ручного изменения размера */
+            max-height: 100px; /* Максимальная высота до 4 строк текста */
+        }
     </style>
 </head>
 <body>
@@ -257,42 +273,31 @@
             {% endfor %}
         </ul>
     </div>
-</div>
 
-<div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle">
-    <form id="message-form" style="padding-top: 10px">
-        <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
-        <input type="hidden" name="sender_id" value="{{ current_user.id }}">
-        <div class="row">
-            <div class="col-md-1" style="padding: 0">
-                <div class="form-group">
-                    <input type="file" id="fileInput" name="file" class="form-control-file" multiple
-                           style="display: none;">
-                    <label for="fileInput" id="fileInputLabel">
-                        <img src="../static/attach_files.svg" alt="Attach Files">
-                    </label>
-                </div>
-            </div>
-            <div class="col-md-7" style="padding: 0">
-                <div class="form-group">
-                    <textarea name="message" id="message-input" class="form-control textarea"
-                              placeholder="Введите сообщение" rows="1" style="resize: none;"></textarea>
-                </div>
-            </div>
-            <div class="col-md-4" style="padding: 0">
-                <div class="form-group">
-                    <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
-                </div>
-            </div>
-        </div>
+    <div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle">
+        <form id="message-form" style="padding-top: 10px; display: flex; align-items: center;">
+            <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
+            <input type="hidden" name="sender_id" value="{{ current_user.id }}">
+            <input type="file" id="fileInput" name="file" class="form-control-file" multiple
+                   style="display: none;">
+            <label for="fileInput" id="fileInputLabel">
+                <img src="../static/attach_files.svg" alt="Attach Files" style="cursor: pointer; margin-right: 10px;">
+            </label>
+            <textarea name="message" id="message-input" class="form-control message_input"
+                      placeholder="Введите сообщение" rows="1"
+                      style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"
+            ></textarea>
+            <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
 
-    </form>
+        </form>
+    </div>
 </div>
 {#<div class="mt-4">#}
 {#    <button onclick="location.href='/home'" class="btn btn-secondary">Вернуться назад</button>#}
 {#</div>#}
 
 <script>
+
     document.getElementById('message-input').addEventListener('keypress', function (event) {
         // Проверяем, была ли нажата клавиша Enter
         if (event.key === 'Enter') {
