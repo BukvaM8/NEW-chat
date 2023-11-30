@@ -297,7 +297,7 @@ files = Table(
     "Files",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("nickname", String, ForeignKey('Users.nickname')),  # Изменено на nickname
+    Column("nickname", String(255), ForeignKey('Users.nickname')),  # Изменено на nickname
     Column("file_path", String),
     Column("file", LargeBinary),
     Column("file_extension", String(255)),
@@ -2668,7 +2668,7 @@ def change_password(request: NicknameRequest, db: Session = Depends(get_db)):
     db.add(new_registration)
     db.commit()
 
-    send_email(email, code)
+    # send_email(email, code)
     print(code)
 
 
@@ -2708,7 +2708,7 @@ def send_email_code(request: EmailRequest, db: Session = Depends(get_db)):
         db.add(new_registration)
         db.commit()
 
-        send_email(email, code)
+        # send_email(email, code)
 
         print(code)
 
@@ -4080,6 +4080,7 @@ async def create_dialog_route(request: Request, current_user: Union[str, Redirec
     if isinstance(current_user, RedirectResponse):
         return current_user
 
+    print(await get_all_users_from_contacts(current_user.id))
     return templates.TemplateResponse("create_dialog.html", {
         "request": request,
         "current_user": current_user,
@@ -4197,7 +4198,7 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
             "dialog_id": row[1],
             "sender_id": row[2],
             "message": row[3],
-            "timestamp": row[4].strftime("%Y-%m-%d %H:%M:%S") if row[4] else None,
+            "timestamp": row[4].strftime("%H:%M") if row[4] else None,
             "delete_timestamp": row[5].strftime("%Y-%m-%d %H:%M:%S") if row[5] else None
         })
     await cur.close()
@@ -4366,7 +4367,7 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     file_id = None
     if file and file.filename:
         file_content = await file.read()
-        file_id = await save_file(current_user.id, file.filename, file_content, file.filename.split('.')[-1])
+        file_id = await save_file(current_user.nickname, file.filename, file_content, file.filename.split('.')[-1])
 
     message_content = message if message else ""
     if file_id:

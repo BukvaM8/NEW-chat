@@ -85,7 +85,7 @@
 
         .message-self {
             text-align: left; /* Изменение выравнивания текста на левое */
-            background-color:  #2A88B9;
+            background-color: #2A88B9;
             color: white;
             border-radius: 10px;
             margin-bottom: 5px;
@@ -212,43 +212,45 @@
                 {% if not message.delete_timestamp %}
                     <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
                         data-message-id="{{ message.id }}">
-                        <div class="message-content">
-                            {% if message.sender_nickname %}
-                                <strong>{{ message.sender_nickname }}</strong>
-                            {% endif %}
-                            {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
-                                {% set raw_message = message.message.split('[[FILE]]') %}
-                                {{ raw_message[0] }}
-                                {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
-                                {% set file_id_info, file_name_info = file_info.split(', ') %}
-                                {% set file_id = file_id_info.split(': ')[1] %}
-                                {% set file_name = file_name_info.split(': ')[1] %}
-                                <a href="/files/{{ file_id }}">{{ file_name }}</a>
-                            {% elif message.message %}
-                                {{ message.message }}
-                            {% else %}
-                                <!-- Сообщение пустое или удалено -->
-                            {% endif %}
-                            <br>
-                            <small>Отправлено: {{ message.timestamp }}</small>
-                            <!-- Dropdown menu for message options -->
-                            <div class="message-dropdown">
-                                <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
-                                     onclick="toggleDropdownMenu(event)">
-                                <div class="message-options" style="display: none;">
-                                    {% if message.sender_id == current_user.id %}
-                                        <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">
-                                            Удалить сообщение
+                        <div class="message">
+                            <div class="message-content" id="dialog_message_content">
+                                {% if message.sender_nickname %}
+                                    <strong>{{ message.sender_nickname }}</strong>
+                                {% endif %}
+                                {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+                                    {% set raw_message = message.message.split('[[FILE]]') %}
+                                    {{ raw_message[0] }}
+                                    {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
+                                    {% set file_id_info, file_name_info = file_info.split(', ') %}
+                                    {% set file_id = file_id_info.split(': ')[1] %}
+                                    {% set file_name = file_name_info.split(': ')[1] %}
+                                    <a href="/files/{{ file_id }}">{{ file_name }}</a>
+                                {% elif message.message %}
+                                    <div class="message-text"> {{ message.message }} </div>
+                                {% else %}
+                                    <!-- Сообщение пустое или удалено -->
+                                {% endif %}
+                                <br>
+                                <!-- Dropdown menu for message options -->
+                                <div class="message-dropdown">
+                                    <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
+                                         onclick="toggleDropdownMenu(event)">
+                                    <div class="message-options" style="display: none;">
+                                        {% if message.sender_id == current_user.id %}
+                                            <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">
+                                                Удалить сообщение
+                                            </button>
+                                            <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">
+                                                Изменить
+                                            </button>
+                                        {% endif %}
+                                        <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">
+                                            Переслать
                                         </button>
-                                        <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">
-                                            Изменить
-                                        </button>
-                                    {% endif %}
-                                    <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">
-                                        Переслать
-                                    </button>
+                                    </div>
                                 </div>
                             </div>
+                            <small>Отправлено {{ message.timestamp }}</small>
                         </div>
                     </li>
                 {% endif %}
@@ -264,7 +266,11 @@
         <div class="row">
             <div class="col-md-1" style="padding: 0">
                 <div class="form-group">
-                    <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer;" multiple>
+                    <input type="file" id="fileInput" name="file" class="form-control-file" multiple
+                           style="display: none;">
+                    <label for="fileInput" id="fileInputLabel">
+                        <img src="../static/attach_files.svg" alt="Attach Files">
+                    </label>
                 </div>
             </div>
             <div class="col-md-7" style="padding: 0">
