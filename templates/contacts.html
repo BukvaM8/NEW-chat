@@ -44,11 +44,34 @@
         #myImage {
             cursor: pointer;
         }
+
+        .button {
+            display: flex;
+            height: 53px;
+            padding: 0px 24px;
+            justify-content: center;
+            align-items: center;
+            align-self: stretch;
+            background-color: #2A88B9;
+            border-radius: 6px;
+        }
+
+        .button:disabled {
+            background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+        }
+
+        .button:hover,
+        .button:focus,
+        .button:active {
+            color: white;
+            background-color: #2A88B9;
+            border-radius: 6px;
+        }
     </style>
 </head>
 <body>
 <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document" style="max-width: 500px; top: 85px;">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="myModalLabel">Новый контакт</h5>
@@ -65,7 +88,6 @@
                         <p style="color: #2A88B9; font-size: 12px; display: none" id="user_not_found"> Пользователя не
                             существует </p>
                     </div>
-                    {# <br>#}
                     <div class="form-group">
                         <input type="text" class="form-control" id="fullname" placeholder="ФИО">
                     </div>
@@ -78,9 +100,9 @@
 </div>
 
 <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document" style="max-width: 500px; top: 85px;">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header" style="vertical-align: center">
                 <h5 class="modal-title" id="myModalLabel">Изменение контакта</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Закрыть" id="closeEditModal">
                     <span aria-hidden="true">&times;</span>
@@ -126,23 +148,22 @@
                         <img id="profile-image" src="/get/{{ user.id }}/profile_picture/" alt="Ваше изображение"
                              class="rounded-circle mt-2" width="60" height="60">
                     </div>
-                    <div class="col-md-8">
-                        <div class="card-body">
-                            <a href="/profile/{{ user.nickname }}" style="text-decoration: none">
-                                <h5 class="card-title nickname mb-1"
-                                    id="user_nickname_{{ user.nickname }}" style="color: black">{{ user.fio }}</h5>
-                            </a>
-{#                        <img src="../static/Edit.png" alt="edit" width="15" height="15"#}
-{#                             id="editImage_{{ user.nickname }}" style="cursor: pointer;">#}
-                            {% if user.status_visibility %}
-                                <p class="card-text status">{{ user.status }}</p>
-                            {% endif %}
+                    <div class="col-md-10">
+                        <div class="card-body" style="display: flex; align-items: center;">
+                            <div>
+                                <a href="/profile/{{ user.nickname }}" style="text-decoration: none">
+                                    <h5 class="card-title nickname mb-1" id="user_nickname_{{ user.nickname }}"
+                                        style="color: black">{{ user.fio }}</h5>
+                                </a>
+                                {% if user.status_visibility %}
+                                    <p class="card-text status">{{ user.status }}</p>
+                                {% endif %}
+                            </div>
+                            <img src="../static/Edit.png" alt="edit" width="15" height="15"
+                                 id="editImage_{{ user.nickname }}_{{ user.fio }}"
+                                 style="cursor: pointer; margin-left: auto;">
                         </div>
                     </div>
-{#                    <div style="text-align: right">#}
-{#                        <img src="../static/Edit.png" alt="edit" width="15" height="15"#}
-{#                             id="editImage_{{ user.nickname }}" style="cursor: pointer;">#}
-{#                    </div>#}
                 </div>
                 <hr class="my-1">
             {% endif %}
@@ -176,10 +197,13 @@
         var timeoutId;
 
         $('[id^="editImage_"]').on('click', function () {
+            console.log($(this))
             var imageId = $(this).attr('id');
             var nickname = imageId.split('_')[1];
+            var fio = imageId.split('_')[2];
             $('#editModal').modal('show');
             document.getElementById('editNickname').value = nickname;
+            document.getElementById('editFullname').value = fio;
         });
 
         $nicknameInput.on("input", function () {

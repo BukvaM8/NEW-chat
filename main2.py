@@ -44,7 +44,8 @@ from jose import JWTError
 from jwt import PyJWTError
 # Другие сторонние библиотеки
 from pydantic import BaseModel
-from pydantic.json import Union
+# from pydantic.json import Union
+from typing import Union
 from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
@@ -1495,111 +1496,11 @@ async def get_registration_form(request: Request):
 
     error_message = ""
     if message == "CaptchaFailed":
-        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Капча не пройдена.</div>'
+        error_message = '<div class="alert alert-danger error" role="alert" style="align-self: center;">Ошибка: Капча не пройдена.</div>'
     elif message == "ConfirmationFailed":
-        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Неверный код подтверждения.</div>'
+        error_message = '<div class="alert alert-danger" role="alert" style="align-self: center;">Ошибка: Неверный код подтверждения.</div>'
 
-    form = f"""
-        <html>
-        <head>
-            <title>Регистрация пользователя</title>
-            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-            <style>
-                .container {{
-                    max-width: 600px;
-                }}
-                .under_headline {{
-                    font-family: Roboto;
-                    font-size: 14px;
-                    text-align: center;
-                    font-style: normal;
-                    font-weight: 500;
-                    line-height: 16px;
-                }}
-                .headline {{
-                    font-family: Roboto;
-                    font-size: 24px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 32px;
-                    text-align: center;
-                }}
-                .button {{
-                    display: flex;
-                    height: 53px;
-                    width: 540;
-                    padding: 0px 24px;
-                    justify-content: center;
-                    align-items: center;
-                    align-self: stretch;
-                    background-color: #2A88B9;
-                }}
-                
-                .back {{
-                    font-family: Roboto;
-                    font-size: 20px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 22px;
-                    color: #928F8F;
-                }}
-            </style>
-            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-        </head>
-        <body>
-            <div class="container mt-5">
-                <a style="text-decoration: none;" href="/login_register"> <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p> </a>
-                <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
-                <br>
-                <br>
-                <h4 class="headline">Введите почту для создания аккаунта</h4>
-                <p class="under_headline">На вашу почту придет код подтверждения</p>
-                {error_message}
-                <br>
-                <form method="post" action="/confirm-code" id="form" style="width: 540px">
-                    <div class="form-group">
-                        <input type="email" class="form-control" id="email" name="email" required placeholder="Почта">
-                    </div>
-                        <div class="col-md-6 offset-md-2 text-center">
-                          <div class="g-recaptcha" data-sitekey="{SITE_KEY}" required></div>
-                        </div>
-                    <br>
-                    <button type="submit" class="btn btn-primary button" id="submit-button">Далее</button>
-                    <br>
-                    <div class="form-check" style="text-align: left">
-                        <input type="checkbox" class="form-check-input" id="check1" required>
-                        <label class="form-check-label" for="check1">Я согласен с обработкой персональных данных</label>
-                    </div>
-                    <br>
-                    <div class="form-check" style="text-align: left">
-                        <input type="checkbox" class="form-check-input" id="check2" required>
-                        <label class="form-check-label" for="check2">Я согласен с правилами компании</label>
-                    </div>
-                </form>
-            </div>
-            <script>
-                function onSubmit(token) {{
-                    document.getElementById("g-recaptcha-response").value = token;
-                    document.getElementById("form").submit();
-                }}
-                function onCaptchaSuccess(response) {{
-                    // При успешной проверке капчи, разблокировать отправку формы
-                    document.getElementById("submit-button").removeAttribute("disabled");
-                }}
-
-                // Блокировка отправки формы при загрузке страницы
-                document.getElementById("form").addEventListener("submit", function (event) {{
-                    if (grecaptcha.getResponse() === "") {{
-                        event.preventDefault();
-                        alert("Пожалуйста, пройдите капчу.");
-                    }}
-                }});
-            </script>
-        </body>
-        </html>
-    """
-
-    return form
+    return templates.TemplateResponse("registration.html", {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
 
 
 @app.post("/confirm-code", response_class=HTMLResponse)
@@ -1648,11 +1549,23 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
                     .button {{
                         display: flex;
                         height: 53px;
-                        width: 540;
+                        width: 570px;
                         padding: 0px 24px;
                         justify-content: center;
                         align-items: center;
                         align-self: stretch;
+                        background-color: #2A88B9;
+                        border-radius: 8px;
+                        border: 3px #2A88B9;
+                    }}
+            
+                    .button:disabled {{
+                        background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+                    }}
+            
+                    .button:hover,
+                    .button:focus,
+                    .button:active {{
                         background-color: #2A88B9;
                     }}
                     .code-input {{
@@ -1798,52 +1711,64 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
             }}
             
             .under_headline {{
-                    font-family: Roboto;
-                    font-size: 14px;
-                    text-align: center;
-                    font-style: normal;
-                    font-weight: 500;
-                    line-height: 16px;
-                }}
-                .headline {{
-                    font-family: Roboto;
-                    font-size: 24px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 32px;
-                    text-align: center;
-                }}
-                .button {{
-                    display: flex;
-                    height: 53px;
-                    width: 540;
-                    padding: 0px 24px;
-                    justify-content: center;
-                    align-items: center;
-                    align-self: stretch;
-                    background-color: #2A88B9;
-                }}
-                .unstyled-list {{
-                    font-family: Roboto;
-                    font-size: 14px;
-                    font-style: normal;
-                    font-weight: 500;
-                    line-height: 16px;
-                    text-align: left;
-                }}
-                .button:disabled {{
-                    background-color: #2A88B9; /* Цвет фона для disabled кнопки */
-                }}
-                
-                .back {{
-                    font-family: Roboto;
-                    font-size: 20px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 22px;
-                    color: #928F8F;
-                    text-decoration: none;
-                }}
+                font-family: Roboto;
+                font-size: 14px;
+                text-align: center;
+                font-style: normal;
+                font-weight: 500;
+                line-height: 16px;
+            }}
+            .headline {{
+                font-family: Roboto;
+                font-size: 24px;
+                font-style: normal;
+                font-weight: 400;
+                line-height: 32px;
+                text-align: center;
+            }}
+            .button {{
+                display: flex;
+                height: 53px;
+                width: 570px;
+                padding: 0px 24px;
+                justify-content: center;
+                align-items: center;
+                align-self: stretch;
+                background-color: #2A88B9;
+                border-radius: 8px;
+                border: 3px #2A88B9;
+            }}
+    
+            .button:disabled {{
+                background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+            }}
+    
+            .button:hover,
+            .button:focus,
+            .button:active {{
+                background-color: #2A88B9;
+            }}
+            .unstyled-list {{
+                font-family: Roboto;
+                font-size: 14px;
+                font-style: normal;
+                font-weight: 500;
+                line-height: 16px;
+                text-align: left;
+            }}
+            .button:disabled {{
+                background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+            }}
+            
+            .back {{
+                font-family: Roboto;
+                font-size: 20px;
+                font-style: normal;
+                font-weight: 400;
+                line-height: 22px;
+                color: #928F8F;
+                text-decoration: none;
+            }}
         </style>
     </head>
     <body>
@@ -1860,7 +1785,7 @@ async def confirm_registration(code: str = Form(...), email: str = Form(...), db
             <form method="post" action="/complete-register" id="form" style="width: 540px">
                 <div class="form-group">
                     <input type="text" id="nickname" name="nickname" class="form-control" placeholder="Никнейм" required>
-                    <p id="nicknameError" style="color: red; display: none;">Этот никнейм уже занят</p>
+                    <p id="nicknameError" style="color: #2A88B9; font-size: 12px; display: none">Этот никнейм уже занят</p>
                 </div>
                 <div class="form-group">
                     <input type="password" id="password" name="password" class="form-control" placeholder="Пароль" required>
@@ -2001,11 +1926,23 @@ async def confirm_registration(nickname: str = Form(...), email: str = Form(...)
                         .button {{
                             display: flex;
                             height: 53px;
-                            width: 540;
+                            width: 570px;
                             padding: 0px 24px;
                             justify-content: center;
                             align-items: center;
                             align-self: stretch;
+                            background-color: #2A88B9;
+                            border-radius: 8px;
+                            border: 3px #2A88B9;
+                        }}
+                
+                        .button:disabled {{
+                            background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+                        }}
+                
+                        .button:hover,
+                        .button:focus,
+                        .button:active {{
                             background-color: #2A88B9;
                         }}
                     </style>
@@ -2089,7 +2026,7 @@ def send_email(to_email, code):
 
 
 @app.post("/forget_password", response_class=HTMLResponse)
-async def get_registration_form(request: Request):
+async def get_password_reset_form(request: Request):
     message = request.query_params.get("message", "")
 
     error_message = ""
@@ -2099,102 +2036,8 @@ async def get_registration_form(request: Request):
         error_message = '<div class="alert alert-danger" role="alert">Ошибка: Неверный код подтверждения.</div>'
     elif message == 'LoginFailed':
         error_message = '<div class="alert alert-danger" role="alert">Ошибка: К данному никнейму привязан другой email.</div>'
-    form = f"""
-        <html>
-        <head>
-            <title>Смена пароля</title>
-            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-            <style>
-                .container {{
-                    max-width: 600px;
-                }}
-                .under_headline {{
-                    font-family: Roboto;
-                    font-size: 14px;
-                    text-align: center;
-                    font-style: normal;
-                    font-weight: 500;
-                    line-height: 16px;
-                }}
-                .headline {{
-                    font-family: Roboto;
-                    font-size: 24px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 32px;
-                    text-align: center;
-                }}
-                .button {{
-                    display: flex;
-                    height: 53px;
-                    width: 540;
-                    padding: 0px 24px;
-                    justify-content: center;
-                    align-items: center;
-                    align-self: stretch;
-                    background-color: #2A88B9;
-                }}
-                
-                .back {{
-                    font-family: Roboto;
-                    font-size: 20px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 22px;
-                    color: #928F8F;
-                }}
-            </style>
-            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-        </head>
-        <body>
-            <div class="container mt-5">
-                <a style="text-decoration: none;" href="/login">
-                    <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
-                </a>
-                <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
-                <br>
-                <br>
-                <h4 class="headline">Введите почту для изменения пароля</h4>
-                <p class="under_headline">На вашу почту придет код подтверждения</p>
-                {error_message}
-                <br>
-                <form method="post" action="/confirm-code-password-reset" id="form" style="width: 540px">
-                    <div class="form-group">
-                        <input type="email" class="form-control" id="email" name="email" required placeholder="Почта">
-                    </div>
-                    <div class="form-group">
-                        <input type="text" class="form-control" id="nickname" name="nickname" required placeholder="Никнейм">
-                    </div>
-                        <div class="col-md-6 offset-md-2 text-center">
-                          <div class="g-recaptcha" data-sitekey="{SITE_KEY}" required></div>
-                        </div>
-                    <br>
-                    <button type="submit" class="btn btn-primary button" id="submit-button">Далее</button>
-                </form>
-            </div>
-            <script>
-                function onSubmit(token) {{
-                    document.getElementById("g-recaptcha-response").value = token;
-                    document.getElementById("form").submit();
-                }}
-                function onCaptchaSuccess(response) {{
-                    // При успешной проверке капчи, разблокировать отправку формы
-                    document.getElementById("submit-button").removeAttribute("disabled");
-                }}
 
-                // Блокировка отправки формы при загрузке страницы
-                document.getElementById("form").addEventListener("submit", function (event) {{
-                    if (grecaptcha.getResponse() === "") {{
-                        event.preventDefault();
-                        alert("Пожалуйста, пройдите капчу.");
-                    }}
-                }});
-            </script>
-        </body>
-        </html>
-    """
-
-    return form
+    return templates.TemplateResponse("password_reset_form.html", {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
 
 
 @app.post("/confirm-code-password-reset", response_class=HTMLResponse)
@@ -2381,203 +2224,25 @@ async def confirm_code_reset_password(request: Request, email: str = Form(...), 
 
 
 @app.post("/reset-password", response_class=HTMLResponse)
-async def confirm_registration(code: str = Form(...), email: str = Form(...), nickname: str = Form(...),
+async def confirm_registration(request: Request, code: str = Form(...), email: str = Form(...), nickname: str = Form(...),
                                db: Session = Depends(get_db)):
     results = db.query(Registration).filter(Registration.email == email).first()
 
     if results is None or code != results.confirmation_code:
         return RedirectResponse("/forget_password?message=ConfirmationFailed")
 
-    response = f"""
-    <html>
-    <head>
-        <title>Регистрация завершена</title>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-        <style>
-            .container {{
-                max-width: 600px;
-            }}
-
-            .under_headline {{
-                    font-family: Roboto;
-                    font-size: 14px;
-                    text-align: center;
-                    font-style: normal;
-                    font-weight: 500;
-                    line-height: 16px;
-                }}
-                .headline {{
-                    font-family: Roboto;
-                    font-size: 24px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 32px;
-                    text-align: center;
-                }}
-                .button {{
-                    display: flex;
-                    height: 53px;
-                    width: 540;
-                    padding: 0px 24px;
-                    justify-content: center;
-                    align-items: center;
-                    align-self: stretch;
-                    background-color: #2A88B9;
-                }}
-                .unstyled-list {{
-                    font-family: Roboto;
-                    font-size: 14px;
-                    font-style: normal;
-                    font-weight: 500;
-                    line-height: 16px;
-                    text-align: left;
-                }}
-                .button:disabled {{
-                    background-color: #2A88B9; /* Цвет фона для disabled кнопки */
-                }}
-                .back {{
-                    font-family: Roboto;
-                    font-size: 20px;
-                    font-style: normal;
-                    font-weight: 400;
-                    line-height: 22px;
-                    color: #928F8F;
-                    text-decoration: none;
-                }}
-        </style>
-    </head>
-    <body>      
-         <div class="container mt-5">
-            <a style="text-decoration: none;" href="#" onclick="submitForm()">
-                <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
-            </a>
-            <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
-            <br>
-            <br>
-            <h4 class="headline">Введите новый пароль</h4>
-            <form method="post" action="/complete-password-reset" id="form" style="width: 540px">
-                <div class="form-group">
-                    <input type="password" id="password" name="password" class="form-control" placeholder="Пароль" required>
-                    <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
-                    <input type="text" class="form-control" id="nickname" name="nickname" value="{nickname}" style="display: None">
-                </div>
-                <button type="submit" class="btn btn-primary button" id="loginButton" disabled>Изменить пароль</button>
-            </form>
-            <p class="unstyled-list"> Ваш пароль должен содержать </p>
-            <ul class="unstyled-list">
-                <li class="list-item">Латинские буквы</li>
-                <li class="list-item">Минимум 8 символов</li>
-                <li class="list-item">Минимум 1 заглавную букву</li>
-                <li class="list-item">Минимум 1 прописную букву</li>
-                <li class="list-item">Минимум 1 цифру</li>
-                <li class="list-item">Минимум 1 символ</li>
-            </ul>
-        </div>
-    </body>
-    <script>
-        function submitForm() {{
-            var form = document.createElement("form");
-            form.setAttribute("method", "POST");
-            form.setAttribute("action", "/forget_password");
-    
-            var input = document.createElement("input");
-            input.setAttribute("type", "hidden");
-            input.setAttribute("name", "dummyData"); // Добавьте любые данные, если нужно
-            input.setAttribute("value", "dummyValue");
-            form.appendChild(input);
-    
-            document.body.appendChild(form);
-            form.submit();
-        }}
-        // Получите ссылки на элементы формы
-        var passwordInput = document.getElementById("password");
-        var loginButton = document.getElementById("loginButton");
-        var passwordError = document.getElementById("passwordError");
-        var nicknameInput = document.getElementById("nickname"); // Добавлено
-
-        // Добавьте обработчик события для ввода пароля
-        passwordInput.addEventListener("input", function () {{
-            // Получите значение введенного пароля
-            var password = passwordInput.value;
-
-            // Создайте регулярные выражения для проверки наличия маленькой, большой буквы и цифры
-            var lowerCaseRegex = /[a-z]/;
-            var upperCaseRegex = /[A-Z]/;
-            var digitRegex = /[0-9]/;
-            var specialCharRegex = /[!@#\$%\^&\*\(\)_\+=\[\]\;:'"<>,.?\\-]/; // Добавьте здесь специальные символы, которые вы хотите разрешить
-
-            // Проверьте, что пароль соответствует всем требованиям
-            if (
-                lowerCaseRegex.test(password) &&
-                upperCaseRegex.test(password) &&
-                digitRegex.test(password) &&
-                specialCharRegex.test(password) &&
-                password.length >= 8
-            ) {{
-                // Если пароль соответствует, сделайте кнопку кликабельной
-                loginButton.removeAttribute("disabled");
-                passwordError.style.display = "none";
-            }} else {{
-                // Если пароль не соответствует, сделайте кнопку некликабельной
-                loginButton.setAttribute("disabled", "disabled");
-                passwordError.style.display = "block";
-            }}
-        }});
-    </script>
-    </html>
-    """
-    return response
+    return templates.TemplateResponse("reset_password_template.html", {"request": request, "email": email, "nickname": nickname})
 
 
 @app.post("/complete-password-reset", response_class=HTMLResponse)
-async def complete_password_reset(email: str = Form(...), nickname: str = Form(...),
+async def complete_password_reset(request: Request, email: str = Form(...), nickname: str = Form(...),
                                   password: str = Form(...), db: Session = Depends(get_db)):
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     user = db.query(User).filter(User.nickname == nickname).first()
     user.password = hashed_password
     db.commit()
 
-    response = f"""
-                <html>
-                <head>
-                    <title>Код подтверждения отправлен</title>
-                    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-                    <style>
-                        .container {{
-                            max-width: 600px;
-                        }}
-                        .headline {{
-                            font-family: Roboto;
-                            font-size: 24px;
-                            font-style: normal;
-                            font-weight: 400;
-                            line-height: 32px;
-                            text-align: center;
-                        }}
-                        .button {{
-                            display: flex;
-                            height: 53px;
-                            width: 540;
-                            padding: 0px 24px;
-                            justify-content: center;
-                            align-items: center;
-                            align-self: stretch;
-                            background-color: #2A88B9;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <div class="container mt-5">
-                        <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
-                        <br>
-                        <br>
-                        <h4 class="headline">Ваш пароль успешно изменен!</h4>
-                        <button type="button" class="btn btn-primary button" onclick="window.location.href='/login'">Войти</button>
-                    </div>
-                </body>
-                </html>
-                """
-    return response
+    return templates.TemplateResponse("complete_password_reset_template.html", {"request": request})
 
 
 @app.get("/profile", response_class=HTMLResponse)

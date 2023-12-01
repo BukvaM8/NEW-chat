@@ -6,17 +6,23 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .container {
-            max-width: 600px;
+            max-width: 540px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
         }
 
         .headline {
-            font-family: Roboto;
+            font-family: Roboto, serif;
             font-size: 24px;
             font-style: normal;
             font-weight: 400;
             line-height: 32px;
             text-align: center;
-            padding-right: 25px;
+            padding: 0;
+            margin: 0;
         }
 
         .button {
@@ -28,48 +34,84 @@
             align-items: center;
             align-self: stretch;
             background-color: #2A88B9;
+            border-radius: 8px;
+            border: 3px #2A88B9;
+        }
+
+        .button:disabled {
+            background-color: #2A88B9; /* Цвет фона для disabled кнопки */
+        }
+
+        .button:hover,
+        .button:focus,
+        .button:active {
+            background-color: #2A88B9;
         }
 
         #forgetPassword {
             text-decoration: none;
-            font-family: Roboto;
+            font-family: Roboto, serif;
             font-size: 14px;
             font-style: normal;
             font-weight: 400;
             line-height: 16px;
             text-align: center;
             color: #000;
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
         }
-        
+
         .back {
+            display: flex;
             font-family: Roboto, serif;
             font-size: 20px;
             font-style: normal;
             font-weight: 400;
             line-height: 22px;
             color: #928F8F;
+            text-decoration: none;
+            align-self: self-start;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .form-group {
+            align-self: self-start;
+            width: 540px;
+        }
+
+        .small_gap {
+            margin: 7px 0;
         }
     </style>
 </head>
 <body>
 <div class="container mt-5">
-    <a style="text-decoration: none;" href="/login_register"><p class="back"><img src="static/back-arrow.png"
+    <a style="text-decoration: none;" href="/login_register" class="back"><p class="back"><img src="../static/back-arrow.png"
                                                                                   alt="Картинка"> Назад </p></a>
-    <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
-    <br>
+    <img src="../profile_pictures/logo_jm.png" style="align-self: center" alt="Картинка" width="540" height="170">
     <br>
     <h4 class="headline">Выполните вход в приложение</h4>
     <br>
     <form method="post" action="/login" id="form" style="width: 540px">
         <div class="form-group">
             <input type="text" id="phone_number" name="phone_number" class="form-control" placeholder="Никнейм"
+                   style="height: 40px"
                    required>
         </div>
-        <br>
-        <div class="form-group">
-            <input type="password" id="password" name="password" class="form-control" placeholder="Пароль" required>
+        <div class="small_gap"></div>
+        <div class="form-group" style="align-self: self-start; width: 540px;">
+            <input type="password" id="password" name="password" class="form-control" placeholder="Пароль"
+                   style="height: 40px"
+                   required>
         </div>
-        <br>
+        <div class="small_gap"></div>
         {% if error %}
             <div class="alert alert-danger" role="alert">
                 {{ error }}
@@ -78,7 +120,7 @@
         <button type="submit" class="btn btn-primary button" id="loginButton">Войти</button>
     </form>
     <br>
-    <form method="post" action="/forget_password" id="form" style="width: 540px; text-align: center">
+    <form method="post" action="/forget_password" id="password_form" style="width: 540px; text-align: center">
         <button type="submit" id="forgetPassword">Забыли пароль?</button>
     </form>
 
