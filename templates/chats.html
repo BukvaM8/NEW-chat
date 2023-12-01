@@ -25,11 +25,6 @@
             padding: 20px;
         }
 
-        .scrollable-content {
-            /* Создаем прокручиваемый список */
-            max-height: 85vh;
-            overflow-y: auto;
-        }
 
         .profile-pic {
             border-radius: 50%;
@@ -135,15 +130,15 @@
             height: 30px;
         }
 
-        .scrollable-content {
-            overflow: hidden;
-        }
 
         /* Добавляем пользовательскую прокрутку */
         .scrollable-content {
             overflow-y: scroll;
             scrollbar-width: thin; /* для Firefox */
             scrollbar-color: transparent transparent; /* для Firefox */
+            max-height: 85vh;
+            overflow-y: auto;
+            overflow: hidden;
         }
 
         /* Стили для Webkit (Chrome, Safari) */
@@ -663,6 +658,17 @@
         if (lastMessage) {
             lastMessage.scrollIntoView();
         }
+
+        function updateDialogInList(dialogId, newMessage) {
+            const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
+            if (dialogElement) {
+                const lastMessageElement = dialogElement.querySelector('.last_message');
+                if (lastMessageElement) {
+                    lastMessageElement.textContent = newMessage.length > 25 ? newMessage.substring(0, 25) + "..." : newMessage;
+                }
+            }
+        }
+
 
         // Динамическое изменение размера текстовой области:
         document.addEventListener('DOMContentLoaded', function () {
@@ -1211,6 +1217,41 @@
             lastMessage.scrollIntoView();
         }
 
+        // Инициализация модального окна для добавления участников
+        const addParticipantButton = document.getElementById('addParticipantButton');
+        const modal = $('#addParticipantModal');
+        const contactsListDiv = document.getElementById('contactsList');
+
+        addParticipantButton.addEventListener('click', function () {
+            modal.modal('show');
+            fetch(`/api/contacts/`)
+                .then(response => response.json())
+                .then(contacts => {
+                    contactsListDiv.innerHTML = contacts.map(contact => `
+                <div class="contact-item">
+                    <span>${contact.fio} (${contact.nickname})</span>
+                    <button class="btn btn-sm btn-primary add-to-chat" data-phone-number="${contact.phone_number}">Добавить</button>
+                </div>
+            `).join('');
+                })
+                .catch(error => console.error('Ошибка:', error));
+        });
+
+        contactsListDiv.addEventListener('click', function (event) {
+            if (event.target.classList.contains('add-to-chat')) {
+                const phoneNumber = event.target.getAttribute('data-phone-number');
+                fetch(`/chat/${chatId}/members/${phoneNumber}/add`, {method: 'POST'})
+                    .then(response => {
+                        if (response.ok) {
+                            console.log('Участник добавлен в чат');
+                            event.target.disabled = true;
+                        } else {
+                            console.error('Ошибка при добавлении участника');
+                        }
+                    })
+                    .catch(error => console.error('Ошибка:', error));
+            }
+        });
 
         document.addEventListener('submit', function (event) {
             const form = event.target;
@@ -1462,7 +1503,8 @@
             }
         }
 
-// Обработчик для кнопки "Изменить фото"
+
+        // Обработчик для кнопки "Изменить фото"
         const changePhotoButton = document.getElementById('change-photo-button');
         const photoUploadInput = document.getElementById('photo-upload');
         if (changePhotoButton && photoUploadInput) {
@@ -1560,6 +1602,7 @@
         });
     }
 
+
     function addOption() {
         const newOption = document.createElement('input');
         newOption.type = 'text';
@@ -1594,6 +1637,12 @@
             createChatForm.addEventListener('submit', function (event) {
                 event.preventDefault();
                 const formData = new FormData(createChatForm);
+
+                // Сбор данных из чекбоксов
+                document.querySelectorAll('input[name="user_nicknames"]:checked').forEach((checkbox) => {
+                    formData.append('user_nicknames', checkbox.value);
+                });
+
                 fetch('/create_chat', {
                     method: 'POST',
                     body: formData
@@ -1639,6 +1688,7 @@
             });
         }
     });
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
