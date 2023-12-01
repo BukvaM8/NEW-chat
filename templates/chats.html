@@ -185,9 +185,9 @@
             <!-- Profile Section -->
             <div class="d-flex align-items-center mb-2" style="padding-top: 13px">
                 <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic"
-                     width="50" height="50">
+                     width="50" height="50" style="cursor:pointer;">
                 <div class="ms-3">
-                    <h1 class="my_nickname">{{ current_user.nickname }}</h1>
+                    <h1 class="my_nickname" style="cursor: pointer">{{ current_user.nickname }}</h1>
                     <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
                 </div>
 
@@ -205,20 +205,21 @@
                 <div class="ms-auto">
                     <div class="btn-group">
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/profile" id="profile-link">Личный профиль</a></li>
+{#                            <li><a class="dropdown-item" href="/profile" id="profile-link">Личный профиль</a></li>#}
                             <li><a class="dropdown-item create-chat-link" href="#">Создать новую группу</a></li>
                             {#
                             <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>
                             #}
+                            <hr style="margin: 0">
                             <li><a class="dropdown-item create-dialog-link" href="/create_dialog">Создать новый
                                 диалог</a></li>
                             {#
                             <li><a class="dropdown-item" href="/favorites">Избранное</a></li>
                             #}
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>
+{#                            <li>#}
+{#                                <hr class="dropdown-divider">#}
+{#                            </li>#}
+{#                            <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>#}
                         </ul>
                     </div>
                 </div>
@@ -250,7 +251,7 @@
             {% endif %}
 
             <div class="scrollable-content" style="padding-bottom: 55px;">
-                <div class="dialogs-list">
+                <div class="dialogs-list" style="cursor: pointer">
                     {% for dialog in dialogs %}
                     <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
                          data-dialog-id="{{ dialog.id }}">
@@ -293,7 +294,7 @@
                 <div class="chat-list">
                     {% for chat in chats %}
                     <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container"
-                         data-chat-id="{{ chat.id }}">
+                         data-chat-id="{{ chat.id }}" style="cursor: pointer">
                         <!-- Фото чата -->
                         <div class="profile-picture-container">
                             <img src="/chat/picture/{{ chat.id }}" alt="Chat picture" width="50" height="50"
@@ -322,8 +323,8 @@
                                 {% else %}
                                 <p>
                                     <strong class="last_message"
-                                            style="font-weight: 500">{{ chat['last_message_sender_phone'] }}</strong>
-                                    <strong class="last_message">: {{ chat['last_message'] }}</strong>
+                                            style="font-weight: 500">{{ chat['last_message_sender_phone'] }}:</strong>
+                                    <strong class="last_message"> {{ chat['last_message'] }}</strong>
                                 </p> <!-- Никнейм пользователя жирным текстом -->
                                 {% endif %}
                             </div>
@@ -388,8 +389,8 @@
                 }
             </style>
             <div id="dialog-panel">
-                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170" style="margin-left: 100px"> <br><br>
-                <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 120px">
+                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170" style="margin-left: 23%"> <br><br>
+                <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 23%">
                 <div id="dialog-container">
                     <ul class="list-group"></ul>
                     <div id="dialog-history">

@@ -4108,15 +4108,20 @@ async def search_chats_and_channels(search_query: str):
 # БЛОК ДИАЛОГ
 # Маршрут для создания нового диалога
 @app.get("/create_dialog", response_class=HTMLResponse)
-async def create_dialog_route(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def create_dialog_route(request: Request,
+                              current_user: Union[str, RedirectResponse] = Depends(get_current_user),
+                              db: Session = Depends(get_db)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    print(await get_all_users_from_contacts(current_user.id))
+    all_users = await get_all_users_from_contacts(current_user.id)
+    for i in range(len(all_users)):
+        results = db.query(users).filter_by(id=all_users[i]['nickname']).first()
+        all_users[i]['status'] = results['status'] if (results['status_visibility'] == 1 and results['status']) else ''
     return templates.TemplateResponse("create_dialog.html", {
         "request": request,
         "current_user": current_user,
-        "users": await get_all_users_from_contacts(current_user.id),
+        "users": all_users,
         "search_results": [],
     })
 

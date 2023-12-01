@@ -171,7 +171,7 @@
             z-index: 1000;
             position: fixed;
             top: 0;
-            right: -400px;
+            right: -450px;
             width: 429px;
             height: 100vh;
             background-color: white;
@@ -231,7 +231,6 @@
         .drawer a.btn-secondary {
             margin-top: auto; /* Это переместит кнопку вниз "шторки" */
         }
-
 
 
         .message_input {
@@ -329,10 +328,10 @@
     <hr>
 
     <!-- Поле для изменения названия -->
-    {#    <form action="/chats/{{ chat.id }}/change_name" method="post">#}
-    {#        <input type="text" name="new_name" placeholder="Новое название">#}
-    {#        <button type="submit">Изменить название</button>#}
-    {#    </form>#}
+    <form action="/chats/{{ chat.id }}/change_name" method="post">
+        <input type="text" name="new_name" placeholder="Новое название">
+        <button type="submit">Изменить название</button>
+    </form>
 
     <div class="text-center" style="width: 413px; margin: 0 auto; text-align: left;">
         <div class="mt-3">
@@ -359,7 +358,7 @@
 
     <!-- Остальные действия -->
     {% if chat.owner_phone_number == current_user.phone_number %}
-<!--        <a href="/chat/{{ chat.id }}/members/add" class="btn btn-primary">Пригласить</a>-->
+        <!--        <a href="/chat/{{ chat.id }}/members/add" class="btn btn-primary">Пригласить</a>-->
         <form action="/chats/{{ chat.id }}/delete" method="post">
             <button type="submit" class="btn btn-primary button">Удалить чат</button>
         </form>

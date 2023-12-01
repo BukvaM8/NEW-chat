@@ -107,10 +107,9 @@
                             href="/profile/{{ user['phone_number'] }}"
                             style="text-decoration: none; color: black"> {{ user['phone_number'] }} </a>
                     </h5>
-                    <small class="status">Статус</small>
+                    <small class="status">{{ user['status'] }}</small>
                 </div>
                 <button type="submit" class="btn btn-success" style="margin-left: 700px">Начать диалог</button>
-                {#                <button type="submit" class="btn btn-success">Начать диалог</button>#}
                 <hr class="my-0">
             </div>
         </form>

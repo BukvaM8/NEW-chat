@@ -243,8 +243,8 @@
              width="50" height="50">
         <div class="interlocutor-details" style="margin-left: 8px">
             <h5 class="username" style="margin-bottom: 0">
-                <a href="/profile/{{ dialog.interlocutor_phone_number }}" onclick="handleUsernameClick(event)"> {{
-                    dialog.user_fio }} </a>
+                <a href="/profile/{{ dialog.interlocutor_phone_number }}"
+                   onclick="handleUsernameClick(event)"> {{ dialog.user_fio }} </a>
             </h5>
             <small class="last_online">Онлайн: {{ dialog.last_online }}</small>
         </div>
@@ -255,56 +255,56 @@
     <div class="mt-4 messages-container">
         <ul class="list-group">
             {% for message in messages %}
-            {% if not message.delete_timestamp %}
-            <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
-                data-message-id="{{ message.id }}">
-                <div class="message-content">
-                    {% if message.sender_nickname %}
-                    <strong>{{ message.sender_nickname }}</strong>
-                    {% endif %}
-                    {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
-                    {% set raw_message = message.message.split('[[FILE]]') %}
-                    {{ raw_message[0] }}
-                    {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
-                    {% set file_id_info, file_name_info = file_info.split(', ') %}
-                    {% set file_id = file_id_info.split(': ')[1] %}
-                    {% set file_name = file_name_info.split(': ')[1] %}
-                    <a href="/files/{{ file_id }}">{{ file_name }}</a>
-                    {% elif message.message %}
-                    {{ message.message }}
-                    {% else %}
-                    <!-- Сообщение пустое или удалено -->
-                    {% endif %}
-                    <br>
-                    <!-- Проверка на наличие времени редактирования и отображение соответствующего текста -->
-                    <small>
-                        {% if message.edit_timestamp %}
-                        Изменено: {{ message.edit_timestamp }}
-                        {% else %}
-                        Отправлено: {{ message.timestamp }}
-                        {% endif %}
-                    </small>
-                    <!-- Dropdown menu for message options -->
-                    <div class="message-dropdown">
-                        <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
-                             onclick="toggleDropdownMenu(event)">
-                        <div class="message-options" style="display: none;">
-                            {% if message.sender_id == current_user.id %}
-                            <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">
-                                Удалить сообщение
-                            </button>
-                            <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">
-                                Изменить
-                            </button>
+                {% if not message.delete_timestamp %}
+                    <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
+                        data-message-id="{{ message.id }}">
+                        <div class="message-content">
+                            {% if message.sender_nickname %}
+                                <strong>{{ message.sender_nickname }}</strong>
                             {% endif %}
-                            <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">
-                                Переслать
-                            </button>
+                            {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
+                                {% set raw_message = message.message.split('[[FILE]]') %}
+                                {{ raw_message[0] }}
+                                {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
+                                {% set file_id_info, file_name_info = file_info.split(', ') %}
+                                {% set file_id = file_id_info.split(': ')[1] %}
+                                {% set file_name = file_name_info.split(': ')[1] %}
+                                <a href="/files/{{ file_id }}">{{ file_name }}</a>
+                            {% elif message.message %}
+                                {{ message.message }}
+                            {% else %}
+                                <!-- Сообщение пустое или удалено -->
+                            {% endif %}
+                            <br>
+                            <!-- Проверка на наличие времени редактирования и отображение соответствующего текста -->
+                            <small>
+                                {% if message.edit_timestamp %}
+                                    Изменено: {{ message.edit_timestamp }}
+                                {% else %}
+                                    Отправлено: {{ message.timestamp }}
+                                {% endif %}
+                            </small>
+                            <!-- Dropdown menu for message options -->
+                            <div class="message-dropdown">
+                                <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
+                                     onclick="toggleDropdownMenu(event)">
+                                <div class="message-options" style="display: none;">
+                                    {% if message.sender_id == current_user.id %}
+                                        <button class="dropdown-item" onclick="deleteMessage('{{ message.id }}')">
+                                            Удалить сообщение
+                                        </button>
+                                        <button class="dropdown-item" onclick="editMessage('{{ message.id }}')">
+                                            Изменить
+                                        </button>
+                                    {% endif %}
+                                    <button class="dropdown-item" onclick="forwardMessage('{{ message.id }}')">
+                                        Переслать
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </li>
-            {% endif %}
+                    </li>
+                {% endif %}
             {% endfor %}
         </ul>
     </div>
