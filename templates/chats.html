@@ -25,11 +25,6 @@
             padding: 20px;
         }
 
-        .scrollable-content {
-            /* Создаем прокручиваемый список */
-            max-height: 85vh;
-            overflow-y: auto;
-        }
 
         .profile-pic {
             border-radius: 50%;
@@ -135,15 +130,15 @@
             height: 30px;
         }
 
-        .scrollable-content {
-            overflow: hidden;
-        }
 
         /* Добавляем пользовательскую прокрутку */
         .scrollable-content {
             overflow-y: scroll;
             scrollbar-width: thin; /* для Firefox */
             scrollbar-color: transparent transparent; /* для Firefox */
+            max-height: 85vh;
+            overflow-y: auto;
+            overflow: hidden;
         }
 
         /* Стили для Webkit (Chrome, Safari) */
@@ -389,7 +384,8 @@
                 }
             </style>
             <div id="dialog-panel">
-                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170" style="margin-left: 23%"> <br><br>
+                <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170"
+                     style="margin-left: 23%"> <br><br>
                 <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 23%">
                 <div id="dialog-container">
                     <ul class="list-group"></ul>
@@ -663,6 +659,30 @@
         if (lastMessage) {
             lastMessage.scrollIntoView();
         }
+
+        function updateDialogInList(dialogId, newMessage) {
+            const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
+            if (dialogElement) {
+                const lastMessageElement = dialogElement.querySelector('.last_message');
+                if (lastMessageElement) {
+                    lastMessageElement.textContent = newMessage.length > 25 ? newMessage.substring(0, 25) + "..." : newMessage;
+                }
+            }
+        }
+
+
+        // Динамическое изменение размера текстовой области:
+        document.addEventListener('DOMContentLoaded', function () {
+            const textArea = document.getElementById('message-input');
+
+            const updateTextAreaHeight = () => {
+                textArea.style.height = 'auto';
+                textArea.style.height = textArea.scrollHeight + 'px';
+            };
+
+            textArea.addEventListener('input', updateTextAreaHeight);
+            updateTextAreaHeight(); // Для начальной установки высоты при загрузке страницы
+        });
 
 
         // Обработчик события нажатия клавиши в текстовом поле формы
@@ -941,6 +961,8 @@
     // Функция для обработки клика на никнейм пользователя
     function handleUsernameClick(event) {
         event.preventDefault();
+        event.stopPropagation(); // Добавлено для предотвращения всплытия события
+
         const userProfileSidebar = document.getElementById('user-profile-sidebar');
         // Проверяем, открыта ли шторка
         if (userProfileSidebar && userProfileSidebar.classList.contains('open')) {
@@ -977,8 +999,6 @@
             console.error('Элемент с классом .username a не найден');
         }
     });
-
-
 
 
     // Добавьте обработчик клика на элемент с никнеймом пользователя
@@ -1050,18 +1070,23 @@
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.clickable-dialog').forEach(function (container) {
             container.addEventListener('click', function (event) {
-                // Не выполняем действие, если клик был по кнопке "Перейти в диалог"
                 if (event.target.classList.contains('load-dialog')) return;
-
                 const dialogId = event.currentTarget.getAttribute('data-dialog-id');
                 const currentUserId = "{{ current_user.id }}"; // Получение ID текущего пользователя
-                console.log("Current User ID:", currentUserId); // Логирование для отладки
 
                 fetch(`/dialogs/${dialogId}`)
-                    .then(response => response.text())
+                    .then(response => {
+                        if (response.status == 410) { // Dialog was deleted by the user
+                            // Здесь можно добавить логику для обработки удаленных диалогов, например, удалить элемент из списка
+                            console.error('Dialog was deleted by both users.');
+                        } else if (!response.ok) {
+                            throw new Error(`Server responded with status: ${response.status}`);
+                        }
+                        return response.text();
+                    })
                     .then(html => {
                         document.querySelector('#dialog-panel').innerHTML = html;
-                        initializeDialogJS(dialogId, currentUserId); // Передаем ID диалога и ID пользователя
+                        initializeDialogJS(dialogId, currentUserId);
                     })
                     .catch(error => {
                         console.error('Ошибка:', error);
@@ -1081,17 +1106,28 @@
                 fetch(`/create_dialog/${userId}`, {
                     method: 'POST'
                 })
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Server responded with status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
-                        const dialogId = data.dialog_id;
+                        if (data.error) {
+                            console.error('Server error:', data.error);
+                        } else if (data.dialog_id) {
+                            const dialogId = data.dialog_id;
 
-                        // Загружаем содержимое dialogs.html в правую панель
-                        fetch(`/dialogs/${dialogId}`)
-                            .then(response => response.text())
-                            .then(html => {
-                                document.querySelector('#dialog-panel').innerHTML = html;
-                                initializeDialogJS(dialogId);  // Инициализация JS для нового диалога
-                            });
+                            // Загружаем содержимое dialogs.html в правую панель
+                            fetch(`/dialogs/${dialogId}`)
+                                .then(response => response.text())
+                                .then(html => {
+                                    document.querySelector('#dialog-panel').innerHTML = html;
+                                    initializeDialogJS(dialogId);
+                                });
+                        } else {
+                            throw new Error('Invalid response from server');
+                        }
                     })
                     .catch(error => {
                         console.error('Ошибка:', error);
@@ -1099,6 +1135,7 @@
             });
         });
     }
+
 
     // Добавление обработчика для кнопки "Создать новый диалог"
     document.addEventListener('DOMContentLoaded', function () {
@@ -1129,27 +1166,34 @@
     // ... (ваш текущий код для dialogs)
 
     // Загрузка chat.html в правую панель
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.clickable-chat').forEach(function (container) {
-            container.addEventListener('click', function (event) {
-                if (event.target.classList.contains('load-chat')) return;
+    document.querySelectorAll('.clickable-chat').forEach(function (container) {
+        container.addEventListener('click', function (event) {
+            if (event.target.classList.contains('load-chat')) return;
 
-                const chatId = event.currentTarget.getAttribute('data-chat-id');
-                fetch(`/chat/${chatId}`)
-                    .then(response => response.text())
-                    .then(html => {
-                        document.querySelector('#dialog-panel').innerHTML = html;
-                        initializeChatJS(chatId);
-                    })
-                    .catch(error => {
-                        console.error('Ошибка:', error);
-                    });
-            });
+            const chatId = event.currentTarget.getAttribute('data-chat-id');
+            console.log(`Переключение на чат с ID: ${chatId}`);
+
+            fetch(`/chat/${chatId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при загрузке чата');
+                    }
+                    return response.text();
+                })
+                .then(html => {
+                    document.querySelector('#dialog-panel').innerHTML = html;
+                    initializeChatJS(chatId); // Вызывайте initializeChatJS после того, как HTML чата вставлен в DOM
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
         });
     });
 
+
     // Инициализация кода для chat.html
     function initializeChatJS(chatId) {
+
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
         var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
@@ -1174,6 +1218,41 @@
             lastMessage.scrollIntoView();
         }
 
+        // Инициализация модального окна для добавления участников
+        const addParticipantButton = document.getElementById('addParticipantButton');
+        const modal = $('#addParticipantModal');
+        const contactsListDiv = document.getElementById('contactsList');
+
+        addParticipantButton.addEventListener('click', function () {
+            modal.modal('show');
+            fetch(`/api/contacts/`)
+                .then(response => response.json())
+                .then(contacts => {
+                    contactsListDiv.innerHTML = contacts.map(contact => `
+                <div class="contact-item">
+                    <span>${contact.fio} (${contact.nickname})</span>
+                    <button class="btn btn-sm btn-primary add-to-chat" data-phone-number="${contact.phone_number}">Добавить</button>
+                </div>
+            `).join('');
+                })
+                .catch(error => console.error('Ошибка:', error));
+        });
+
+        contactsListDiv.addEventListener('click', function (event) {
+            if (event.target.classList.contains('add-to-chat')) {
+                const phoneNumber = event.target.getAttribute('data-phone-number');
+                fetch(`/chat/${chatId}/members/${phoneNumber}/add`, {method: 'POST'})
+                    .then(response => {
+                        if (response.ok) {
+                            console.log('Участник добавлен в чат');
+                            event.target.disabled = true;
+                        } else {
+                            console.error('Ошибка при добавлении участника');
+                        }
+                    })
+                    .catch(error => console.error('Ошибка:', error));
+            }
+        });
 
         document.addEventListener('submit', function (event) {
             const form = event.target;
@@ -1425,7 +1504,8 @@
             }
         }
 
-// Обработчик для кнопки "Изменить фото"
+
+        // Обработчик для кнопки "Изменить фото"
         const changePhotoButton = document.getElementById('change-photo-button');
         const photoUploadInput = document.getElementById('photo-upload');
         if (changePhotoButton && photoUploadInput) {
@@ -1523,6 +1603,7 @@
         });
     }
 
+
     function addOption() {
         const newOption = document.createElement('input');
         newOption.type = 'text';
@@ -1557,6 +1638,12 @@
             createChatForm.addEventListener('submit', function (event) {
                 event.preventDefault();
                 const formData = new FormData(createChatForm);
+
+                // Сбор данных из чекбоксов
+                document.querySelectorAll('input[name="user_nicknames"]:checked').forEach((checkbox) => {
+                    formData.append('user_nicknames', checkbox.value);
+                });
+
                 fetch('/create_chat', {
                     method: 'POST',
                     body: formData
@@ -1602,6 +1689,7 @@
             });
         }
     });
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>

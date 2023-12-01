@@ -43,14 +43,18 @@
             <input type="file" class="form-control" id="chat_image" name="chat_image">
         </div>
 
-        <!-- Выпадающий список для выбора участника чата -->
+        <!-- Поле для выбора участников чата с использованием чекбоксов -->
         <div class="form-group">
-            <label for="user_phone">Выберите участника:</label>
-            <select class="form-control" id="user_phone" name="user_phone" required>
-                {% for user in users %}
-                <option value="{{ user.nickname }}">{{ user.phone_number }}</option>
-                {% endfor %}
-            </select>
+            <label>Выберите участников (до 50):</label>
+            {% for user in users %}
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="{{ user.nickname }}" id="{{ user.nickname }}"
+                       name="user_nicknames">
+                <label class="form-check-label" for="{{ user.nickname }}">
+                    {{ user.phone_number }}
+                </label>
+            </div>
+            {% endfor %}
         </div>
 
         <button type="submit" class="btn btn-primary">Создать</button>

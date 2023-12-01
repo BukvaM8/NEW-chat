@@ -183,7 +183,7 @@
         /* Стилизация блока сообщения для обеспечения переноса текста и ограничения ширины */
         .message-item .message-content, .message-self {
             word-wrap: break-word; /* Разрешаем перенос слов */
-            max-width: 50%; /* Ограничиваем ширину до 50% контейнера сообщений */
+            max-width: 75%; /* Ограничиваем ширину до 50% контейнера сообщений */
             overflow-wrap: break-word; /* Обеспечиваем перенос длинных слов */
         }
 
@@ -228,9 +228,14 @@
             height: auto; /* Автоматическая высота */
             overflow-y: auto; /* Скролл для переполнения */
             resize: none; /* Убрать возможность ручного изменения размера */
-            max-height: 100px; /* Максимальная высота до 4 строк текста */
+            max-height: 150px; /* Максимальная высота до 4 строк текста */
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
         }
 
+        .message_input::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -327,6 +332,32 @@
         <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
 
     </form>
+</div>
+<!-- Шторка профиля пользователя -->
+<div id="user-profile-sidebar" class="user-profile-sidebar">
+    <!-- Контент шторки -->
+    <div class="profile-content">
+        <!-- Заголовок с кнопкой закрытия -->
+        <div class="profile-header">
+            <h3>Профиль пользователя</h3>
+            <button onclick="closeUserProfileSidebar()">Закрыть</button>
+        </div>
+
+        <!-- Блок с изображением и информацией о пользователе -->
+        <div class="profile-picture-overlay">
+            <img id="profile-image" src="/path_to_image" alt="Фото профиля" width="150" height="150">
+            <!-- Другие данные пользователя -->
+            <h4 id="user-name">Имя пользователя</h4>
+            <p id="user-status">Статус пользователя</p>
+            <!-- ... другая информация ... -->
+        </div>
+
+        <!-- Кнопка для удаления диалога -->
+        <button id="delete-dialog-button" data-dialog-id="123"
+                onclick="deleteDialog(this.getAttribute('data-dialog-id'))">
+            Удалить диалог
+        </button>
+    </div>
 </div>
 
 

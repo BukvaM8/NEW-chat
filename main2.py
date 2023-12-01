@@ -16,6 +16,8 @@ from enum import Enum
 from operator import and_
 from random import randint
 from typing import List, Optional, Dict, Tuple, Any
+# from pydantic.json import Union
+from typing import Union
 from urllib.parse import quote, unquote
 
 # Модули для работы с SQL базами данных
@@ -44,8 +46,6 @@ from jose import JWTError
 from jwt import PyJWTError
 # Другие сторонние библиотеки
 from pydantic import BaseModel
-# from pydantic.json import Union
-from typing import Union
 from pytz import timezone
 # Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
@@ -259,7 +259,6 @@ chatmessages = Table(
     Column("deleted_by_users", JSON),
     Column("message_type", String(255))
 )
-
 
 voicemessages = Table(
     "VoiceMessages",
@@ -903,6 +902,34 @@ async def get_phone_number_by_user_id(user_id: int) -> Optional[str]:
         return None
 
 
+# Функция для получения user_id по nickname
+async def get_user_id_by_nickname(nickname: str) -> Optional[int]:
+    query = select([users.c.id]).where(users.c.nickname == nickname)
+    try:
+        result = await database.fetch_one(query)
+        if result:
+            return result['id']
+        else:
+            return None
+    except Exception as e:
+        logging.error(f"An error occurred while fetching user ID for nickname {nickname}: {e}")
+        return None
+
+
+# Функция для получения phone_number по user_id
+async def get_phone_number_by_user_id(user_id: int) -> Optional[str]:
+    query = select([users.c.phone_number]).where(users.c.id == user_id)
+    try:
+        result = await database.fetch_one(query)
+        if result:
+            return result['phone_number']
+        else:
+            return None
+    except Exception as e:
+        logging.error(f"An error occurred while fetching phone number for user ID {user_id}: {e}")
+        return None
+
+
 async def send_heartbeat(websocket: WebSocket, user_id: int, interval: int = 30):
     logging.info(f"Starting heartbeat for WebSocket: {websocket}")
     while True:
@@ -1242,18 +1269,22 @@ async def create_message(chat_id: int, message_text: str, sender_phone_number: s
         raise HTTPException(status_code=500, detail="Error creating message")
 
 
-async def create_new_chat(chat_name: str, owner_phone_number: str, user_phone: str, image_data: bytes):  # добавлено
+async def create_new_chat(chat_name: str, owner_phone_number: str, user_phones: List[str], image_data: bytes):
     try:
         query = userchats.insert().values(
             chat_name=chat_name,
             owner_phone_number=owner_phone_number,
-            chat_image=image_data  # добавлено
+            chat_image=image_data
         )
         last_record_id = await database.execute(query)
 
-        # Добавление участников чата
+        # Добавление создателя чата как участника
         await add_chat_member_db(last_record_id, owner_phone_number)
-        await add_chat_member_db(last_record_id, user_phone)
+
+        # Добавление участников чата, если они не являются участниками
+        for user_phone in user_phones:
+            if not await is_member_of_chat(last_record_id, user_phone):
+                await add_chat_member_db(last_record_id, user_phone)
 
         return last_record_id
     except SQLAlchemyError as e:
@@ -1500,7 +1531,8 @@ async def get_registration_form(request: Request):
     elif message == "ConfirmationFailed":
         error_message = '<div class="alert alert-danger" role="alert" style="align-self: center;">Ошибка: Неверный код подтверждения.</div>'
 
-    return templates.TemplateResponse("registration.html", {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
+    return templates.TemplateResponse("registration.html",
+                                      {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
 
 
 @app.post("/confirm-code", response_class=HTMLResponse)
@@ -2037,7 +2069,8 @@ async def get_password_reset_form(request: Request):
     elif message == 'LoginFailed':
         error_message = '<div class="alert alert-danger" role="alert">Ошибка: К данному никнейму привязан другой email.</div>'
 
-    return templates.TemplateResponse("password_reset_form.html", {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
+    return templates.TemplateResponse("password_reset_form.html",
+                                      {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
 
 
 @app.post("/confirm-code-password-reset", response_class=HTMLResponse)
@@ -2224,14 +2257,16 @@ async def confirm_code_reset_password(request: Request, email: str = Form(...), 
 
 
 @app.post("/reset-password", response_class=HTMLResponse)
-async def confirm_registration(request: Request, code: str = Form(...), email: str = Form(...), nickname: str = Form(...),
+async def confirm_registration(request: Request, code: str = Form(...), email: str = Form(...),
+                               nickname: str = Form(...),
                                db: Session = Depends(get_db)):
     results = db.query(Registration).filter(Registration.email == email).first()
 
     if results is None or code != results.confirmation_code:
         return RedirectResponse("/forget_password?message=ConfirmationFailed")
 
-    return templates.TemplateResponse("reset_password_template.html", {"request": request, "email": email, "nickname": nickname})
+    return templates.TemplateResponse("reset_password_template.html",
+                                      {"request": request, "email": email, "nickname": nickname})
 
 
 @app.post("/complete-password-reset", response_class=HTMLResponse)
@@ -3154,20 +3189,27 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
 
 # Маршрут для создания нового чата
 @app.post("/create_chat", response_class=JSONResponse)
-async def create_chat(request: Request, chat_name: str = Form(...), user_phone: str = Form(...),
-                      chat_image: UploadFile = File(...),  # добавлено
+async def create_chat(request: Request, chat_name: str = Form(...),
+                      user_nicknames: List[str] = Form(...),
+                      chat_image: UploadFile = File(...),
                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    user_phone = await get_user_by_id(user_phone)
-    user_phone = user_phone.phone_number
+    # Получение идентификаторов пользователей на основе их никнеймов
+    user_ids = [await get_user_id_by_nickname(nickname) for nickname in
+                set(user_nicknames)]  # Использование set для удаления дубликатов
+    # Получение телефонных номеров для этих идентификаторов
+    user_phones = [await get_phone_number_by_user_id(user_id) for user_id in user_ids if user_id is not None]
+
     # Чтение и сохранение изображения
     image_data = await chat_image.read()
 
-    chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phone, image_data)  # добавлено
+    # Создание чата и добавление участников
+    chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phones, image_data)
 
     return JSONResponse(content={"chat_id": chat_id, "status": "created"})
+
 
 @app.post("/chats/{chat_id}/change_name", response_class=JSONResponse)
 async def change_chat_name(request: Request, chat_id: int, new_name: str = Form(...),
@@ -3182,13 +3224,14 @@ async def change_chat_name(request: Request, chat_id: int, new_name: str = Form(
 
     # Обновляем название чата в базе данных
     try:
-        query = userchats.update().\
-            where(userchats.c.id == chat_id).\
+        query = userchats.update(). \
+            where(userchats.c.id == chat_id). \
             values(chat_name=new_name)
         await database.execute(query)
         return JSONResponse(content={"status": "success", "new_name": new_name})
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail="Error updating chat name")
+
 
 async def get_chat_owner(chat_id: int) -> str:
     query = select([userchats.c.owner_phone_number]).where(userchats.c.id == chat_id)
@@ -3971,7 +4014,6 @@ async def update_message(message_id: int, new_message: str, new_file_id: int = N
     finally:
         await cur.close()
         conn.close()
-
 
 
 async def update_chat_message(message_id: int, new_message: str) -> bool:
