@@ -646,7 +646,7 @@
     function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -703,6 +703,7 @@
                 }
             }
         });
+
 
 
         // Функция отправки сообщения
@@ -766,6 +767,7 @@
 
             if (action === 'new_token') {
                 document.cookie = "access_token=" + messageData.token;
+
             } else if (action === 'message_deleted') {
                 const messageId = messageData.message_id;
                 console.log("Attempting to delete message with ID:", messageId);
@@ -815,19 +817,38 @@
                 const senderNickname = messageData.message.sender_nickname || "";
                 const rawMessage = messageData.message.message;
 
-                if (senderNickname) {
+
+
+                  if (senderNickname) {
                     const senderElement = document.createElement('strong');
                     senderElement.innerText = senderNickname + ":";
                     messageContent.appendChild(senderElement);
                 }
 
                 const messageTextElement = document.createElement('div');
-                messageTextElement.innerText = rawMessage;
-                messageContent.appendChild(messageTextElement);
+                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                    const [text, fileInfo] = rawMessage.split('[[FILE]]');
+                    const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+                    const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+                    const fileId = fileIdInfo.split(': ')[1];
+                    const fileName = fileNameInfo.split(': ')[1];
+
+                    messageTextElement.appendChild(document.createTextNode(" " + text));
+                    messageContent.appendChild(messageTextElement);
+
+                    const fileLink = document.createElement('div');
+                    const fileAnchor = document.createElement('a');
+                    fileAnchor.href = `/files/${fileId}`;
+                    fileAnchor.innerText = fileName;
+                    fileLink.appendChild(fileAnchor);
+                    messageContent.appendChild(fileLink);
+                } else {
+                    messageTextElement.appendChild(document.createTextNode(" " + rawMessage));
+                    messageContent.appendChild(messageTextElement);
+                }
 
                 const timeElement = document.createElement('div');
-                timeElement.className = 'message-time';
-                timeElement.textContent = "Отправлено: " + (messageData.message.timestamp || "");
+                timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "")));
                 messageContent.appendChild(timeElement);
 
                 const dropdown = document.createElement('div');
@@ -880,6 +901,8 @@
             }
         };
     }
+
+
 
 
     // Функции для работы с сообщениями
@@ -1196,7 +1219,7 @@
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -1255,33 +1278,61 @@
         });
 
         document.addEventListener('submit', function (event) {
-            const form = event.target;
-            if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
-                event.preventDefault();
-                const formData = new FormData(form);
-                fetch(form.action, {
-                    method: 'POST',
-                    body: formData
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            console.log('Сообщение успешно отправлено. Message ID:', data.message.id);
-                            const lastMessage = document.querySelector('.messages-list .message-item:last-child');
-                            if (lastMessage) {
-                                lastMessage.dataset.messageId = data.message.id;
-                                console.log('Message ID установлен для нового сообщения:', data.message.id);
-                            }
-                            form.reset();
-                        } else {
-                            console.log('Ошибка при отправке сообщения:', data.error);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка при отправке формы:', error);
-                    });
-            }
-        });
+    const form = event.target;
+    if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
+        event.preventDefault();
+        const formData = new FormData(form);
+
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Сообщение успешно отправлено. Message ID:', data.message.id);
+                    // Дополнительные действия после отправки сообщения
+                    const lastMessage = document.querySelector('.messages-list .message-item:last-child');
+                    if (lastMessage) {
+                        lastMessage.dataset.messageId = data.message.id;
+                        console.log('Message ID установлен для нового сообщения:', data.message.id);
+                    }
+
+                    // Очистка формы
+                    form.reset();
+
+                    // Очистка области отображения информации о файле
+                    const fileDisplayArea = document.getElementById('file-display-area');
+                    if (fileDisplayArea) {
+                        fileDisplayArea.innerHTML = '';
+                    }
+                } else {
+                    console.log('Ошибка при отправке сообщения:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при отправке формы:', error);
+            });
+    }
+});
+
+
+        document.getElementById('file').addEventListener('click', function() {
+    document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', function() {
+    const fileDisplayArea = document.getElementById('file-display-area');
+    fileDisplayArea.innerHTML = '';
+
+    const file = this.files[0];
+    if (file) {
+        const fileInfoDiv = document.createElement('div');
+        fileInfoDiv.textContent = `Прикрепленный файл: ${file.name}`;
+        fileDisplayArea.appendChild(fileInfoDiv);
+    }
+});
+
 
         function editChatMessage(messageId) {
             const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
@@ -1383,7 +1434,7 @@
             }
         });
 
-        ws.onmessage = function (event) {
+         ws.onmessage = function (event) {
             let messageData;
             try {
                 messageData = JSON.parse(event.data);
@@ -1406,24 +1457,34 @@
                     console.warn(`Message with id: ${messageId} not found for deletion`);
                 }
             } else if (action === 'message_updated') {
-                const messageId = messageData.message_id;
-                const newMessageText = messageData.new_text;
-                const editTimestamp = messageData.edit_timestamp;
+        const messageId = messageData.message_id;
+        const newMessageText = messageData.new_text;
+        const newFileId = messageData.file_id; // Добавлено
+        const newFileName = messageData.file_name; // Добавлено
+        const editTimestamp = messageData.edit_timestamp;
 
-                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
-                if (messageElement) {
-                    const messageTextElement = messageElement.querySelector('.message-content p');
-                    if (messageTextElement) {
-                        messageTextElement.innerText = newMessageText;
-                    }
+        const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            // обновление текста сообщения и файла
+            const messageContentElement = messageElement.querySelector('.message-content');
+            messageContentElement.innerHTML = newMessageText;
 
-                    let timeElement = messageElement.querySelector('.message-content small');
-                    if (!timeElement) {
-                        timeElement = document.createElement('small');
-                        messageElement.querySelector('.message-content').appendChild(timeElement);
-                    }
-                    timeElement.textContent = `Изменено: ${new Date(editTimestamp).toLocaleString()}`;
-                }
+            if (newFileId && newFileName) {
+                const fileLink = document.createElement('a');
+                fileLink.href = `/files/${newFileId}`;
+                fileLink.textContent = newFileName;
+                messageContentElement.appendChild(fileLink);
+            }
+
+            // обновление времени редактирования
+            let timeElement = messageElement.querySelector('.message-content small');
+            if (!timeElement) {
+                timeElement = document.createElement('small');
+                messageElement.querySelector('.message-content').appendChild(timeElement);
+            }
+            timeElement.textContent = `Изменено: ${new Date(editTimestamp).toLocaleString()}`;
+        }
+
             } else if (messageData.message && messageData.sender_phone_number) {
                 const messagesList = document.getElementById('chat-history');
                 const newMessageItem = document.createElement('div');
@@ -1439,7 +1500,22 @@
                 const rawMessage = messageData.message;
 
                 if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
-                    // Код для обработки сообщений с файлами
+            const [text, fileInfo] = rawMessage.split('[[FILE]]');
+            const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+            const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+            const fileId = fileIdInfo.split(': ')[1];
+            const fileName = fileNameInfo.split(': ')[1];
+
+            const messageTextElement = document.createElement('div');
+            messageTextElement.innerText = text;
+            messageContent.appendChild(messageTextElement);
+
+            const fileLink = document.createElement('div');
+            const fileAnchor = document.createElement('a');
+            fileAnchor.href = `/files/${fileId}`;
+            fileAnchor.innerText = fileName;
+            fileLink.appendChild(fileAnchor);
+            messageContent.appendChild(fileLink);
                 } else {
                     const messageTextElement = document.createElement('div');
                     messageTextElement.innerText = rawMessage;

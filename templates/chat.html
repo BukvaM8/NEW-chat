@@ -464,9 +464,7 @@
                                 {% if message.sender_phone_number != "deleted" %}
                                     <img src="/static/downarrow.png" alt="Options" class="message-options-icon">
                                     <div class="message-options">
-                                        {% if chat.owner_phone_number == current_user.phone_number or
-                                message.sender_phone_number ==
-                                current_user.phone_number %}
+                                        {% if chat.owner_phone_number == current_user.phone_number or message.sender_phone_number == current_user.phone_number %}
                                             <button class="delete-message-button">Удалить сообщение</button>
                                         {% endif %}
                                         <button class="forward-message">Переслать</button>
@@ -478,20 +476,18 @@
                             </div>
                         </div>
                         <p>
-                            <!-- Обработка вложенных файлов в сообщении -->
-                            {% if '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
-                                {% set raw_message = message.message.split('[[FILE]]') %}
-                                {{ raw_message[0] }}
-                                {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
-                                {% if ', ' in file_info %}
-                                    {% set file_id_info, file_name_info = file_info.split(', ') %}
-                                {% else %}
-                                    {% set file_id_info = file_info %}
-                                    {% set file_name_info = "Unknown" %}
+                            {% if '[[FILE]]' in message.message %}
+                                {% set parts = message.message.split('[[FILE]]') %}
+                                {{ parts[0] }}
+                                {% if '[[/FILE]]' in parts[1] %}
+                                    {% set file_info = parts[1].split('[[/FILE]]')[0] %}
+                                    {% set file_parts = file_info.split(', ') %}
+                                    {% if file_parts|length > 1 %}
+                                        <div>
+                                            <a href="/files/{{ file_parts[0].split(': ')[1] }}">{{ file_parts[1].split(': ')[1] }}</a>
+                                        </div>
+                                    {% endif %}
                                 {% endif %}
-                                {% set file_id = file_id_info.split(': ')[1] if ': ' in file_id_info else file_id_info %}
-                                {% set file_name = file_name_info.split(': ')[1] if ': ' in file_name_info else file_name_info %}
-                                <a href="/files/{{ file_id }}">{{ file_name }}</a>
                             {% else %}
                                 {{ message.message }}
                             {% endif %}
@@ -508,32 +504,34 @@
                 </div>
             {% endfor %}
         </ul>
-
     </div>
-    <!-- Форма для отправки сообщения -->
-    <div class="mt-4 border-top" style="position: fixed; bottom: 10px; width: 60%; vertical-align: middle"
-         id="message-form-container">
-        <!-- Область для отображения информации о прикрепленном файле -->
-        <div id="file-display-area" style="padding: 10px;">
-            <!-- Информация о файле и кнопка удаления файла будут отображаться здесь -->
-        </div>
 
-        <form action="/chats/{{ chat.id }}/send_message" method="post" enctype="multipart/form-data"
-              style="padding-top: 10px; display: flex; align-items: center;">
-            <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
 
-            <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer; margin-right: 10px;"
-                 multiple>
-            <input type="file" id="file-input" name="file" class="form-control" style="display:none;" for="file-input">
-
-            <!-- Обновленное поле ввода текста с невидимым скролл-баром -->
-            <textarea id="message-input" name="message_text" class="form-control message_input"
-                      placeholder="Введите сообщение"
-                      style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"></textarea>
-
-            <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
-        </form>
+</div>
+<!-- Форма для отправки сообщения -->
+<div class="mt-4 border-top" style="position: fixed; bottom: 10px; width: 60%; vertical-align: middle"
+     id="message-form-container">
+    <!-- Область для отображения информации о прикрепленном файле -->
+    <div id="file-display-area" style="padding: 10px;">
+        <!-- Информация о файле и кнопка удаления файла будут отображаться здесь -->
     </div>
+
+    <form action="/chats/{{ chat.id }}/send_message" method="post" enctype="multipart/form-data"
+          style="padding-top: 10px; display: flex; align-items: center;">
+        <input type="hidden" name="sender_phone_number" value="{{ current_user.phone_number }}">
+
+        <img src="../static/attach_files.svg" id="file" name="file" style="cursor: pointer; margin-right: 10px;"
+             multiple>
+        <input type="file" id="file-input" name="file" class="form-control" style="display:none;" for="file-input">
+
+        <!-- Обновленное поле ввода текста с невидимым скролл-баром -->
+        <textarea id="message-input" name="message_text" class="form-control message_input"
+                  placeholder="Введите сообщение"
+                  style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"></textarea>
+
+        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
+    </form>
+</div>
 </div>
 
 
