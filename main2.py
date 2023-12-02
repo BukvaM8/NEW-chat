@@ -1527,9 +1527,9 @@ async def get_registration_form(request: Request):
 
     error_message = ""
     if message == "CaptchaFailed":
-        error_message = '<div class="alert alert-danger error" role="alert" style="align-self: center;">Ошибка: Капча не пройдена.</div>'
+        error_message = '<div class="alert alert-danger error" role="alert">Ошибка: Капча не пройдена.</div>'
     elif message == "ConfirmationFailed":
-        error_message = '<div class="alert alert-danger" role="alert" style="align-self: center;">Ошибка: Неверный код подтверждения.</div>'
+        error_message = '<div class="alert alert-danger error" role="alert">Ошибка: Неверный код подтверждения.</div>'
 
     return templates.TemplateResponse("registration.html",
                                       {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
@@ -1565,81 +1565,13 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
             <html>
             <head>
                 <title>Код подтверждения отправлен</title>
-                <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-                <style>
-                    .container {{
-                        max-width: 600px;
-                    }}
-                    .headline {{
-                        font-family: Roboto;
-                        font-size: 24px;
-                        font-style: normal;
-                        font-weight: 400;
-                        line-height: 32px;
-                        text-align: center;
-                    }}
-                    .button {{
-                        display: flex;
-                        height: 53px;
-                        width: 570px;
-                        padding: 0px 24px;
-                        justify-content: center;
-                        align-items: center;
-                        align-self: stretch;
-                        background-color: #2A88B9;
-                        border-radius: 8px;
-                        border: 3px #2A88B9;
-                    }}
-            
-                    .button:disabled {{
-                        background-color: #2A88B9; /* Цвет фона для disabled кнопки */
-                    }}
-            
-                    .button:hover,
-                    .button:focus,
-                    .button:active {{
-                        background-color: #2A88B9;
-                    }}
-                    .code-input {{
-                        display: flex;
-                        align-items: center;
-                    }}
-            
-                    .code-box {{
-                        width: 0;
-                        height: 0;
-                        opacity: 0;
-                    }}
-            
-                    .code-container {{
-                        display: flex;
-                        gap: 10px;
-                        
-                    }}
-            
-                    .code-digit {{
-                        width: 50px;
-                        height: 60px;
-                        border: 1px solid #000;
-                        text-align: center;
-                        font-size: 24px;
-                        line-height: 38px;
-                    }}
-                    
-                    .back {{
-                        font-family: Roboto;
-                        font-size: 20px;
-                        font-style: normal;
-                        font-weight: 400;
-                        line-height: 22px;
-                        color: #928F8F;
-                    }}
-                </style>
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+                <link rel="stylesheet" href="static/registration.css">
             </head>
             <body>
                 <div class="container mt-5">
-                    <a style="text-decoration: none;" href="#" onclick="submitForm()">
-                        <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
+                    <a style="text-decoration: none;" href="#" onclick="submitForm()" class="back">
+                        <p class="back"> <img src="static/back-arrow.png" style="align-self: center" alt="Картинка"> Назад </p>
                     </a>
                     <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
                     <br>
@@ -1726,201 +1658,14 @@ async def confirm_code(request: Request, email: str = Form(...), db: Session = D
 
 
 @app.post("/make-login", response_class=HTMLResponse)
-async def confirm_registration(code: str = Form(...), email: str = Form(...), db: Session = Depends(get_db)):
+async def confirm_registration(request: Request, code: str = Form(...), email: str = Form(...),
+                               db: Session = Depends(get_db)):
     results = db.query(Registration).filter(Registration.email == email).first()
 
     if results is None or code != results.confirmation_code:
         return RedirectResponse("/registration?message=ConfirmationFailed")
 
-    response = f"""
-    <html>
-    <head>
-        <title>Регистрация завершена</title>
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-        <style>
-            .container {{
-                max-width: 600px;
-            }}
-            
-            .under_headline {{
-                font-family: Roboto;
-                font-size: 14px;
-                text-align: center;
-                font-style: normal;
-                font-weight: 500;
-                line-height: 16px;
-            }}
-            .headline {{
-                font-family: Roboto;
-                font-size: 24px;
-                font-style: normal;
-                font-weight: 400;
-                line-height: 32px;
-                text-align: center;
-            }}
-            .button {{
-                display: flex;
-                height: 53px;
-                width: 570px;
-                padding: 0px 24px;
-                justify-content: center;
-                align-items: center;
-                align-self: stretch;
-                background-color: #2A88B9;
-                border-radius: 8px;
-                border: 3px #2A88B9;
-            }}
-    
-            .button:disabled {{
-                background-color: #2A88B9; /* Цвет фона для disabled кнопки */
-            }}
-    
-            .button:hover,
-            .button:focus,
-            .button:active {{
-                background-color: #2A88B9;
-            }}
-            .unstyled-list {{
-                font-family: Roboto;
-                font-size: 14px;
-                font-style: normal;
-                font-weight: 500;
-                line-height: 16px;
-                text-align: left;
-            }}
-            .button:disabled {{
-                background-color: #2A88B9; /* Цвет фона для disabled кнопки */
-            }}
-            
-            .back {{
-                font-family: Roboto;
-                font-size: 20px;
-                font-style: normal;
-                font-weight: 400;
-                line-height: 22px;
-                color: #928F8F;
-                text-decoration: none;
-            }}
-        </style>
-    </head>
-    <body>
-         <div class="container mt-5">
-            <a style="text-decoration: none;" href="#" onclick="submitForm()">
-                <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
-            </a>
-            <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
-            <br>
-            <br>
-            <h4 class="headline">Ура! Осталось немного</h4>
-            <p class="under_headline">Придумайте никнейм. Никнейм - это ваше индивидуальное имя пользователя.</p>
-            <br>
-            <form method="post" action="/complete-register" id="form" style="width: 540px">
-                <div class="form-group">
-                    <input type="text" id="nickname" name="nickname" class="form-control" placeholder="Никнейм" required>
-                    <p id="nicknameError" style="color: #2A88B9; font-size: 12px; display: none">Этот никнейм уже занят</p>
-                </div>
-                <div class="form-group">
-                    <input type="password" id="password" name="password" class="form-control" placeholder="Пароль" required>
-                    <input type="text" class="form-control" id="email" name="email" value="{email}" style="display: None">
-                </div>
-                <button type="submit" class="btn btn-primary button" id="loginButton" disabled>Зарегистрироваться</button>
-            </form>
-            <p class="unstyled-list"> Ваш пароль должен содержать </p>
-            <ul class="unstyled-list">
-                <li class="list-item">Латинские буквы</li>
-                <li class="list-item">Минимум 8 символов</li>
-                <li class="list-item">Минимум 1 заглавную букву</li>
-                <li class="list-item">Минимум 1 прописную букву</li>
-                <li class="list-item">Минимум 1 цифру</li>
-                <li class="list-item">Минимум 1 символ</li>
-            </ul>
-        </div>
-    </body>
-    <script>
-        function submitForm() {{
-            var form = document.createElement("form");
-            form.setAttribute("method", "POST");
-            form.setAttribute("action", "/registration");
-    
-            var input = document.createElement("input");
-            input.setAttribute("type", "hidden");
-            input.setAttribute("name", "dummyData"); // Добавьте любые данные, если нужно
-            input.setAttribute("value", "dummyValue");
-            form.appendChild(input);
-    
-            document.body.appendChild(form);
-            form.submit();
-        }}
-        // Получите ссылки на элементы формы
-        var passwordInput = document.getElementById("password");
-        var loginButton = document.getElementById("loginButton");
-        var passwordError = document.getElementById("passwordError");
-        var nicknameInput = document.getElementById("nickname"); // Добавлено
-
-        // Добавьте обработчик события для ввода пароля
-        passwordInput.addEventListener("input", function () {{
-            // Получите значение введенного пароля
-            var password = passwordInput.value;
-
-            // Создайте регулярные выражения для проверки наличия маленькой, большой буквы и цифры
-            var lowerCaseRegex = /[a-z]/;
-            var upperCaseRegex = /[A-Z]/;
-            var digitRegex = /[0-9]/;
-            var specialCharRegex = /[!@#\$%\^&\*\(\)_\+=\[\]\;:'"<>,.?\\-]/; // Добавьте здесь специальные символы, которые вы хотите разрешить
-            
-            // Проверьте, что пароль соответствует всем требованиям
-            if (
-                lowerCaseRegex.test(password) &&
-                upperCaseRegex.test(password) &&
-                digitRegex.test(password) &&
-                specialCharRegex.test(password) &&
-                password.length >= 8
-            ) {{
-                // Если пароль соответствует, сделайте кнопку кликабельной
-                loginButton.removeAttribute("disabled");
-                passwordError.style.display = "none";
-            }} else {{
-                // Если пароль не соответствует, сделайте кнопку некликабельной
-                loginButton.setAttribute("disabled", "disabled");
-                passwordError.style.display = "block";
-            }}
-        }});
-
-        // Добавьте обработчик события для отправки формы
-        var form = document.getElementById("form");
-        form.addEventListener("submit", function (event) {{
-            event.preventDefault(); // Отмена действия по умолчанию
-
-            // Получите значение введенного nickname
-            var nickname = nicknameInput.value;
-
-            // Отправьте данные на сервер
-            fetch("/check-login", {{
-                method: "POST",
-                body: new URLSearchParams({{
-                    nickname: nickname
-                }}),
-                headers: {{
-                    "Content-Type": "application/x-www-form-urlencoded"
-                }}
-            }})
-            .then(response => {{
-            console.log(response);
-                // Обработка ответа от сервера
-                if (response.ok) {{
-                    form.submit();
-                }} else {{
-                    nicknameError.style.display = "block";
-                }}
-            }})
-            .catch(error => {{
-                console.error("Ошибка:", error);
-            }});
-        }});
-    </script>
-    </html>
-    """
-    return response
+    return templates.TemplateResponse("make_login_template.html", {"request": request, "email": email})
 
 
 @app.post("/check-login", response_class=HTMLResponse)
@@ -1932,65 +1677,13 @@ async def check_login(nickname: str = Form(...), db: Session = Depends(get_db)):
 
 
 @app.post("/complete-register", response_class=HTMLResponse)
-async def confirm_registration(nickname: str = Form(...), email: str = Form(...), password: str = Form(...),
+async def confirm_registration(request: Request, nickname: str = Form(...), email: str = Form(...), password: str = Form(...),
                                db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.nickname == nickname).first()
     if not existing_user:
         await add_user(nickname, nickname, email, password, 1, 1)
 
-    response = f"""
-                <html>
-                <head>
-                    <title>Код подтверждения отправлен</title>
-                    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-                    <style>
-                        .container {{
-                            max-width: 600px;
-                        }}
-                        .headline {{
-                            font-family: Roboto;
-                            font-size: 24px;
-                            font-style: normal;
-                            font-weight: 400;
-                            line-height: 32px;
-                            text-align: center;
-                        }}
-                        .button {{
-                            display: flex;
-                            height: 53px;
-                            width: 570px;
-                            padding: 0px 24px;
-                            justify-content: center;
-                            align-items: center;
-                            align-self: stretch;
-                            background-color: #2A88B9;
-                            border-radius: 8px;
-                            border: 3px #2A88B9;
-                        }}
-                
-                        .button:disabled {{
-                            background-color: #2A88B9; /* Цвет фона для disabled кнопки */
-                        }}
-                
-                        .button:hover,
-                        .button:focus,
-                        .button:active {{
-                            background-color: #2A88B9;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <div class="container mt-5">
-                        <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
-                        <br>
-                        <br>
-                        <h4 class="headline">Вы успешно зарегистрированы!</h4>
-                        <button type="button" class="btn btn-primary button" onclick="window.location.href='/login'">Войти</button>
-                    </div>
-                </body>
-                </html>
-                """
-    return response
+    return templates.TemplateResponse("complete_register_template.html", {"request": request})
 
 
 def send_email(to_email, code):
@@ -2063,11 +1756,13 @@ async def get_password_reset_form(request: Request):
 
     error_message = ""
     if message == "CaptchaFailed":
-        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Капча не пройдена.</div>'
+        error_message = '<div class="alert alert-danger error" role="alert">Ошибка: Капча не пройдена.</div>'
     elif message == "ConfirmationFailed":
-        error_message = '<div class="alert alert-danger" role="alert">Ошибка: Неверный код подтверждения.</div>'
+        error_message = '<div class="alert alert-danger error" role="alert">Ошибка: Неверный код подтверждения.</div>'
     elif message == 'LoginFailed':
-        error_message = '<div class="alert alert-danger" role="alert">Ошибка: К данному никнейму привязан другой email.</div>'
+        error_message = '<div class="alert alert-danger error" role="alert">Ошибка: К данному никнейму привязан другой email.</div>'
+    elif message == 'AccountFailed':
+        error_message = '<div class="alert alert-danger error" role="alert">Ошибка: Аккаунта с таким никнеймом не существует.</div>'
 
     return templates.TemplateResponse("password_reset_form.html",
                                       {"request": request, "error_message": error_message, "SITE_KEY": SITE_KEY})
@@ -2081,6 +1776,8 @@ async def confirm_code_reset_password(request: Request, email: str = Form(...), 
 
     user_details = db.query(User).filter(User.nickname == nickname).first()
 
+    if user_details is None:
+        return RedirectResponse("/forget_password?message=AccountFailed")
     if user_details.email != email:
         return RedirectResponse("/forget_password?message=LoginFailed")
     if not captcha_response:
@@ -2108,69 +1805,13 @@ async def confirm_code_reset_password(request: Request, email: str = Form(...), 
             <html>
             <head>
                 <title>Код подтверждения отправлен</title>
-                <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-                <style>
-                    .container {{
-                        max-width: 600px;
-                    }}
-                    .headline {{
-                        font-family: Roboto;
-                        font-size: 24px;
-                        font-style: normal;
-                        font-weight: 400;
-                        line-height: 32px;
-                        text-align: center;
-                    }}
-                    .button {{
-                        display: flex;
-                        height: 53px;
-                        width: 540;
-                        padding: 0px 24px;
-                        justify-content: center;
-                        align-items: center;
-                        align-self: stretch;
-                        background-color: #2A88B9;
-                    }}
-                    .code-input {{
-                        display: flex;
-                        align-items: center;
-                    }}
-
-                    .code-box {{
-                        width: 0;
-                        height: 0;
-                        opacity: 0;
-                    }}
-
-                    .code-container {{
-                        display: flex;
-                        gap: 10px;
-
-                    }}
-
-                    .code-digit {{
-                        width: 50px;
-                        height: 60px;
-                        border: 1px solid #000;
-                        text-align: center;
-                        font-size: 24px;
-                        line-height: 38px;
-                    }}
-                    
-                    .back {{
-                        font-family: Roboto;
-                        font-size: 20px;
-                        font-style: normal;
-                        font-weight: 400;
-                        line-height: 22px;
-                        color: #928F8F;
-                    }}
-                </style>
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+                <link rel="stylesheet" href="../static/registration.css">
             </head>
             <body>
                 <div class="container mt-5">
-                    <a style="text-decoration: none;" href="#" onclick="submitForm()">
-                        <p class="back"> <img src="static/back-arrow.png" alt="Картинка"> Назад </p>
+                    <a style="text-decoration: none;" href="#" onclick="submitForm()" class="back">
+                        <p class="back"> <img src="static/back-arrow.png" style="align-self: center" alt="Картинка"> Назад </p>
                     </a>
                     <img src="profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170">
                     <br>

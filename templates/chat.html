@@ -496,15 +496,15 @@
                                 {{ message.message }}
                             {% endif %}
                         </p>
-                        <small>
-                            {% if message.edit_timestamp %}
-                                Изменено: {{ message.edit_timestamp }}
-                            {% else %}
-                                Отправлено: {{ message.timestamp }}
-                            {% endif %}
-                        </small>
                     </div>
-
+                    <br>
+                    <small>
+                        {% if message.edit_timestamp %}
+                            Изменено: {{ message.edit_timestamp }}
+                        {% else %}
+                            Отправлено: {{ message.timestamp }}
+                        {% endif %}
+                    </small>
                 </div>
             {% endfor %}
         </ul>

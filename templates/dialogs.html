@@ -282,13 +282,6 @@
                             {% endif %}
                             <br>
                             <!-- Проверка на наличие времени редактирования и отображение соответствующего текста -->
-                            <small>
-                                {% if message.edit_timestamp %}
-                                    Изменено: {{ message.edit_timestamp }}
-                                {% else %}
-                                    Отправлено: {{ message.timestamp }}
-                                {% endif %}
-                            </small>
                             <!-- Dropdown menu for message options -->
                             <div class="message-dropdown">
                                 <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
@@ -308,6 +301,14 @@
                                 </div>
                             </div>
                         </div>
+                        <br>
+                        <small>
+                            {% if message.edit_timestamp %}
+                                Изменено: {{ message.edit_timestamp }}
+                            {% else %}
+                                Отправлено: {{ message.timestamp }}
+                            {% endif %}
+                        </small>
                     </li>
                 {% endif %}
             {% endfor %}
