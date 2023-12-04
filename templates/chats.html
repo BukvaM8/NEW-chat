@@ -170,6 +170,8 @@
             line-height: 16px;
             color: #928F8F;
         }
+
+
     </style>
 </head>
 <body>
@@ -659,29 +661,29 @@
             lastMessage.scrollIntoView();
         }
 
-        function updateDialogInList(dialogId, newMessage) {
-            const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
-            if (dialogElement) {
-                const lastMessageElement = dialogElement.querySelector('.last_message');
-                if (lastMessageElement) {
-                    lastMessageElement.textContent = newMessage.length > 25 ? newMessage.substring(0, 25) + "..." : newMessage;
-                }
-            }
-        }
-
 
         // Динамическое изменение размера текстовой области:
         document.addEventListener('DOMContentLoaded', function () {
-            const textArea = document.getElementById('message-input');
+    const textArea = document.getElementById('message-input');
 
-            const updateTextAreaHeight = () => {
-                textArea.style.height = 'auto';
-                textArea.style.height = textArea.scrollHeight + 'px';
-            };
+    const updateTextAreaHeight = () => {
+        textArea.style.overflowY = 'hidden'; // Скрыть временно скроллбар
+        const maxHeight = 150; // Максимальная высота
 
-            textArea.addEventListener('input', updateTextAreaHeight);
-            updateTextAreaHeight(); // Для начальной установки высоты при загрузке страницы
-        });
+        if (textArea.scrollHeight > maxHeight) {
+            textArea.style.height = maxHeight + 'px';
+            textArea.style.overflowY = 'scroll'; // Показать скроллбар если текст превышает максимальную высоту
+        } else {
+            textArea.style.height = textArea.scrollHeight + 'px'; // Установить высоту, соответствующую содержимому
+        }
+    };
+
+    textArea.addEventListener('input', updateTextAreaHeight);
+    updateTextAreaHeight(); // Установить начальную высоту при загрузке страницы
+});
+
+
+
 
 
         // Обработчик события нажатия клавиши в текстовом поле формы
@@ -900,9 +902,6 @@
             }
         };
     }
-
-
-
 
     // Функции для работы с сообщениями
     function deleteMessage(messageIdStr) {
