@@ -1677,7 +1677,8 @@ async def check_login(nickname: str = Form(...), db: Session = Depends(get_db)):
 
 
 @app.post("/complete-register", response_class=HTMLResponse)
-async def confirm_registration(request: Request, nickname: str = Form(...), email: str = Form(...), password: str = Form(...),
+async def confirm_registration(request: Request, nickname: str = Form(...), email: str = Form(...),
+                               password: str = Form(...),
                                db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.nickname == nickname).first()
     if not existing_user:
@@ -2956,9 +2957,11 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
     # Проверка, является ли пользователь участником чата
     is_member = await is_member_of_chat(chat_id, current_user.phone_number)
     if not is_member:
+        logging.warning(f"User {current_user.phone_number} is not a member of chat {chat_id}")
         raise HTTPException(status_code=403, detail="You are not a member of this chat")
 
     if isinstance(current_user, RedirectResponse):
+        logging.warning("Current user is a RedirectResponse, not processing message.")
         return current_user
 
     # Обрабатываем прикрепленный файл, если он есть
@@ -2969,6 +2972,7 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
         file_id = await save_file(current_user.phone_number, file.filename, file_content,
                                   os.path.splitext(file.filename)[1])
         file_name = file.filename
+        logging.info(f"File uploaded with ID {file_id} for chat {chat_id}")
 
     # Преобразуем None в пустую строку, если пользователь не предоставил текст сообщения
     if message_text is None:
@@ -2981,32 +2985,53 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
 
     try:
         message_id = await handle_chat_message(chat_id, message_text, current_user)
-    except HTTPException:
-        raise HTTPException(status_code=500, detail="Error sending message or uploading file")
+        logging.info(f"Message ID {message_id} sent in chat {chat_id}")
 
-    new_message = {
-        "id": message_id,
-        "chat_id": chat_id,
-        "sender_id": current_user.id,
-        "sender_nickname": current_user.nickname,
-        "message": message_text,
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-        "file_id": file_id,
-        "file_name": file_name
-    }
+        new_message = {
+            "id": message_id,
+            "chat_id": chat_id,
+            "sender_id": current_user.id,
+            "sender_nickname": current_user.nickname,
+            "message": message_text,
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "file_id": file_id,
+            "file_name": file_name
+        }
 
-    # Отправляем сообщение через WebSocket
-    room = f"chat_{chat_id}"
-    await manager.send_message_to_room(room, json.dumps({"action": "send_message", "message": new_message}))
+        # Отправляем сообщение через WebSocket
+        room = f"chat_{chat_id}"
+        await manager.send_message_to_room(room, json.dumps({"action": "send_message", "message": new_message}))
+        logging.info(f"Sent message to room {room}")
 
-    websocket = manager.get_connection(current_user.id, f"chat_{chat_id}")
-    if websocket:
-        await manager.send_message_to_room(f"chat_{chat_id}",
-                                           json.dumps({"type": "new_message", "message": new_message}))
-    else:
-        logging.warning(f"No active connections found for room chat_{chat_id}")
+        # Отправляем данные о последнем сообщении в левую панель
+        last_message_update = {
+            "action": "update_last_message",
+            "chat_id": chat_id,
+            "last_message": message_text,
+            "sender_phone": current_user.phone_number,
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        logging.info(f"Отправка обновления последнего сообщения для чата {chat_id}")
+        await manager.broadcast(last_message_update, room=f"chat_{chat_id}")
+        logging.info(f"Обновление последнего сообщения отправлено для чата {chat_id}")
 
-    return JSONResponse(content={"success": True, "message": new_message})
+
+        websocket = manager.get_connection(current_user.id, f"chat_{chat_id}")
+        if websocket:
+            await manager.send_message_to_room(f"chat_{chat_id}",
+                                               json.dumps({"type": "new_message", "message": new_message}))
+            logging.info(f"Sent new message data to WebSocket for chat {chat_id}")
+        else:
+            logging.warning(f"No active connections found for room chat_{chat_id}")
+
+        return JSONResponse(content={"success": True, "message": new_message})
+
+    except HTTPException as http_ex:
+        logging.error(f"HTTP Exception while sending message in chat {chat_id}: {http_ex}")
+        raise
+    except Exception as e:
+        logging.error(f"An error occurred while handling chat message: {e}")
+        raise
 
 
 # Этот маршрут обрабатывает действие "покинуть чат"
