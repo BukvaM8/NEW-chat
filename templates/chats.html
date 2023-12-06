@@ -1251,11 +1251,6 @@ messageContent.appendChild(timeElement);
         });
     });
 
-
-
-
-
-
     // Инициализация кода для chat.html
     function initializeChatJS(chatId) {
 
@@ -1477,7 +1472,7 @@ document.getElementById('file-input').addEventListener('change', function() {
             }
         });
 
-         ws.onmessage = function (event) {
+        ws.onmessage = function (event) {
     console.log("Получено сообщение через WebSocket:", event.data);
 
     let messageData;
@@ -1528,33 +1523,32 @@ document.getElementById('file-input').addEventListener('change', function() {
             timeElement.textContent = `Изменено: ${new Date(editTimestamp).toLocaleString()}`;
         }
     } else if (action === 'update_last_message') {
-    const chatElement = document.querySelector(`.clickable-chat[data-chat-id="${messageData.chat_id}"]`);
-    if (chatElement) {
-        let lastMessageText = messageData.last_message;
+        const chatElement = document.querySelector(`.clickable-chat[data-chat-id="${messageData.chat_id}"]`);
+        if (chatElement) {
+            let lastMessageText = messageData.last_message;
 
-        // Проверяем, содержит ли сообщение информацию о файле
-        if (lastMessageText.includes('[[FILE]]')) {
-            const fileParts = lastMessageText.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ');
-            const fileName = fileParts.find(part => part.startsWith('File Name')).split(': ')[1];
-            lastMessageText = fileName; // Используем только имя файла для отображения
+            // Проверяем, содержит ли сообщение информацию о файле
+            if (lastMessageText.includes('[[FILE]]')) {
+                const fileParts = lastMessageText.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ');
+                const fileName = fileParts.find(part => part.startsWith('File Name')).split(': ')[1];
+                lastMessageText = fileName; // Используем только имя файла для отображения
+            }
+
+            // Обрезаем текст сообщения до 35 символов
+            if (lastMessageText.length > 35) {
+                lastMessageText = lastMessageText.substring(0, 35) + '...';
+            }
+
+            let lastMessageElement = chatElement.querySelector('.last_message');
+            if (lastMessageElement) {
+                lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
+            } else {
+                lastMessageElement = document.createElement('p');
+                lastMessageElement.classList.add('last_message');
+                lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
+                chatElement.appendChild(lastMessageElement);
+            }
         }
-
-        // Обрезаем текст сообщения до 35 символов
-        if (lastMessageText.length > 35) {
-            lastMessageText = lastMessageText.substring(0, 35) + '...';
-        }
-
-        let lastMessageElement = chatElement.querySelector('.last_message');
-        if (lastMessageElement) {
-            lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
-        } else {
-            lastMessageElement = document.createElement('p');
-            lastMessageElement.classList.add('last_message');
-            lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
-            chatElement.appendChild(lastMessageElement);
-        }
-    }
-
     } else if (messageData.message && messageData.sender_phone_number) {
         const messagesList = document.getElementById('chat-history');
         const newMessageItem = document.createElement('div');
@@ -1603,10 +1597,16 @@ document.getElementById('file-input').addEventListener('change', function() {
         dropdownIcon.alt = 'Options';
         dropdownIcon.className = 'message-options-icon';
 
-        const dropdownContent = document.createElement('div');
-        dropdownContent.className = 'message-options';
-        dropdownContent.style.display = 'none';
+        const currentUserPhoneNumber = "{{ current_user.phone_number }}";
+    const isAdmin = chatOwnerId === currentUserPhoneNumber; // Предполагается, что chatOwnerId уже определен
 
+    // Создание выпадающего меню
+    const dropdownContent = document.createElement('div');
+    dropdownContent.className = 'message-options';
+    dropdownContent.style.display = 'none';
+
+    // Показывать кнопку "Удалить сообщение" только если пользователь является администратором или автором сообщения
+    if (isAdmin || messageData.sender_phone_number === currentUserPhoneNumber) {
         const deleteButton = document.createElement('button');
         deleteButton.className = 'dropdown-item';
         deleteButton.textContent = 'Удалить сообщение';
@@ -1615,20 +1615,23 @@ document.getElementById('file-input').addEventListener('change', function() {
             ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdToDelete}));
         };
         dropdownContent.appendChild(deleteButton);
+    }
 
-        const editButton = document.createElement('button');
-        editButton.className = 'dropdown-item edit-message-button';
-        editButton.textContent = 'Редактировать';
-        editButton.onclick = function () {
-            const messageIdToEdit = newMessageItem.dataset.messageId;
-            editChatMessage(messageIdToEdit);
-        };
-        dropdownContent.appendChild(editButton);
+        // Проверка на авторство сообщения для отображения кнопки "Редактировать"
+        if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
+            const editButton = document.createElement('button');
+            editButton.className = 'dropdown-item edit-message-button';
+            editButton.textContent = 'Редактировать';
+            editButton.onclick = function () {
+                const messageIdToEdit = newMessageItem.dataset.messageId;
+                editChatMessage(messageIdToEdit);
+            };
+            dropdownContent.appendChild(editButton);
+        }
 
         const forwardButton = document.createElement('button');
         forwardButton.className = 'dropdown-item';
         forwardButton.textContent = 'Переслать';
-        // Обработчик для кнопки "Переслать"
         dropdownContent.appendChild(forwardButton);
 
         dropdown.appendChild(dropdownIcon);
@@ -1640,6 +1643,29 @@ document.getElementById('file-input').addEventListener('change', function() {
         console.warn('Неожиданный формат сообщения: ', messageData);
     }
 };
+        let chatOwnerId;
+
+// Предполагается, что chatId уже определен
+fetchChatOwner(chatId)
+    .then(ownerPhoneNumber => {
+        chatOwnerId = ownerPhoneNumber;
+        // Вы можете тут же обновить интерфейс или выполнить другие действия
+    })
+    .catch(error => console.error(error));
+
+        async function fetchChatOwner(chatId) {
+    try {
+        const response = await fetch(`/api/chat/${chatId}/owner`);
+        if (!response.ok) {
+            throw new Error(`Error: ${response.statusText}`);
+        }
+        const data = await response.json();
+        return data.owner_phone_number;
+    } catch (error) {
+        console.error('Ошибка при получении владельца чата:', error);
+        return null;
+    }
+}
 
 
 
