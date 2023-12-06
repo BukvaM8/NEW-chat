@@ -3015,7 +3015,6 @@ async def send_message_to_chat(chat_id: int, message_text: str = Form(None), fil
         await manager.broadcast(last_message_update, room=f"chat_{chat_id}")
         logging.info(f"Обновление последнего сообщения отправлено для чата {chat_id}")
 
-
         websocket = manager.get_connection(current_user.id, f"chat_{chat_id}")
         if websocket:
             await manager.send_message_to_room(f"chat_{chat_id}",
@@ -3596,12 +3595,15 @@ async def get_dialog_by_id(dialog_id: int, current_user_id: int, check_user_dele
 
 # Возвращает все сообщения из данного диалога.
 async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> List[dict]:
+    # Устанавливаем соединение с базой данных
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
-    if message_id:
-        await cur.execute("SELECT * FROM DialogMessages WHERE dialog_id = %s AND id = %s", (dialog_id, message_id))
-    else:
-        await cur.execute("SELECT * FROM DialogMessages WHERE dialog_id = %s", (dialog_id,))
+
+    # Формируем запрос SQL в зависимости от наличия message_id
+    query = "SELECT * FROM DialogMessages WHERE dialog_id = %s" + (" AND id = %s" if message_id else "")
+    await cur.execute(query, (dialog_id,) if not message_id else (dialog_id, message_id))
+
+    # Собираем результаты запроса
     result = []
     async for row in cur:
         result.append({
@@ -3609,33 +3611,40 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
             "dialog_id": row[1],
             "sender_id": row[2],
             "message": row[3],
-            "timestamp": row[4].strftime("%H:%M") if row[4] else None,
-            "delete_timestamp": row[5].strftime("%Y-%m-%d %H:%M:%S") if row[5] else None
+            "timestamp": row[5].strftime("%Y-%m-%d %H:%M:%S") if row[5] else None,
+            "delete_timestamp": row[6].strftime("%Y-%m-%d %H:%M:%S") if row[6] else None,
+            "edit_timestamp": row[7].strftime("%Y-%m-%d %H:%M:%S") if row[7] else None  # Обработка edit_timestamp
         })
+
+    # Закрываем соединение
     await cur.close()
     conn.close()
 
-    # Send the messages through WebSocket
-    room = f"dialog_{dialog_id}"
-    await manager.send_message_to_room(room, json.dumps({"type": "initial_messages", "messages": result}))
-
+    # Возвращаем результат
     return result
+
 
 
 # Добавляет новое сообщение в базу данных и отправляет уведомление через WebSocket
 async def send_message(dialog_id: int, sender_id: int, message: str):
+    # Устанавливаем соединение с базой данных
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
 
-    # Вставляем сообщение в базу данных
-    await cur.execute("INSERT INTO DialogMessages (dialog_id, sender_id, message) VALUES (%s, %s, %s)",
-                      (dialog_id, sender_id, message))
+    # Вставляем сообщение в базу данных с текущим временем UTC
+    await cur.execute("""
+        INSERT INTO DialogMessages (dialog_id, sender_id, message, timestamp) 
+        VALUES (%s, %s, %s, UTC_TIMESTAMP())
+    """, (dialog_id, sender_id, message))
+
     await conn.commit()
 
-    # Получаем ID вставленного сообщения
-    await cur.execute("SELECT LAST_INSERT_ID()")
+    # Получаем ID вставленного сообщения и timestamp
+    await cur.execute("""
+        SELECT LAST_INSERT_ID(), UTC_TIMESTAMP()
+    """)
     result = await cur.fetchone()
-    message_id = result[0] if result else None
+    message_id, current_utc_time = result if result else (None, None)
 
     await cur.close()
     conn.close()
@@ -3645,11 +3654,11 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
         new_message_data = {
             "type": "new_message",
             "message": {
-                "message_id": message_id,  # ID сообщения
+                "message_id": message_id,
                 "dialog_id": dialog_id,
                 "sender_id": sender_id,
                 "message": message,
-                "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                "timestamp": current_utc_time.strftime("%Y-%m-%d %H:%M:%S")
             }
         }
         # Отправляем сообщение в комнату WebSocket
@@ -3657,6 +3666,7 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
     else:
         # Обработка случая, когда сообщение не было вставлено
         logging.error("Failed to insert message into the database.")
+
 
 
 async def update_message(message_id: int, new_message: str, new_file_id: int = None) -> bool:
@@ -3797,6 +3807,17 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     # Обновление времени последнего онлайна пользователя
     await update_last_online(sender_id)
 
+    # Отправка обновленных данных о последнем сообщении в диалоге
+    last_message_update = {
+        "action": "update_last_dialog_message",
+        "dialog_id": dialog_id,
+        "last_message": message_content,
+        "sender_nickname": current_user.nickname,
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    await manager.broadcast(last_message_update, room=f"dialog_{dialog_id}")
+    logging.info(f"Last message update sent for dialog {dialog_id}")
+
     return JSONResponse(content={"message": "Message sent successfully", "dialog_id": dialog_id})
 
 
@@ -3933,6 +3954,7 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
             DialogMessages.message,
             DialogMessages.timestamp,
             DialogMessages.delete_timestamp,
+            DialogMessages.edit_timestamp,  # Добавлено
             Users.nickname
         FROM DialogMessages
         JOIN Users ON DialogMessages.sender_id = Users.id
@@ -3944,11 +3966,12 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
         messages.append({
             "id": row[0],
             "dialog_id": row[1],
-            "sender_id": row[5],
+            "sender_id": row[2],
             "message": row[3],
-            "timestamp": row[4],
-            "delete_timestamp": row[5],
-            "sender_nickname": row[6]
+            "timestamp": row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None,
+            "delete_timestamp": row[5].strftime('%Y-%m-%d %H:%M:%S') if row[5] else None,
+            "edit_timestamp": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,  # Добавлено
+            "sender_nickname": row[7]
         })
     await cur.close()
     conn.close()

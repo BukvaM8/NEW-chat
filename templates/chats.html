@@ -265,17 +265,15 @@
                             </div>
                             <div>
     <!-- Последнее сообщение -->
-    {% if '[[FILE]]' in dialog.last_message %}
-    {% set file_message_parts = dialog.last_message.split('[[FILE]]') %}
-    {% if ', ' in file_message_parts[1] %}
-    {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-    <small class="last_message">{{ file_info_parts[1].split(': ')[1] }}</small>
-    {% endif %}
-    {% else %}
-    <small class="last_message">{{ dialog.last_message | truncate(25, true, '...') }}</small>
-    {% endif %}
+    <div class="last_message">
+                        <strong>{{ dialog.interlocutor_nickname }}:</strong>
+                        {% if '[[FILE]]' in dialog.last_message %}
+                            {{ dialog.last_message.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ')[1].split(': ')[1] | truncate(25, true, '...') }}
+                        {% else %}
+                            {{ dialog.last_message | truncate(25, true, '...') }}
+                        {% endif %}
 </div>
-
+   </div>
                         </div>
                         <!-- Действия с диалогом -->
                         <!--                            {#                            <div class="dialog-actions">#}-->
@@ -761,13 +759,15 @@
 
 
         ws.onmessage = function (event) {
+                console.log("Получено сообщение через WebSocket:", event.data);
             let messageData;
             try {
-                messageData = JSON.parse(event.data);
-            } catch (e) {
-                console.error("Invalid JSON", e);
-                return;
-            }
+        messageData = JSON.parse(event.data);
+        console.log("Разобранное сообщение:", messageData);
+    } catch (e) {
+        console.error("Invalid JSON", e);
+        return;
+    }
 
             const action = messageData.action;
 
@@ -811,6 +811,25 @@
                         messageElement.appendChild(dropdownMenu);
                     }
                 }
+             } else if (action === 'update_last_dialog_message') {
+        // Логирование при получении данных о последнем сообщении в диалоге
+        console.log("Обновление последнего сообщения для диалога:", messageData.dialog_id);
+
+        const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${messageData.dialog_id}"]`);
+        if (dialogElement) {
+            let lastMessageElement = dialogElement.querySelector('.last_message');
+
+            if (lastMessageElement) {
+                console.log("Обновляем существующий элемент последнего сообщения");
+                lastMessageElement.textContent = messageData.last_message;
+            } else {
+                console.log("Создаем новый элемент последнего сообщения");
+                lastMessageElement = document.createElement('small');
+                lastMessageElement.classList.add('last_message');
+                lastMessageElement.textContent = messageData.last_message;
+                dialogElement.appendChild(lastMessageElement);
+            }
+        }
             } else if (messageData.message && messageData.message.sender_id) {
                 const currentUserId = "{{ current_user.id }}";
                 const newMessage = document.createElement('li');
@@ -822,7 +841,6 @@
 
                 const senderNickname = messageData.message.sender_nickname || "";
                 const rawMessage = messageData.message.message;
-
 
 
                   if (senderNickname) {
@@ -854,8 +872,12 @@
                 }
 
                 const timeElement = document.createElement('div');
-                timeElement.appendChild(document.createTextNode("Отправлено: " + (messageData.message.timestamp || "")));
-                messageContent.appendChild(timeElement);
+if (messageData.message.timestamp) {
+    timeElement.appendChild(document.createTextNode("Отправлено: " + messageData.message.timestamp));
+} else {
+    timeElement.appendChild(document.createTextNode("Время отправки не указано"));
+}
+messageContent.appendChild(timeElement);
 
                 const dropdown = document.createElement('div');
                 dropdown.className = 'message-dropdown';
@@ -1217,6 +1239,10 @@
     });
 
 
+
+
+
+
     // Инициализация кода для chat.html
     function initializeChatJS(chatId) {
 
@@ -1243,6 +1269,7 @@
         if (lastMessage) {
             lastMessage.scrollIntoView();
         }
+
 
         // Инициализация модального окна для добавления участников
         const addParticipantButton = document.getElementById('addParticipantButton');
@@ -1514,8 +1541,6 @@ document.getElementById('file-input').addEventListener('change', function() {
             chatElement.appendChild(lastMessageElement);
         }
     }
-
-
 
     } else if (messageData.message && messageData.sender_phone_number) {
         const messagesList = document.getElementById('chat-history');
