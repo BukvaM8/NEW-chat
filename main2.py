@@ -2942,6 +2942,14 @@ async def get_chat_owner(chat_id: int) -> str:
     else:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+@app.get("/api/chat/{chat_id}/owner")
+async def get_chat_owner_api(chat_id: int):
+    owner_phone_number = await get_chat_owner(chat_id)
+    if owner_phone_number:
+        return {"owner_phone_number": owner_phone_number}
+    else:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
 
 @app.get("/api/chat/{chat_id}/owner")
 async def get_chat_owner_api(chat_id: int):
