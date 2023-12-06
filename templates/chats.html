@@ -265,14 +265,20 @@
                             </div>
                             <div>
     <!-- Последнее сообщение -->
-    <div class="last_message">
-                        <strong>{{ dialog.interlocutor_nickname }}:</strong>
-                        {% if '[[FILE]]' in dialog.last_message %}
-                            {{ dialog.last_message.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ')[1].split(': ')[1] | truncate(25, true, '...') }}
-                        {% else %}
-                            {{ dialog.last_message | truncate(25, true, '...') }}
-                        {% endif %}
+<div class="last_message">
+    <strong>{{ dialog.interlocutor_nickname }}:</strong>
+    {% if '[[FILE]]' in dialog.last_message %}
+        {% set parts = dialog.last_message.split('[[FILE]]') %}
+        {% set text_part = parts[0] %}
+        {% set file_info = parts[1].split('[[/FILE]]')[0] %}
+        {% set file_name = file_info.split(', File Path: ')[1] %}
+        {{ text_part | truncate(25, true, '...') }} (Файл: {{ file_name | truncate(25, true, '...') }})
+    {% else %}
+        {{ dialog.last_message | truncate(25, true, '...') }}
+    {% endif %}
 </div>
+
+
    </div>
                         </div>
                         <!-- Действия с диалогом -->
@@ -812,23 +818,30 @@
                     }
                 }
              } else if (action === 'update_last_dialog_message') {
-        // Логирование при получении данных о последнем сообщении в диалоге
-        console.log("Обновление последнего сообщения для диалога:", messageData.dialog_id);
+    console.log("Обновление последнего сообщения для диалога:", messageData.dialog_id);
 
-        const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${messageData.dialog_id}"]`);
-        if (dialogElement) {
-            let lastMessageElement = dialogElement.querySelector('.last_message');
+    const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${messageData.dialog_id}"]`);
+    if (dialogElement) {
+        let lastMessageElement = dialogElement.querySelector('.last_message');
 
-            if (lastMessageElement) {
-                console.log("Обновляем существующий элемент последнего сообщения");
-                lastMessageElement.textContent = messageData.last_message;
-            } else {
-                console.log("Создаем новый элемент последнего сообщения");
-                lastMessageElement = document.createElement('small');
-                lastMessageElement.classList.add('last_message');
-                lastMessageElement.textContent = messageData.last_message;
-                dialogElement.appendChild(lastMessageElement);
-            }
+        let messageText = messageData.last_message;
+        // Проверка наличия информации о файле в сообщении
+        if (messageText.includes('[[FILE]]') && messageText.includes('[[/FILE]]')) {
+            const [text, fileInfo] = messageText.split('[[FILE]]');
+            const fileName = fileInfo.split('[[/FILE]]')[0].split(', File Path: ')[1];
+            messageText = text + (fileName ? " (Файл: " + fileName + ")" : ""); // Конкатенация текста сообщения и имени файла
+        }
+
+        if (lastMessageElement) {
+            console.log("Обновляем существующий элемент последнего сообщения");
+            lastMessageElement.textContent = messageText;
+        } else {
+            console.log("Создаем новый элемент последнего сообщения");
+            lastMessageElement = document.createElement('small');
+            lastMessageElement.classList.add('last_message');
+            lastMessageElement.textContent = messageText;
+            dialogElement.appendChild(lastMessageElement);
+        }
         }
             } else if (messageData.message && messageData.message.sender_id) {
                 const currentUserId = "{{ current_user.id }}";
