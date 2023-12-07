@@ -2866,8 +2866,8 @@ async def create_chat(request: Request,
 
     user_nicknames = list(set(user_nicknames))
     user_phone_numbers = []
+
     for i in range(len(user_nicknames)):
-        user_phone_numbers.append(await get_user_id_by_nickname(user_nicknames[i]))
         user = await get_user_by_id(user_nicknames[i])
         user_phone_numbers.append(user.phone_number)
 
@@ -4030,7 +4030,7 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
             DialogMessages.message,
             DialogMessages.timestamp,
             DialogMessages.delete_timestamp,
-            DialogMessages.edit_timestamp,  # Добавлено
+            DialogMessages.edit_timestamp,  
             Users.nickname
         FROM DialogMessages
         JOIN Users ON DialogMessages.sender_id = Users.id

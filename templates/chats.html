@@ -335,9 +335,9 @@
                                     <strong>{{ chat['last_message_sender_phone'] }}:</strong>
                                     {% if '[[FILE]]' in chat['last_message'] %}
                                     {{ chat['last_message'].split('[[FILE]]')[1].split('[[/FILE]]')[0].split(',
-                                    ')[1].split(': ')[1] | truncate(35, true, '...') }}
+                                    ')[1].split(': ')[1] | truncate(55, true, '...') }}
                                     {% else %}
-                                    {{ chat['last_message'] | truncate(35, true, '...') }}
+                                    {{ chat['last_message'] | truncate(55, true, '...') }}
                                     {% endif %}
                                 </div>
 
@@ -615,51 +615,99 @@
             document.querySelector(`[data-message-id="${messageId}"] .message-self`);
 
         if (messageElement) {
-            // Обновление текста сообщения
-            messageElement.innerHTML = newMessageText;
+            // Очистка текущего текста сообщения, сохранение выпадающего меню
+            const dropdownMenu = messageElement.querySelector('.message-dropdown');
+            messageElement.innerHTML = '';
 
-            // Находим существующий dropdown меню, если оно есть
-            const dropdownMenu = messageElement.querySelector('.message-dropdown') ?
-                messageElement.querySelector('.message-dropdown').cloneNode(true) : null;
+            // Добавление нового текста сообщения
+            const newTextElement = document.createElement('div');
+            newTextElement.textContent = newMessageText;
+            messageElement.appendChild(newTextElement);
 
+            // Добавление или обновление метки "Изменено"
+            const editedMark = document.createElement('span');
+            editedMark.className = 'edited-mark';
+            editedMark.textContent = ` Изменено: ${currentDate}`;
+            messageElement.appendChild(editedMark);
+
+            // Восстановление выпадающего меню
             if (dropdownMenu) {
-                const dropdownIcon = dropdownMenu.querySelector('.message-options-icon');
-                if (dropdownIcon) {
-                    // Установка обработчика событий для иконки dropdown
-                    dropdownIcon.onclick = function (event) {
-                        toggleDropdownMenu(event);
-                    };
-                }
-
-                // Обновление обработчиков событий для кнопок в dropdown меню
-                const deleteButton = dropdownMenu.querySelector('.dropdown-item:first-child');
-                const editButton = dropdownMenu.querySelector('.dropdown-item:nth-child(2)');
-
-                if (deleteButton) {
-                    deleteButton.onclick = function () {
-                        deleteMessage(messageId.toString());
-                    };
-                }
-
-                if (editButton) {
-                    editButton.onclick = function () {
-                        editMessage(messageId.toString());
-                    };
-                }
-
-                // Добавление dropdown меню обратно в элемент сообщения
+                updateDropdownMenuHandlers(dropdownMenu, messageId);
                 messageElement.appendChild(dropdownMenu);
+            } else {
+                createDropdownMenu(messageElement, messageId);
             }
         }
 
-        // Сброс значения кнопки отправки и очистка поля ввода
+        resetEditingState();
+    }
+
+
+    function updateDropdownMenuHandlers(dropdownMenu, messageId) {
+        const deleteButton = dropdownMenu.querySelector('.dropdown-item.delete-message-button');
+        const editButton = dropdownMenu.querySelector('.dropdown-item.edit-message-button');
+
+        // Обновление обработчиков событий для кнопок
+        if (deleteButton) {
+            deleteButton.onclick = function () {
+                deleteMessage(messageId.toString());
+            };
+        }
+
+        if (editButton) {
+            editButton.onclick = function () {
+                editMessage(messageId.toString());
+            };
+        }
+    }
+
+    function resetEditingState() {
         const submitButton = document.querySelector('#message-form button[type="submit"]');
         submitButton.textContent = 'Отправить';
         submitButton.onclick = null;
         document.querySelector('textarea[name="message"]').value = '';
-
-        // Сброс флага редактирования сообщения
         isEditingMessage = false;
+    }
+
+
+    function createDropdownMenu(messageElement, messageId) {
+        // Создание выпадающего меню
+        const dropdown = document.createElement('div');
+        dropdown.className = 'message-dropdown';
+
+        const dropdownIcon = document.createElement('img');
+        dropdownIcon.src = '/static/downarrow.png';
+        dropdownIcon.alt = 'Options';
+        dropdownIcon.className = 'message-options-icon';
+        dropdownIcon.onclick = function (event) {
+            toggleDropdownMenu(event);
+        };
+
+        const dropdownContent = document.createElement('div');
+        dropdownContent.className = 'message-options';
+        dropdownContent.style.display = 'none';
+
+        // Создание кнопки "Удалить сообщение"
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'dropdown-item delete-message-button';
+        deleteButton.textContent = 'Удалить сообщение';
+        deleteButton.onclick = function () {
+            deleteMessage(messageId.toString());
+        };
+
+        // Создание кнопки "Изменить"
+        const editButton = document.createElement('button');
+        editButton.className = 'dropdown-item edit-message-button';
+        editButton.textContent = 'Изменить';
+        editButton.onclick = function () {
+            editMessage(messageId.toString());
+        };
+
+        dropdownContent.appendChild(deleteButton);
+        dropdownContent.appendChild(editButton);
+        dropdown.appendChild(dropdownIcon);
+        dropdown.appendChild(dropdownContent);
+        messageElement.appendChild(dropdown);
     }
 
 
@@ -754,8 +802,14 @@
                         const messageTextNode = document.createTextNode(data.message_text);
                         messageContent.appendChild(messageTextNode);
 
+                        // Создаем и добавляем выпадающее меню
+                        createDropdownMenu(messageContent, data.message_id);
+
                         newMessage.appendChild(messageContent);
                         messagesList.appendChild(newMessage);
+
+                        // Прокрутка к последнему сообщению
+                        messagesList.scrollTop = messagesList.scrollHeight;
                     }
 
                     // Очищаем поля ввода после отправки
@@ -806,22 +860,29 @@
                     document.querySelector(`.message-self[data-message-id="${messageId}"]`);
 
                 if (messageElement) {
-                    messageElement.innerHTML = newMessageText;
+                    // Очистка текущего содержимого сообщения, кроме выпадающего меню
+                    const dropdownMenu = messageElement.querySelector('.message-dropdown');
+                    messageElement.innerHTML = '';
 
+                    // Добавление нового текста сообщения
+                    const newTextElement = document.createElement('div');
+                    newTextElement.textContent = newMessageText;
+                    messageElement.appendChild(newTextElement);
+
+                    // Добавление метки "Изменено"
                     const editedMark = document.createElement('span');
                     editedMark.className = 'edited-mark';
                     editedMark.textContent = ` Изменено: ${new Date(editTimestamp).toLocaleString()}`;
                     messageElement.appendChild(editedMark);
 
-                    const timeElement = messageElement.parentNode.querySelector('.message-time');
-                    if (timeElement) {
-                        timeElement.textContent = `Изменено: ${new Date(editTimestamp).toLocaleString()}`;
-                    }
-
-                    const dropdownMenu = messageElement.querySelector('.message-dropdown') ?
-                        messageElement.querySelector('.message-dropdown').cloneNode(true) : null;
+                    // Восстановление выпадающего меню
                     if (dropdownMenu) {
+                        // Обновление обработчиков событий для кнопок в dropdown меню
+                        updateDropdownMenuHandlers(dropdownMenu, messageId);
                         messageElement.appendChild(dropdownMenu);
+                    } else {
+                        // Если выпадающего меню нет, создать его
+                        createDropdownMenu(messageElement, messageId);
                     }
                 }
             } else if (action === 'update_last_dialog_message') {

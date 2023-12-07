@@ -400,12 +400,12 @@
     <hr>
 
     <!-- Поле для изменения названия -->
-    {#    {% if chat.owner_phone_number == current_user.phone_number %}#}
-    {#    <form class="change-chat-name-form" action="/chats/{{ chat.id }}/change_name" method="post">#}
-    {#        <input type="text" name="new_name" placeholder="Новое название">#}
-    {#        <button type="submit">Изменить название</button>#}
-    {#    </form>#}
-    {#    {% endif %}#}
+        {% if chat.owner_phone_number == current_user.phone_number %}
+        <form class="change-chat-name-form" action="/chats/{{ chat.id }}/change_name" method="post">
+            <input type="text" name="new_name" placeholder="Новое название">
+            <button type="submit">Изменить название</button>
+        </form>
+        {% endif %}
 
     <div class="text-center" style="width: 413px; margin: 0 auto; text-align: left;">
         <div class="mt-3">
