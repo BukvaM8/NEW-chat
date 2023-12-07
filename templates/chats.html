@@ -552,6 +552,15 @@
         // Извлечение только текста из элемента сообщения
         let messageText = extractMessageText(messageElement);
 
+        // Проверяем, есть ли ссылка на файл в сообщении
+        let fileLinkElement = messageElement.querySelector('a[href^="/files/"]');
+        if (fileLinkElement) {
+            // Если в сообщении есть ссылка на файл, выводим информацию о нем
+            let fileInfo = `Прикрепленный файл: ${fileLinkElement.innerText}`;
+            let fileNameLabel = document.getElementById('fileName');
+            fileNameLabel.textContent = fileInfo;
+        }
+
         // Обновление формы ввода сообщения
         const textArea = document.querySelector('textarea[name="message"]');
         if (textArea) {
@@ -710,6 +719,20 @@
         messageElement.appendChild(dropdown);
     }
 
+    function updateFileName() {
+        var input = document.getElementById('fileInput');
+        var fileNameLabel = document.getElementById('fileName');
+        if (input.files.length > 0) {
+            var fileNames = [];
+            for (var i = 0; i < input.files.length; i++) {
+                fileNames.push(input.files[i].name);
+            }
+            fileNameLabel.textContent = fileNames.join(', ');
+        } else {
+            fileNameLabel.textContent = '';
+        }
+    }
+
 
     // Инициализация кода для dialogs.html
     function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
@@ -813,16 +836,25 @@
                     }
 
                     // Очищаем поля ввода после отправки
-                    form.querySelector('textarea[name="message"]').value = '';
-                    const fileInput = form.querySelector('input[type="file"]');
-                    if (fileInput) {
-                        fileInput.value = '';
-                    }
+                    resetFormState();
                 })
                 .catch(error => {
                     console.error('Error:', error);
                 });
         });
+
+// Очищаем состояние формы после отправки сообщения
+        function resetFormState() {
+            const textArea = document.querySelector('textarea[name="message"]');
+            const fileInput = document.querySelector('input[type="file"]');
+            const fileNameLabel = document.getElementById('fileName');
+
+            textArea.value = '';
+            fileInput.value = '';
+            fileNameLabel.textContent = ''; // Очищаем имя файла
+            isEditingMessage = false;
+            document.querySelector('#message-form button[type="submit"]').textContent = 'Отправить';
+        }
 
 
         ws.onmessage = function (event) {
