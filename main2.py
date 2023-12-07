@@ -162,7 +162,7 @@ userchats = Table(
     Column("id", Integer, primary_key=True),
     Column("chat_name", String),
     Column("owner_phone_number", String, ForeignKey('Users.phone_number')),
-    Column("chat_image", LargeBinary)  # Измененный тип данных
+    Column("chat_image", LargeBinary, default=None)
 )
 
 tokens = Table(
@@ -2669,7 +2669,7 @@ async def main_page(request: Request, current_user: User = Depends(get_current_u
 
     # Получаем все доступные диалоги для текущего пользователя
     user_dialogs = await get_user_dialogs(current_user.id)
-    print(user_dialogs)
+
     for i in range(len(user_dialogs)):
         fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=user_dialogs[i]["user_id"]).first()
         if fio:
@@ -2821,35 +2821,82 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
     # Этот маршрут отображает страницу создания нового чата
     if isinstance(current_user, RedirectResponse):
         return current_user
-    # users = await get_all_users()
-    users = await get_all_users_from_contacts(current_user.id)
+    # # users = await get_all_users()
+    all_users = await get_all_users_from_contacts(current_user.id)
+    for i in range(len(all_users)):
+        results = db.query(users).filter_by(id=all_users[i]['nickname']).first()
+        all_users[i]['status'] = results['status'] if (results['status_visibility'] == 1 and results['status']) else ''
 
     return templates.TemplateResponse("create_chat.html",
+                                      {"request": request, "users": all_users, "current_user": current_user})
+
+
+@app.get("/create_chat_1", response_class=HTMLResponse)
+async def create_first_chat_page(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    # Этот маршрут отображает страницу создания нового чата
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    # # users = await get_all_users()
+    users = await get_all_users_from_contacts(current_user.id)
+
+    return templates.TemplateResponse("create_chat_1.html",
                                       {"request": request, "users": users, "current_user": current_user})
 
 
 # Маршрут для создания нового чата
 @app.post("/create_chat", response_class=JSONResponse)
-async def create_chat(request: Request, chat_name: str = Form(...),
+async def create_chat(request: Request,
                       user_nicknames: List[str] = Form(...),
+                      current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    user_nicknames = list(set(user_nicknames))
+    user_phone_numbers = []
+    for i in range(len(user_nicknames)):
+        user_phone_numbers.append(await get_user_id_by_nickname(user_nicknames[i]))
+        user = await get_user_by_id(user_nicknames[i])
+        user_phone_numbers.append(user.phone_number)
+
+    user = [user for user in user_phone_numbers if user is not None]
+
+    return JSONResponse(content={"status": "initialized", "users": ' '.join(user)})
+
+
+@app.post("/create_chat_1", response_class=JSONResponse)
+async def create_chat(request: Request, chat_name: str = Form(...), chat_users: List[str] = Form(...),
                       chat_image: UploadFile = File(...),
                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    # Получение идентификаторов пользователей на основе их никнеймов
-    user_ids = [await get_user_id_by_nickname(nickname) for nickname in
-                set(user_nicknames)]  # Использование set для удаления дубликатов
-    # Получение телефонных номеров для этих идентификаторов
-    user_phones = [await get_phone_number_by_user_id(user_id) for user_id in user_ids if user_id is not None]
-
-    # Чтение и сохранение изображения
     image_data = await chat_image.read()
-
-    # Создание чата и добавление участников
-    chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phones, image_data)
+    chat_id = await create_new_chat(chat_name, current_user.phone_number, chat_users[0].split(), image_data)
 
     return JSONResponse(content={"chat_id": chat_id, "status": "created"})
+
+
+# @app.post("/create_chat", response_class=JSONResponse)
+# async def create_chat(request: Request, chat_name: str = Form(...),
+#                       user_nicknames: List[str] = Form(...),
+#                       chat_image: UploadFile = File(...),
+#                       current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+#     if isinstance(current_user, RedirectResponse):
+#         return current_user
+#
+#     # Получение идентификаторов пользователей на основе их никнеймов
+#     user_ids = [await get_user_id_by_nickname(nickname) for nickname in
+#                 set(user_nicknames)]  # Использование set для удаления дубликатов
+#     # Получение телефонных номеров для этих идентификаторов
+#     user_phones = [await get_phone_number_by_user_id(user_id) for user_id in user_ids if user_id is not None]
+#
+#     # Чтение и сохранение изображения
+#     image_data = await chat_image.read()
+#
+#     # Создание чата и добавление участников
+#     chat_id = await create_new_chat(chat_name, current_user.phone_number, user_phones, image_data)
+#
+#     return JSONResponse(content={"chat_id": chat_id, "status": "created"})
 
 
 @app.post("/chats/{chat_id}/change_name", response_class=JSONResponse)
