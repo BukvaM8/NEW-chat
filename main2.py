@@ -2735,7 +2735,8 @@ async def is_member_of_chat(chat_id: int, phone_number: str):
 
 @app.get("/chat/{chat_id}", response_class=HTMLResponse)
 async def read_chat(request: Request, chat_id: int,
-                    current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+                    current_user: Union[str, RedirectResponse] = Depends(get_current_user),
+                    db: Session = Depends(get_db)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     chat = await get_chat(chat_id)
@@ -2760,10 +2761,20 @@ async def read_chat(request: Request, chat_id: int,
                         query="SELECT * FROM PollVotes WHERE poll_id = :poll_id AND voter_phone_number = :voter_phone_number",
                         values={"poll_id": poll_id, "voter_phone_number": current_user.phone_number}))
 
+    all_users = []
+    owner = await get_user_by_id(await get_user_id_by_nickname(await get_chat_owner(chat_id)))
+
+    for nickname in await get_chat_participants(chat_id):
+        print(nickname)
+        print(owner.nickname)
+        print(nickname == owner.nickname)
+        if nickname != owner.nickname:
+            all_users.append(await get_user_by_id(await get_user_id_by_nickname(nickname)))
+
     return templates.TemplateResponse("chat.html",
                                       {"request": request, "chat": chat, "messages": messages, "polls": polls,
                                        "poll_results": poll_results, "user_voted": user_voted,
-                                       "current_user": current_user})
+                                       "current_user": current_user, "users": all_users, "owner": owner})
 
 
 @app.get("/chat/picture/{chat_id}")
@@ -2833,7 +2844,8 @@ async def create_chat_page(request: Request, current_user: Union[str, RedirectRe
 
 
 @app.get("/create_chat_1", response_class=HTMLResponse)
-async def create_first_chat_page(request: Request, current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+async def create_first_chat_page(request: Request,
+                                 current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     # Этот маршрут отображает страницу создания нового чата
     if isinstance(current_user, RedirectResponse):
         return current_user
@@ -2930,6 +2942,7 @@ async def get_chat_owner(chat_id: int) -> str:
     else:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+
 @app.get("/api/chat/{chat_id}/owner")
 async def get_chat_owner_api(chat_id: int):
     owner_phone_number = await get_chat_owner(chat_id)
@@ -2942,7 +2955,8 @@ async def get_chat_owner_api(chat_id: int):
 # Маршрут отображает страницу конкретного чата и форму отправки нового сообщения
 @app.get("/chats/{chat_id}", response_class=HTMLResponse)
 async def chat_page(request: Request, chat_id: int,
-                    current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
+                    current_user: Union[str, RedirectResponse] = Depends(get_current_user),
+                    db: Session = Depends(get_db)):
     if isinstance(current_user, RedirectResponse):
         return current_user
     chat = await get_chat(chat_id)
@@ -2950,6 +2964,7 @@ async def chat_page(request: Request, chat_id: int,
         raise HTTPException(status_code=404, detail="Chat not found")
     messages = await get_chat_messages(chat_id)
     left_chats = request.session.get("left_chats", [])  # Получаем список покинутых чатов
+
     return templates.TemplateResponse("chat.html", {"request": request, "chat": chat, "messages": messages,
                                                     "current_user": current_user, "left_chats": left_chats})
 
@@ -3679,7 +3694,6 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
     return result
 
 
-
 # Добавляет новое сообщение в базу данных и отправляет уведомление через WebSocket
 async def send_message(dialog_id: int, sender_id: int, message: str):
     # Устанавливаем соединение с базой данных
@@ -3721,7 +3735,6 @@ async def send_message(dialog_id: int, sender_id: int, message: str):
     else:
         # Обработка случая, когда сообщение не было вставлено
         logging.error("Failed to insert message into the database.")
-
 
 
 async def update_message(message_id: int, new_message: str, new_file_id: int = None) -> bool:
