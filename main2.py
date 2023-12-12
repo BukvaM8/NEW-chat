@@ -3869,13 +3869,13 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
 
     message_content = message if message else ""
     if file_id:
+        # Используем file.filename вместо file_filename
         file_info = f'[[FILE]]File ID: {file_id}, File Path: {file.filename}[[/FILE]]'
-        message_content = f'{message_content}{file_info}'
+        message_content = f'{message_content}{file_info}' if message_content else file_info
 
     if message_id_for_edit:
         # Логика для редактирования сообщения
-        await update_message(message_id_for_edit, message_content, new_file_id=file_id,
-                             new_file_path=file.filename if file_id else None)
+        await update_message(message_id_for_edit, message_content, new_file_id=file_id, new_file_path=file.filename if file_id else None)
     else:
         # Сохранение сообщения в базу данных
         await send_message(dialog_id, sender_id, message_content)
@@ -3888,14 +3888,13 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
         "action": "update_last_dialog_message",
         "dialog_id": dialog_id,
         "last_message": message_content,
-        "sender_nickname": current_user.nickname,
+        "sender_nickname": sender_nickname,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     }
     await manager.broadcast(last_message_update, room=f"dialog_{dialog_id}")
     logging.info(f"Last message update sent for dialog {dialog_id}")
 
     return JSONResponse(content={"message": "Message sent successfully", "dialog_id": dialog_id})
-
 
 @app.get("/create_dialog/{user_id}")
 @app.post("/create_dialog/{user_id}")

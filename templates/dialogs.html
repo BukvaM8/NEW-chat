@@ -265,18 +265,19 @@
                         data-message-id="{{ message.id }}">
                         <div class="message-content">
                             {% if message.sender_nickname %}
-                                <strong>{{ message.sender_nickname }}</strong>
+                                <strong>{{ message.sender_nickname }}:</strong>
                             {% endif %}
                             {% if message.message and '[[FILE]]' in message.message and '[[/FILE]]' in message.message %}
                                 {% set raw_message = message.message.split('[[FILE]]') %}
-                                {{ raw_message[0] }}
+                                {{ raw_message[0] | safe }} <!-- Текст сообщения -->
+                                <br> <!-- Добавляем перенос строки -->
                                 {% set file_info = raw_message[1].replace('[[/FILE]]', '') %}
                                 {% set file_id_info, file_name_info = file_info.split(', ') %}
                                 {% set file_id = file_id_info.split(': ')[1] %}
                                 {% set file_name = file_name_info.split(': ')[1] %}
-                                <a href="/files/{{ file_id }}">{{ file_name }}</a>
+                                <a href="/files/{{ file_id }}">{{ file_name }}</a> <!-- Ссылка на файл -->
                             {% elif message.message %}
-                                {{ message.message }}
+                                {{ message.message | safe }}
                             {% else %}
                                 <!-- Сообщение пустое или удалено -->
                             {% endif %}
@@ -317,11 +318,14 @@
 
 
 <div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle">
-    <form id="message-form" style="padding-top: 10px; display: flex; align-items: center;">
+    <!-- Элемент для отображения имени файла над формой ввода -->
+    <div id="file-name-display" style="padding: 10px; color: grey; font-size: 14px;"></div>
+
+    <form id="message-form" style="display: flex; align-items: center;">
         <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
         <input type="hidden" name="sender_id" value="{{ current_user.id }}">
         <input type="file" id="fileInput" name="file" class="form-control-file" multiple
-               style="display: none;">
+               style="display: none;" onchange="updateFileNameDisplay()">
         <label for="fileInput" id="fileInputLabel">
             <img src="../static/attach_files.svg" alt="Attach Files" style="cursor: pointer; margin-right: 10px;">
         </label>
@@ -330,9 +334,10 @@
                   style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"
         ></textarea>
         <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
-
     </form>
 </div>
+
+
 <!-- Шторка профиля пользователя -->
 <div id="user-profile-sidebar" class="user-profile-sidebar">
     <!-- Контент шторки -->
