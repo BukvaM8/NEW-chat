@@ -1,6 +1,7 @@
 # Встроенные модули Python
 import asyncio
 import configparser
+import gzip
 import io
 import json
 import logging
@@ -1323,7 +1324,11 @@ async def get_file(file_id: int):
 # Сохраняет файл в базу данных.
 async def save_file(nickname: str, file_path: str, file_content: bytes, file_extension: str):
     logging.info(f"Saving file for nickname: {nickname}")
-    query = files.insert().values(nickname=nickname, file_path=file_path, file=file_content,
+
+    # Сжатие содержимого файла
+    compressed_file_content = gzip.compress(file_content)
+
+    query = files.insert().values(nickname=nickname, file_path=file_path, file=compressed_file_content,
                                   file_extension=file_extension)
     file_id = await database.execute(query)
     return file_id
@@ -4038,6 +4043,7 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
     """, (dialog_id,))
     messages = []
     async for row in cur:
+        formatted_time = row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None
         messages.append({
             "id": row[0],
             "dialog_id": row[1],
@@ -4045,8 +4051,9 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
             "message": row[3],
             "timestamp": row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None,
             "delete_timestamp": row[5].strftime('%Y-%m-%d %H:%M:%S') if row[5] else None,
-            "edit_timestamp": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,  # Добавлено
-            "sender_nickname": row[7]
+            "edit_timestamp": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,
+            "sender_nickname": row[7],
+            "formatted_timestamp": formatted_time  # Добавлено форматированное время
         })
     await cur.close()
     conn.close()
@@ -4352,7 +4359,11 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         if nickname is None:
             nickname = "Unknown"
 
-        current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        # Определение текущего времени
+        current_time = datetime.utcnow()
+
+        # Форматирование времени в ISO 8601 для отправки
+        formatted_time = current_time.isoformat()
 
         # Вставка сообщения в базу данных
         query = chatmessages.insert().values(
@@ -4361,7 +4372,6 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
             message=message_content,
             timestamp=current_time
         )
-
         message_id = await database.execute(query)
         logging.info(f"Message saved to database with ID: {message_id}")
 
@@ -4369,17 +4379,32 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         room = f"chat_{chat_id}"
         message_data = {
             "action": "new_message",
+            "message_id": message_id,
+            "chat_id": chat_id,
             "message": message_content,
             "sender_phone_number": current_user.phone_number,
             "sender_nickname": nickname,
-            "timestamp": current_time
+            "timestamp": formatted_time
         }
-
         await manager.send_message_to_room(room, json.dumps(message_data))
+        logging.info(f"Sent message to room {room}")
+
+        # Отправка данных о последнем сообщении в левую панель
+        last_message_data = {
+            "action": "update_last_message",
+            "chat_id": chat_id,
+            "last_message": message_content,
+            "last_message_time": formatted_time,
+            "sender_phone": current_user.phone_number
+        }
+        await manager.broadcast(last_message_data, room=f"chat_{chat_id}")
+        logging.info(f"Sent last message update to room {room}")
+
         return message_id
     except Exception as e:
         logging.error(f"An error occurred while handling chat message: {e}")
         raise
+
 
 
 async def handle_heartbeat(websocket: WebSocket, last_heartbeat, interval=30):
@@ -4538,6 +4563,8 @@ async def http_exception_handler(request, exc):
     if exc.status_code == 401:
         return RedirectResponse(url="/login_register", status_code=303)
     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
+
+
 
 
 if __name__ == "__main__":
