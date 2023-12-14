@@ -236,14 +236,33 @@
         .message_input::-webkit-scrollbar {
             display: none;
         }
+
+        .button_ful {
+            display: flex;
+            height: 53px;
+            width: 100px;
+            padding: 0 24px;
+            justify-content: center;
+            align-items: center;
+            align-self: stretch;
+            background-color: #2A88B9;
+            border-radius: 8px;
+            border: 3px #2A88B9;
+        }
+
+        .button_ful:hover,
+        .button_ful:focus,
+        .button_ful:active {
+            background-color: #2A88B9;
+        }
     </style>
 </head>
 <body>
-<div class="container mt-0">
+<div class="container mt-0" style="padding-left: 0">
     <!-- Добавлено скрытое поле для хранения dialogId -->
     <input type="hidden" name="dialog_id" value="{{ dialog.id }}">
 
-    <div class="interlocutor-info mb-0 pb-0" onclick="handleInterlocutorInfoClick(event)">
+    <div class="interlocutor-info mb-0 pb-0" onclick="handleInterlocutorInfoClick(event)" style="padding-left: 15px;">
         <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}" alt="Interlocutor's profile picture"
              width="50" height="50">
         <div class="interlocutor-details" style="margin-left: 8px">
@@ -255,7 +274,7 @@
         </div>
         <hr class="my-0">
     </div>
-    <hr>
+    <hr style="width: 891px; margin-right: 50px; height: 1px">
 
     <div class="mt-4 messages-container">
         <ul class="list-group">
@@ -317,7 +336,7 @@
 </div>
 
 
-<div class="mt-4 border-top" style="position: fixed; bottom: 0; width: 60%; vertical-align: middle">
+<div class="mt-4 border-top" style="position: fixed; bottom: 10px; width: 45%; vertical-align: middle; padding-left: 10px">
     <!-- Элемент для отображения имени файла над формой ввода -->
     <div id="file-name-display" style="padding: 10px; color: grey; font-size: 14px;"></div>
 
@@ -333,7 +352,7 @@
                   placeholder="Введите сообщение" rows="1"
                   style="flex-grow: 1; margin-right: 10px; height: auto; min-height: 20px; max-height: 100px; overflow-y: auto; resize: none; text-align: left; scrollbar-width: none; -ms-overflow-style: none; ::-webkit-scrollbar { display: none; }"
         ></textarea>
-        <button type="submit" id="send-button" class="btn btn-primary">Отправить</button>
+        <button type="submit" id="send-button" class="btn btn-primary button_ful">Отправить</button>
     </form>
 </div>
 
