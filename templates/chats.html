@@ -184,7 +184,7 @@
                 <div class="ms-3">
                     <h1 class="my_nickname" style="cursor: pointer">{{ current_user.nickname }}</h1>
                     {% if current_user.status %}
-                        <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
+                    <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
                     {% endif %}
                 </div>
             </div>
@@ -259,7 +259,7 @@
                 <div class="dialogs-list" style="cursor: pointer">
                     {% for dialog in dialogs %}
                     <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
-                         data-dialog-id="{{ dialog.id }}">
+                         data-dialog-id="{{ dialog.id }}" style="position: relative;">
                         <!-- Фото собеседника -->
                         <div class="profile-picture-container">
                             <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
@@ -268,12 +268,10 @@
                         </div>
                         <!-- Информация о диалоге -->
                         <div class="dialogs-item small-title flex-grow"
-                             style="display: flex; justify-content: space-between; align-items: center;">
+                             style="display: flex; flex-direction: column; align-items: start;">
                             <div>
                                 <strong class="username">{{ dialog.user_fio }}</strong>
-                            </div>
-                            <!-- Последнее сообщение -->
-                            <div style="flex-grow: 2;">
+                                <!-- Последнее сообщение -->
                                 <div class="last_message"
                                      style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
                                     <strong>{{ dialog.interlocutor_nickname }}:</strong>
@@ -290,10 +288,12 @@
                                 </div>
                             </div>
                             <!-- Время последнего сообщения -->
-                            <div class="last_message_time" style="font-size: 0.8em;">
+                            <div class="last_message_time"
+                                 style="position: absolute; top: 10px; right: 10px; font-size: 0.8em;">
                                 {{ dialog.last_message_time_formatted }}
                             </div>
                         </div>
+
                         <!-- Действия с диалогом -->
                         <!--                            {#                            <div class="dialog-actions">#}-->
                         <!--                            {#                                <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">#}-->
@@ -422,6 +422,78 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Получаем ID текущего пользователя из шаблона
+        const currentUserId = "{{ current_user.id }}";
+
+        // Установка WebSocket соединения
+        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/main_page/${currentUserId}/`);
+
+        // Обработчик события открытия соединения
+        socket.onopen = function (event) {
+            console.log("WebSocket connection opened for left panel:", event);
+            // Здесь можно добавить дополнительные действия при открытии соединения, например, отправить сообщение серверу
+        };
+
+        socket.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+            if (data.action === 'first_dialog_message' && data.dialog_id) {
+                // Обновляем или добавляем диалог в левую панель
+                updateOrAddDialogInLeftPanel(data.dialog_id, data.last_message, data.timestamp, data.user1_info, data.user2_info);
+            }
+        };
+
+        function updateOrAddDialogInLeftPanel(dialogId, lastMessage, timestamp, user1Info, user2Info) {
+            const dialogList = document.querySelector('.dialogs-list');
+            let dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id='${dialogId}']`);
+
+            if (dialogElement) {
+                // Обновляем существующий элемент диалога
+                dialogElement.querySelector('.last_message').textContent = lastMessage;
+                dialogElement.querySelector('.last_message_time').textContent = timestamp;
+            } else {
+                // Создаем и добавляем новый элемент диалога
+                dialogElement = document.createElement('div');
+                dialogElement.className = 'container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container';
+                dialogElement.setAttribute('data-dialog-id', dialogId);
+                dialogElement.style = 'position: relative; cursor: pointer;';
+
+                const interlocutorInfo = user1Info.id === currentUser.id ? user2Info : user1Info; // Предполагается, что у вас есть currentUser.id
+
+                dialogElement.innerHTML = `
+            <div class="profile-picture-container">
+                <img src="/profile/picture/${interlocutorInfo.phone_number}" alt="Interlocutor's profile picture" width="50" height="50" class="profile-picture">
+            </div>
+            <div class="dialogs-item small-title flex-grow" style="display: flex; flex-direction: column; align-items: start;">
+                <div>
+                    <strong class="username">${interlocutorInfo.nickname}</strong>
+                    <div class="last_message" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        ${lastMessage}
+                    </div>
+                </div>
+                <div class="last_message_time" style="position: absolute; top: 10px; right: 10px; font-size: 0.8em;">${timestamp}</div>
+            </div>
+        `;
+
+                dialogList.prepend(dialogElement); // Добавляем в начало списка
+            }
+        }
+
+
+        // Обработчик закрытия соединения
+        socket.onclose = function (event) {
+            console.log("WebSocket connection closed for left panel:", event);
+            // Здесь можно добавить логику переподключения или другие действия при закрытии соединения
+        };
+
+        // Обработчик ошибок
+        socket.onerror = function (error) {
+            console.error(`WebSocket error in left panel: ${error.message}`);
+            // Здесь можно добавить логику обработки ошибок
+        };
+    });
+
+
     function formatMessageTime(timestamp) {
         if (!timestamp) {
             return "Invalid Date";

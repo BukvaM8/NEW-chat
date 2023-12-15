@@ -3612,6 +3612,7 @@ async def search_dialog_route(request: Request, current_user: Union[str, Redirec
 
 
 # Создает новый диалог между двумя пользователями.
+# Создает новый диалог между двумя пользователями.
 async def create_new_dialog(user1_id: int, user2_id: int) -> int:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
@@ -3623,7 +3624,23 @@ async def create_new_dialog(user1_id: int, user2_id: int) -> int:
     await cur.close()
     conn.close()
 
+    # Подготавливаем данные обоих пользователей для WebSocket сообщения
+    user1_info = await get_user_by_id(user1_id)
+    user2_info = await get_user_by_id(user2_id)
+
+    message_data = {
+        "action": "new_dialog_created",
+        "dialog_id": dialog_id,
+        "user1_info": user1_info,  # Допустим, что эта функция возвращает словарь с нужными данными
+        "user2_info": user2_info
+    }
+
+    await manager.send_message_to_room(f"user_{user1_id}", json.dumps(message_data))
+    await manager.send_message_to_room(f"user_{user2_id}", json.dumps(message_data))
+
     return dialog_id
+
+
 
 
 # Функция поиска пользователей по заданному запросу.
