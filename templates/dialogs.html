@@ -152,7 +152,7 @@
             background-color: #ddd;
         }
 
-        .username {
+        .dialog-username {
             font-family: Roboto, serif;
             font-size: 18px;
             font-style: normal;
@@ -255,6 +255,15 @@
         .button_ful:active {
             background-color: #2A88B9;
         }
+
+        .time {
+            font-family: Roboto, serif;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 16px;
+            letter-spacing: 0;
+            text-align: left;
+        }
     </style>
 </head>
 <body>
@@ -266,8 +275,9 @@
         <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}" alt="Interlocutor's profile picture"
              width="50" height="50">
         <div class="interlocutor-details" style="margin-left: 8px">
-            <h5 class="username" style="margin-bottom: 0">
+            <h5 class="dialog-username" style="margin-bottom: 0">
                 <a href="/profile/{{ dialog.interlocutor_phone_number }}"
+                   style="text-decoration: none; color: black"
                    onclick="handleUsernameClick(event)"> {{ dialog.user_fio }} </a>
             </h5>
             <small class="last_online">Онлайн: {{ dialog.last_online }}</small>
@@ -280,9 +290,9 @@
         <ul class="list-group">
             {% for message in messages %}
                 {% if not message.delete_timestamp %}
-                    <li class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
-                        data-message-id="{{ message.id }}">
-                        <div class="message-content">
+                    <div class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
+                         data-message-id="{{ message.id }}" style="margin-bottom: 0">
+                        <div class="message-content" style="margin-bottom: 0; margin-left: 15px">
                             {% if message.sender_nickname %}
                                 <strong>{{ message.sender_nickname }}:</strong>
                             {% endif %}
@@ -302,13 +312,6 @@
                             {% endif %}
                             <br>
                             <!-- Проверка на наличие времени редактирования и отображение соответствующего текста -->
-                            <small>
-                                {% if message.edit_timestamp %}
-                                    Изменено: {{ message.edit_timestamp }}
-                                {% else %}
-                                    Отправлено: {{ message.timestamp }}
-                                {% endif %}
-                            </small>
                             <!-- Dropdown menu for message options -->
                             <div class="message-dropdown">
                                 <img src="/static/downarrow.png" alt="Options" class="message-options-icon"
@@ -328,7 +331,20 @@
                                 </div>
                             </div>
                         </div>
-                    </li>
+                    </div>
+                    {% if message.sender_id == current_user.id %}
+                        <div style="text-align: right; margin-right: 5px">
+                    {% else %}
+                        <div style="text-align: left; margin-left: 15px">
+                    {% endif %}
+                <small class="time">
+                    {% if message.edit_timestamp %}
+                        Изменено: {{ message.edit_timestamp }}
+                    {% else %}
+                        {{ message.timestamp }}
+                    {% endif %}
+                </small>
+                </div>
                 {% endif %}
             {% endfor %}
         </ul>
@@ -336,7 +352,8 @@
 </div>
 
 
-<div class="mt-4 border-top" style="position: fixed; bottom: 10px; width: 45%; vertical-align: middle; padding-left: 10px">
+<div class="mt-4 border-top"
+     style="position: fixed; bottom: 10px; width: 45%; vertical-align: middle; padding-left: 10px">
     <!-- Элемент для отображения имени файла над формой ввода -->
     <div id="file-name-display" style="padding: 10px; color: grey; font-size: 14px;"></div>
 

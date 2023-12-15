@@ -1946,11 +1946,19 @@ async def user_profile(request: Request):
 
 
 @app.get("/profile/{phone_number}", response_class=HTMLResponse)
-async def profile(request: Request, phone_number: str):
+async def profile(request: Request, phone_number: str,
+                  current_user: Union[str, RedirectResponse] = Depends(get_current_user)):
     user = await get_user_by_phone(phone_number)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return templates.TemplateResponse("another_user_profile.html", {"request": request, "user": user})
+
+    user_fio = user.nickname
+    contacts = await get_all_users_from_contacts(current_user.id)
+    for contact in contacts:
+        if contact['nickname'] == user.id:
+            user_fio = contact['phone_number']
+
+    return templates.TemplateResponse("another_user_profile.html", {"request": request, "user": user, "user_fio": user_fio})
 
 
 class ChangePasswordRequest(BaseModel):
@@ -2942,6 +2950,7 @@ async def get_chat_owner(chat_id: int) -> str:
     else:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+
 @app.get("/api/chat/{chat_id}/owner")
 async def get_chat_owner_api(chat_id: int):
     owner_phone_number = await get_chat_owner(chat_id)
@@ -3875,7 +3884,8 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
 
     if message_id_for_edit:
         # Логика для редактирования сообщения
-        await update_message(message_id_for_edit, message_content, new_file_id=file_id, new_file_path=file.filename if file_id else None)
+        await update_message(message_id_for_edit, message_content, new_file_id=file_id,
+                             new_file_path=file.filename if file_id else None)
     else:
         # Сохранение сообщения в базу данных
         await send_message(dialog_id, sender_id, message_content)
@@ -3895,6 +3905,7 @@ async def send_message_to_dialog(dialog_id: int, message: str = Form(None), file
     logging.info(f"Last message update sent for dialog {dialog_id}")
 
     return JSONResponse(content={"message": "Message sent successfully", "dialog_id": dialog_id})
+
 
 @app.get("/create_dialog/{user_id}")
 @app.post("/create_dialog/{user_id}")

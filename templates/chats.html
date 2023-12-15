@@ -733,7 +733,7 @@ function resetEditingState() {
     function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -1373,7 +1373,7 @@ document.addEventListener('click', function (event) {
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
