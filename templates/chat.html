@@ -63,12 +63,14 @@
             font-size: 0.9rem;
             margin: 0;
             margin-bottom: 5px;
+            display: block;
         }
 
         .message-content {
             background-color: rgba(42, 136, 185, 0.1);
             color: black;
             padding: 10px;
+            padding-right: 20px;
             border-radius: 10px;
             max-width: 75%;
             position: relative;
@@ -247,7 +249,7 @@
             max-height: 100px; /* Максимальная высота до 4 строк текста */
         }
 
-        .username {
+        .chat-username {
             font-family: Roboto, serif;
             font-size: 18px;
             font-style: normal;
@@ -395,6 +397,24 @@
         .scrollable-content::-webkit-scrollbar-track {
             background-color: transparent;
         }
+
+        .user-nickname {
+            font-family: Roboto, serif;
+            font-size: 14px;
+            line-height: 16px;
+            letter-spacing: 0;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .time {
+            font-family: Roboto, serif;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 16px;
+            letter-spacing: 0em;
+            text-align: left;
+        }
     </style>
 </head>
 <body>
@@ -508,7 +528,7 @@
         <img src="/chat/picture/{{ chat.id }}" alt="Interlocutor's profile picture"
              width="50" height="50">
         <div class="interlocutor-details" style="margin-left: 8px">
-            <h5 class="chat-name username" style="margin-bottom: 0">{{ chat.chat_name }}</h5>
+            <h5 class="chat-name chat-username" style="margin-bottom: 0">{{ chat.chat_name }}</h5>
             <small class="last_online">Участники</small>
         </div>
     </div>
@@ -519,15 +539,20 @@
         <!-- Список сообщений -->
         <ul class="messages-list" id="chat-history">
             {% for message in messages %}
+                <div style="margin-bottom: 0">
+                    {% if message.sender_phone_number != current_user.phone_number %}
+                        <a href="/profile/{{ message.sender_nickname }}"
+                           style="text-decoration: none; color: black">
+                            <h4 class="user-nickname">{{ message.sender_nickname }}</h4>
+                        </a>
+                    {% endif %}
+                </div>
                 <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
-                     data-message-id="{{ message.id }}">
+                     data-message-id="{{ message.id }}" style="padding-top: 0; margin-bottom: 0">
                     <div class="message-content">
                         <div class="message-header">
                             {% if message.sender_phone_number == "deleted" %}
                                 <h4>Deleted message</h4>
-                            {% else %}
-                                <a href="/profile/{{ message.sender_nickname }}"><h4>{{ message.sender_nickname }}</h4>
-                                </a>
                             {% endif %}
 
                             <!-- Добавляем иконку и выпадающее меню рядом с никнеймом -->
@@ -546,7 +571,7 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <p>
+                        <p style="margin-bottom: 0">
                             {% if '[[FILE]]' in message.message %}
                                 {% set parts = message.message.split('[[FILE]]') %}
                                 {{ parts[0] }}
@@ -563,15 +588,22 @@
                                 {{ message.message }}
                             {% endif %}
                         </p>
-                        <small>
-                            {% if message.edit_timestamp %}
-                                Изменено: {{ message.edit_timestamp }}
-                            {% else %}
-                                Отправлено: {{ message.timestamp }}
-                            {% endif %}
-                        </small>
                     </div>
                 </div>
+                {% if message.sender_phone_number == current_user.phone_number %}
+                    <div style="text-align: right">
+                {% else %}
+                    <div style="text-align: left">
+                {% endif %}
+            <small class="time">
+                {% if message.edit_timestamp %}
+                    Изменено: {{ message.edit_timestamp }}
+                {% else %}
+                    {{ message.timestamp }}
+                {% endif %}
+            </small>
+            </div>
+                <br>
             {% endfor %}
         </ul>
     </div>
