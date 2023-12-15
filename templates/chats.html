@@ -170,27 +170,26 @@
             line-height: 16px;
             color: #928F8F;
         }
-
-
     </style>
 </head>
 <body>
 <div class="container-fluid">
     <div class="row">
         <!-- Left Panel -->
-        <div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding-top: 0">
+        <div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding: 0; margin-left: 240px">
             <!-- Profile Section -->
-            <div class="d-flex align-items-center mb-2" style="padding-top: 13px">
+            <div class="d-flex align-items-center mb-2" style="padding-top: 13px; padding-left: 15px">
                 <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic"
                      width="50" height="50" style="cursor:pointer;">
                 <div class="ms-3">
                     <h1 class="my_nickname" style="cursor: pointer">{{ current_user.nickname }}</h1>
-                    <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
+                    {% if current_user.status %}
+                        <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
+                    {% endif %}
                 </div>
-
             </div>
-            <hr>
-            <div class="search-container">
+            <hr style="width: 500px; margin-right: 15px; height: 1px">
+            <div class="search-container" style="padding-left: 15px">
                 <form action="/home" method="get" class="search-input">
                     <input type="text" class="form-control search-input"
                            style="background-color: #EBEBEB; color: #928F8F; border-radius: 8px; font-size: 12px;"
@@ -385,7 +384,7 @@
             </div>
         </div>
         <!-- Правая панель -->
-        <div class="col-md-8 right-panel" style="width: 1490px; padding-top: 4px">
+        <div class="col-md-6 right-panel" style="width: 891px; max-width: 891px; padding-top: 3px; padding-left: 0">
             <!-- добавленные стили для "шторки" -->
             <style>
                 .drawer {
@@ -404,10 +403,10 @@
                     right: 0;
                 }
             </style>
-            <div id="dialog-panel">
+            <div id="dialog-panel" style="padding-left: 0">
                 <img src="../profile_pictures/logo_jm.png" alt="Картинка" width="540" height="170"
-                     style="margin-left: 23%"> <br><br>
-                <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 23%">
+                     style="margin-left: 22%; margin-top: 100px"> <br><br>
+                <img src="../static/picture.svg" alt="Картинка" width="510" style="margin-left: 22%">
                 <div id="dialog-container">
                     <ul class="list-group"></ul>
                     <div id="dialog-history">

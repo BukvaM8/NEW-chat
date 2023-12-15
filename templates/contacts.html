@@ -6,6 +6,11 @@
     <title>Contact Page</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
     <style>
+        body {
+            background-color: rgba(211, 211, 211, 0.2);
+            font-family: Times New Roman, sans-serif;
+        }
+
         .nickname {
             font-family: Roboto;
             font-size: 20px;
@@ -126,20 +131,24 @@
     </div>
 </div>
 
-<div class="container" style="max-width: 429px;">
-    <a style="text-decoration: none; display: inline-block; vertical-align: middle;" href="/home"> <img
-            src="../static/black_back_arrow.png" alt="Картинка" style="vertical-align: middle;"> </a>
-    <h2 style="display: inline-block; margin: 10px 10px 10px;vertical-align: middle;">Контакты</h2>
-    <hr>
-    <div class="search-container">
-        <input type="text" class="form-control search-input"
-               style="background-color: #EBEBEB; color: #928F8F; border-radius: 8px; font-size: 12px;"
-               placeholder="Поиск">
+<div>
+    <div style="margin-left: 15px; margin-top: 5px">
+        <a style="text-decoration: none; display: inline-block; vertical-align: middle;" href="/home"> <img
+                src="../static/black_back_arrow.png" alt="Картинка" style="vertical-align: middle;"> </a>
+        <h2 style="display: inline-block; margin: 10px 10px 10px;vertical-align: middle;">Контакты</h2>
+    </div>
+    <hr style="width: 500px; margin-right: 15px; height: 1px">
+    <div class="search-container" style="padding-left: 15px; padding-right: 15px">
+        <form action="/home" method="get" class="search-input">
+            <input type="text" class="form-control search-input"
+                   style="background-color: #EBEBEB; color: #928F8F; border-radius: 8px; font-size: 12px;"
+                   placeholder="Поиск">
+        </form>
         <img src="../static/active_users.svg" alt="User Icon">
         <img src="../static/plus.svg" alt="Email Icon" id="myImage">
     </div>
 
-    <div id="contacts-container">
+    <div id="contacts-container" style="margin-left: 15px; margin-right: 15px">
         {% for user in contacts %}
             <small id="current-user-nickname" style="display: none">{{ user.current_user_nickname }}</small>
             {% if user.show %}
@@ -148,7 +157,7 @@
                         <img id="profile-image" src="/get/{{ user.id }}/profile_picture/" alt="Ваше изображение"
                              class="rounded-circle mt-2" width="60" height="60">
                     </div>
-                    <div class="col-md-10">
+                    <div class="col-md-10" style="padding: 0">
                         <div class="card-body" style="display: flex; align-items: center;">
                             <div>
                                 <a href="/profile/{{ user.nickname }}" style="text-decoration: none">

@@ -9,6 +9,7 @@
 
     <style>
         body {
+            background-color: rgba(211, 211, 211, 0.2);
             font-family: Roboto, sans-serif;
             font-size: 14px;
             font-style: normal;
@@ -178,7 +179,9 @@
                     </div>
                     <!-- Добавляем кнопку для удаления диалога -->
                     <!-- Кнопка "Удалить диалог" -->
-                    <button id="delete-dialog-button" class="btn btn-primary button" data-dialog-id="{{ dialog_id }}">Удалить диалог</button>
+                    <button id="delete-dialog-button" class="btn btn-primary button" data-dialog-id="{{ dialog_id }}">
+                        Удалить диалог
+                    </button>
                 </div>
             {% endif %}
         </div>

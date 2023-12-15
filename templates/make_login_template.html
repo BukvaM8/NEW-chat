@@ -7,6 +7,7 @@
 </head>
 <body>
 <div class="container mt-5">
+    <div style="height: 60px"></div>
     <a style="text-decoration: none;" href="#" onclick="submitForm()" class="back">
         <p class="back"><img src="../static/back-arrow.png" style="align-self: center" alt="Картинка"> Назад </p>
     </a>
@@ -18,7 +19,8 @@
     <form method="post" action="/complete-register" id="form" style="width: 540px">
         <div class="form-group">
             <input type="text" id="nickname" name="nickname" class="form-control" placeholder="Никнейм" required>
-            <p id="nicknameError" style="color: #2A88B9; font-size: 12px; display: none; margin-bottom: 0">Этот никнейм уже занят</p>
+            <p id="nicknameError" style="color: #2A88B9; font-size: 12px; display: none; margin-bottom: 0">Этот никнейм
+                уже занят</p>
         </div>
         <div class="small_gap"></div>
         <div class="form-group">

@@ -1,0 +1,1258 @@
+@import url("https://fonts.googleapis.com/css?family=Roboto:500,400");
+
+:root {
+    --dark: rgba(0, 0, 0, 1);
+    --chatonline: rgba(9, 198, 32, 1);
+    --primary: rgba(42, 136, 185, 1);
+    --dark-gray: rgba(146, 143, 143, 1);
+    --light-gray: rgba(217, 217, 217, 1);
+    --light-light-gray: rgba(235, 235, 235, 1);
+    --backgorund: rgba(247, 247, 247, 1);
+    --white: rgba(255, 255, 255, 1);
+    --font-size-m: 12px;
+    --font-size-l: 14px;
+    --font-size-xl: 16px;
+    --font-size-xxl: 18px;
+    --font-size-xxxl: 20px;
+    --font-size-xxxxl: 24px;
+    --font-family-roboto: "Roboto";
+
+}
+
+/* Classes */
+.body3-med {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-m);
+    letter-spacing: 0;
+    font-weight: 500;
+    font-style: normal;
+
+}
+
+.title2 {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-xxl);
+    letter-spacing: 0;
+    font-weight: 500;
+    font-style: normal;
+
+}
+
+.title3 {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-l);
+    letter-spacing: 0;
+    font-weight: 500;
+    font-style: normal;
+
+}
+
+.body3 {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-m);
+    letter-spacing: 0;
+    font-weight: 400;
+    font-style: normal;
+
+}
+
+.material-themebodylarge {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-xl);
+    letter-spacing: 0;
+    font-weight: 400;
+    font-style: normal;
+
+}
+
+.body1-med {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-xxxl);
+    letter-spacing: 0;
+    font-weight: 500;
+    font-style: normal;
+
+}
+
+.title1 {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-xxxxl);
+    letter-spacing: 0;
+    font-weight: 500;
+    font-style: normal;
+    margin-bottom: 0;
+}
+
+.body1 {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-xxxl);
+    letter-spacing: 0;
+    font-weight: 400;
+    font-style: normal;
+
+}
+
+.title3-reg {
+    font-family: var(--font-family-roboto);
+    font-size: var(--font-size-l);
+    letter-spacing: 0;
+    font-weight: 400;
+    font-style: normal;
+
+}
+
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 {
+    align-items: flex-start;
+    background-color: var(--backgorund);
+    display: flex;
+    height: 900px;
+    overflow: hidden;
+    width: 1920px;
+
+}
+
+.hidden, .hidden * {
+    pointer-events: none;
+    visibility: hidden;
+
+}
+
+.overlap-group {
+    height: 900px;
+    margin-top: -1px;
+    position: relative;
+    width: 1920px;
+
+}
+
+.header-1 {
+    align-items: center;
+    border-bottom-style: solid;
+    border-bottom-width: 1px;
+    border-color: var(--light-gray);
+    display: flex;
+    gap: 50px;
+    left: 104px;
+    padding: 16px;
+    position: absolute;
+    top: 0;
+    width: 1817px;
+
+}
+
+.options {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    gap: 110px;
+    justify-content: flex-end;
+    position: relative;
+    width: 1345px;
+}
+
+.logo-1 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/shutterstock-678976816-7.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 45px;
+    position: relative;
+    width: 67px;
+
+}
+
+.menu {
+    align-items: center;
+    display: flex;
+    height: 48px;
+    justify-content: space-between;
+    position: relative;
+    width: 383px;
+
+}
+
+.category {
+    align-items: center;
+    border-radius: 8px;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 10px;
+    height: 48px;
+    justify-content: center;
+    padding: 10px;
+    position: relative;
+
+}
+
+.valign-text-middle {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+}
+
+.text-1 {
+    color: var(--dark-gray);
+    font-weight: 500;
+    line-height: 16px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.category-7 {
+    align-items: center;
+    background-color: var(--primary);
+    border-radius: 8px;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 10px;
+    height: 48px;
+    justify-content: center;
+    padding: 10px;
+    position: relative;
+
+}
+
+.text_label {
+    color: var(--white);
+    font-weight: 500;
+    line-height: 16px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.search-1 {
+    align-items: flex-start;
+    background-color: var(--light-light-gray);
+    border-radius: 8px;
+    display: flex;
+    flex: 1;
+    gap: 8px;
+    min-width: 224px;
+    padding: 12px;
+    position: relative;
+    max-width: 675px;
+}
+
+.text-9 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 24px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.search-2 {
+    height: 24px;
+    position: relative;
+    width: 24px;
+
+}
+
+.title {
+    color: var(--dark);
+    font-weight: 500;
+    line-height: 24px;
+    position: relative;
+    width: 388px;
+
+}
+
+.content-1 {
+    align-items: flex-start;
+    background-color: var(--white);
+    border-color: var(--light-gray);
+    border-left-style: solid;
+    border-left-width: 1px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 1001px;
+    left: 728px;
+    position: absolute;
+    min-width: 893px;
+    max-width: 893px;
+    width: 893px;
+}
+
+.title-1 {
+    align-items: flex-start;
+    align-self: stretch;
+    background-color: var(--white);
+    border-bottom-style: solid;
+    border-bottom-width: 1px;
+    border-color: var(--light-gray);
+    height: 87px;
+    padding: 1px 16px 0;
+    max-width: 891px;
+    max-height: 87px;
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .title-2 {
+    display: flex;
+    position: relative;
+    max-width: 891px;
+    max-height: 87px;
+}
+
+.search-3 {
+    align-items: center;
+    background-color: var(--light-light-gray);
+    border-radius: 8px;
+    display: flex;
+    flex: 1;
+    gap: 8px;
+    height: 36px;
+    margin-bottom: -5px;
+    min-width: 224px;
+    position: relative;
+    max-width: 443px;
+    margin-top: 28px;
+}
+
+.text {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-bottom: -1px;
+    margin-top: -3px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+    margin: 12px
+}
+
+.button {
+    align-items: center;
+    background-color: var(--primary);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px #000f7314;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 36px;
+    justify-content: center;
+    margin-bottom: -5px;
+    padding: 0 24px;
+    position: relative;
+    margin-left: 36px;
+    margin-top: 28px;
+}
+
+.text_label-2 {
+    color: var(--white);
+    line-height: 24px;
+    width: fit-content;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .text_label-3 {
+    font-weight: 500;
+    position: relative;
+    white-space: nowrap;
+}
+
+.title-back {
+    align-items: center;
+    gap: 9px;
+    margin-bottom: -1px;
+    overflow: hidden;
+    width: 234px;
+    margin-top: 28px;
+}
+
+.arrow-1 {
+    height: 15px;
+    position: relative;
+    width: 39px;
+
+}
+
+.text_label-1 {
+    color: var(--dark);
+    height: 32px;
+    line-height: 32px;
+    margin-top: -1px;
+    width: 478px;
+}
+
+.contacts {
+    align-items: flex-start;
+    align-self: stretch;
+    background-color: var(--white);
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 16px;
+    position: relative;
+    width: 100%;
+    max-width: 859px;
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .contact-4 {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    width: 100%;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .dialog-4 {
+    display: flex;
+    position: relative;
+    max-width: 859px;
+}
+
+.dialog-2 {
+    align-items: center;
+    align-self: stretch;
+    gap: 8px;
+    height: 60px;
+    width: 100%;
+    max-width: 859px;
+}
+
+.users-photo {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 60px;
+    position: relative;
+    width: 60px;
+
+}
+
+.name-text {
+    align-items: flex-start;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    position: relative;
+    max-width: 759px;
+}
+
+.status {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    gap: 2px;
+    height: 18px;
+    padding: 1px;
+    position: relative;
+    max-width: 759px
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .text-1-3 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    position: relative;
+
+}
+
+.text-1-1 {
+    flex: 1;
+    height: 17px;
+    margin-top: -1px;
+    white-space: nowrap;
+
+}
+
+.name-1 {
+    align-self: stretch;
+    color: var(--dark);
+    font-weight: 400;
+    line-height: 22px;
+    margin-top: -1px;
+    position: relative;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .icons-6 {
+    height: 24px;
+    position: relative;
+    width: 24px;
+
+}
+
+.ellipse {
+    border: 2px solid;
+    border-color: var(--dark-gray);
+    border-radius: 20px;
+    height: 20px;
+    left: 2px;
+    position: relative;
+    top: 2px;
+    width: 20px;
+
+}
+
+.divider {
+    align-self: stretch;
+    height: 1px;
+    margin-bottom: -1px;
+    position: relative;
+    width: 100%;
+}
+
+.divider-2 {
+    height: 1px;
+    left: 0;
+    object-fit: cover;
+    position: absolute;
+    top: -1px;
+    width: 859px;
+
+}
+
+.contact {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    width: 100%;
+    max-width: 859px;
+}
+
+.dialogs {
+    align-items: flex-start;
+    background-color: var(--white);
+    display: flex;
+    flex-direction: column;
+    height: 1000px;
+    left: 300px;
+    position: absolute;
+    width: 429px;
+}
+
+.header {
+    align-items: center;
+    align-self: stretch;
+    border-bottom-style: solid;
+    border-bottom-width: 1px;
+    border-color: var(--light-gray);
+    display: flex;
+    gap: 8px;
+    height: 88px;
+    padding: 0 16px;
+    position: relative;
+    width: 100%;
+    max-height: 88px;
+}
+
+.name-2 {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    width: 289px;
+
+}
+
+.text-1-2 {
+    height: 26px;
+    width: 289px;
+
+}
+
+.kartoshka-001 {
+    color: var(--dark);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    width: 289px;
+    cursor: pointer;
+}
+
+.users-photo-1 {
+    height: 60px;
+    margin-bottom: -2px;
+    margin-top: -2px;
+    object-fit: cover;
+    position: relative;
+    width: 60px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.content {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 20px;
+    padding: 16px 16px 0;
+    position: relative;
+    width: 100%;
+
+}
+
+.dialogs-1 {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    width: 397px;
+
+}
+
+.dialogsdialog-divider-2 {
+    z-index: 5;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .dialogsdialog-divider-8 {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    width: 100%;
+
+}
+
+.dialog {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 12px;
+    position: relative;
+    width: 100%;
+
+}
+
+.time-new-message {
+    align-items: flex-end;
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+
+}
+
+.time {
+    align-items: flex-start;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 12px;
+    position: relative;
+
+}
+
+.logo {
+    height: 16px;
+    object-fit: cover;
+    position: relative;
+    width: 23px;
+
+}
+
+.text-6 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.dialog-1 {
+    align-items: center;
+    flex: 1;
+    gap: 8px;
+
+}
+
+.name {
+    align-self: stretch;
+    color: var(--dark);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+
+}
+
+.text-message {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 2px;
+    padding: 1px;
+    position: relative;
+    width: 100%;
+
+}
+
+.x-1 {
+    line-height: 16px;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .x-7 {
+    color: var(--dark-gray);
+    flex: 1;
+    font-weight: 400;
+    height: 32px;
+    margin-top: -1px;
+    position: relative;
+
+}
+
+.users-photo-4 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo-4@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.online {
+    align-items: flex-start;
+    display: flex;
+    height: 8px;
+    justify-content: center;
+    left: 33px;
+    min-width: 8px;
+    position: relative;
+}
+
+.online-1 {
+    background-color: var(--chatonline);
+    border: 2px solid;
+    border-color: var(--white);
+    border-radius: 6px;
+    height: 12px;
+    margin-top: -2px;
+    width: 12px;
+}
+
+.divider-1 {
+    height: 1px;
+    left: 0;
+    object-fit: cover;
+    position: absolute;
+    top: -1px;
+    width: 397px;
+}
+
+.dialogsdialog-divider-1 {
+    z-index: 6;
+
+}
+
+.users-photo-3 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo-3@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.text-4 {
+    color: var(--dark-gray);
+    flex: 1;
+    font-weight: 400;
+    height: 32px;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+
+}
+
+.text-5 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.dialogsdialog-divider-3 {
+    z-index: 4;
+
+}
+
+.divider-3 {
+    align-self: stretch;
+    height: 1px;
+    margin-bottom: -1px;
+    position: relative;
+    width: 100%;
+    z-index: 0;
+
+}
+
+.dialog-3 {
+    align-items: flex-start;
+    align-self: stretch;
+    flex: 0 0 auto;
+    gap: 12px;
+    width: 100%;
+    z-index: 1;
+
+}
+
+.text-7 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.users-photo-5 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo-5@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.x-2 {
+    line-height: 12px;
+
+}
+
+.span1 {
+    line-height: 16px;
+
+}
+
+.span0 {
+    font-weight: 500;
+    line-height: 14px;
+
+}
+
+.dialogsdialog-divider-5 {
+    z-index: 2;
+
+}
+
+.new-message {
+    background-color: var(--primary);
+    border-radius: 8px;
+    height: 18px;
+    overflow: hidden;
+    position: relative;
+    width: 26px;
+
+}
+
+.x99 {
+    color: var(--white);
+    font-weight: 500;
+    left: 6px;
+    line-height: 14px;
+    position: absolute;
+    top: 1px;
+    white-space: nowrap;
+
+}
+
+.x0910 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.users-photo-7 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo-7@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.x-4 {
+    line-height: 16px;
+
+}
+
+.dialogsdialog-divider-7 {
+    z-index: 0;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .x0910-3 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.users-photo-9 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo-9@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.files-1 {
+    height: 16px;
+    position: relative;
+    width: 16px;
+
+}
+
+.image-1 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/image-4@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 12px;
+    left: 2px;
+    position: relative;
+    top: 2px;
+    width: 12px;
+
+}
+
+.x-6 {
+    line-height: 16px;
+
+}
+
+.dialogsdialog-divider {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    width: 100%;
+    z-index: 7;
+
+}
+
+.x {
+    color: var(--dark-gray);
+    flex: 1;
+    font-weight: 400;
+    height: 32px;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+
+}
+
+.users-photo-2 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.new-message-1 {
+    background-color: var(--primary);
+    border-radius: 50px;
+    height: 18px;
+    overflow: hidden;
+    position: relative;
+    width: 26px;
+
+}
+
+.number {
+    color: var(--white);
+    font-weight: 500;
+    left: 10px;
+    line-height: 14px;
+    position: absolute;
+    top: 1px;
+    white-space: nowrap;
+
+}
+
+.text-3 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.dialogsdialog-divider-4 {
+    z-index: 3;
+
+}
+
+.number-1 {
+    color: var(--white);
+    font-weight: 500;
+    left: 2px;
+    line-height: 14px;
+    position: absolute;
+    top: 1px;
+    white-space: nowrap;
+
+}
+
+.text-8 {
+    color: var(--dark-gray);
+    font-weight: 400;
+    line-height: 16px;
+    margin-top: -1px;
+    position: relative;
+    white-space: nowrap;
+    width: fit-content;
+
+}
+
+.x-3 {
+    line-height: 12px;
+
+}
+
+.users-photo-6 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo-6@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.dialogsdialog-divider-6 {
+    z-index: 1;
+
+}
+
+.files {
+    height: 16px;
+    position: relative;
+    width: 16px;
+
+}
+
+.image {
+    align-items: center;
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/image@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    display: flex;
+    height: 12px;
+    justify-content: flex-end;
+    left: 2px;
+    min-width: 12px;
+    padding: 0 2px;
+    position: relative;
+    top: 2px;
+
+}
+
+.polygon-1 {
+    height: 7px;
+    width: 6px;
+
+}
+
+.x-5 {
+    line-height: 16px;
+
+}
+
+.users-photo-8 {
+    background-image: url(https://cdn.animaapp.com/projects/6572daa6cee1d1813b898586/releases/6572dae9cd9388f80f786a10/img/users-photo-8@2x.png);
+    background-position: 50% 50%;
+    background-size: cover;
+    height: 44px;
+    position: relative;
+    width: 44px;
+
+}
+
+.search-icons {
+    align-items: flex-start;
+    align-self: stretch;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 16px;
+    position: relative;
+    width: 397px;
+    height: 36px;
+
+}
+
+.search {
+    align-items: center;
+    background-color: var(--light-light-gray);
+    border-radius: 8px;
+    display: flex;
+    flex: 1;
+    gap: 8px;
+    height: 36px;
+    min-width: 224px;
+    position: relative;
+    width: 293px;
+    padding: 0 12px;
+}
+
+.icons {
+    height: 36px;
+    position: relative;
+    width: 36px;
+
+}
+
+.menu-1 {
+    background-color: var(--light-light-gray);
+    display: flex;
+    gap: 603px;
+    height: 900px;
+    left: 0;
+    padding: 8px 0;
+    position: absolute;
+    top: 1px;
+    width: 105px;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .menu-3 {
+    align-items: center;
+    flex-direction: column;
+
+}
+
+.menu-2 {
+    display: inline-flex;
+    gap: 16px;
+    margin-top: 8px;
+    position: relative;
+
+}
+
+.select {
+    align-items: center;
+    background-color: var(--white);
+    border-radius: 8px;
+    box-shadow: 0 5px 5px #00000012;
+    display: flex;
+    gap: 8px;
+    height: 40px;
+    position: relative;
+    width: 40px;
+
+}
+
+.u1089u1086u1079u1076u1072u1085u1080u1077-u1075u1088u1091u1087u1087u1099 .icons-tabbar {
+    height: 16px;
+    position: relative;
+    width: 16px;
+    margin: 12px;
+}
+
+.profile {
+    align-items: center;
+    background-color: var(--white);
+    border-radius: 8px;
+    box-shadow: 0 5px 5px #00000012;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+    position: relative;
+    width: 73px;
+    max-width: 73px;
+
+}
+
+.users-photo-10 {
+    height: 49px;
+    object-fit: cover;
+    position: relative;
+    width: 49px;
+    margin: 12px;
+}
+
+.select-1 {
+    align-items: center;
+    background-color: var(--primary);
+    border-radius: 8px;
+    box-shadow: 0 5px 5px #00000012;
+    display: flex;
+    gap: 8px;
+    height: 40px;
+    position: relative;
+    width: 40px;
+
+}
+
+.close {
+    align-items: center;
+    background-color: var(--white);
+    border-radius: 8px;
+    box-shadow: 0 5px 5px #00000012;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    padding: 10px 12px;
+    position: relative;
+    width: 73px;
+
+}
+
+body {
+    margin: 0;
+}
