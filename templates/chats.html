@@ -258,18 +258,19 @@
             {% endif %}
 
             <div class="scrollable-content" style="padding-bottom: 55px;">
-                <div class="dialogs-list" style="cursor: pointer">
-                    {% for dialog in dialogs %}
-                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
-                         data-dialog-id="{{ dialog.id }}" style="position: relative;">
-                        <!-- Фото собеседника -->
+    <div class="dialogs-list" style="cursor: pointer">
+        {% for dialog in dialogs %}
+        <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
+             data-dialog-id="{{ dialog.id }}" data-interlocutor-id="{{ dialog.interlocutor_id }}" style="position: relative;">
+            <!-- Фото собеседника -->
             <div class="profile-picture-container" style="position: relative;">
                 <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
                      alt="Interlocutor's profile picture" width="50" height="50"
                      class="profile-picture">
                 <!-- Индикатор онлайн-статуса -->
-                <div class="online-indicator-dialog" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: {% if dialog.interlocutor_is_online %}block{% else %}none{% endif %};"></div>
+                <div class="online-indicator-dialog" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: none;"></div>
             </div>
+
                         <!-- Информация о диалоге -->
                         <div class="dialogs-item small-title flex-grow"
                              style="display: flex; flex-direction: column; align-items: start;">
@@ -430,69 +431,48 @@ document.addEventListener('DOMContentLoaded', function () {
     const currentUserId = "{{ current_user.id }}";
     const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
 
-    socket.onopen = function (event) {
-        console.log("WebSocket connection opened for left panel:", event);
-        document.querySelector('.online-indicator').style.display = 'block';
-    };
+    socket.onopen = () => console.log("WebSocket connection opened for left panel");
+    socket.onclose = () => console.log("WebSocket connection closed for left panel");
+    socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
 
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
-        if (data.action === 'user_status_update') {
+        if (data.action === 'user_online_status') {
             updateInterlocutorOnlineStatus(data.user_id, data.is_online);
         }
     };
 
     function updateInterlocutorOnlineStatus(interlocutorId, isOnline) {
+        // Обновление статуса в диалогах в левой панели
         const dialogElements = document.querySelectorAll('.clickable-dialog');
         dialogElements.forEach(element => {
-            const interlocutorIdInElement = element.getAttribute('data-interlocutor-id');
-            if (interlocutorIdInElement === interlocutorId.toString()) {
+            if (element.dataset.interlocutorId === interlocutorId.toString()) {
                 const onlineIndicator = element.querySelector('.online-indicator-dialog');
-                onlineIndicator.style.display = isOnline ? 'block' : 'none';
-            }
-        });
-
-        const interlocutorInfoElements = document.querySelectorAll('.interlocutor-info');
-        interlocutorInfoElements.forEach(element => {
-            const interlocutorPicture = element.querySelector('img');
-            const interlocutorIdInImage = interlocutorPicture.src.split('/').pop(); // Предполагаем, что URL содержит идентификатор пользователя
-            if (interlocutorIdInImage === interlocutorId.toString()) {
-                const onlineIndicator = element.querySelector('#online-indicator-interlocutor');
-                onlineIndicator.style.display = isOnline ? 'block' : 'none';
+                if (onlineIndicator) {
+                    onlineIndicator.style.display = isOnline ? 'block' : 'none';
+                }
             }
         });
     }
-
-    socket.onclose = function (event) {
-        console.log("WebSocket connection closed for left panel:", event);
-        document.querySelector('.online-indicator').style.display = 'none';
-    };
-
-    socket.onerror = function (error) {
-        console.error(`WebSocket error in left panel: ${error.message}`);
-    };
 });
 
-
-
-
-    function formatMessageTime(timestamp) {
-        if (!timestamp) {
-            return "Invalid Date";
-        }
-
-        const messageDate = new Date(timestamp);
-        const now = new Date();
-
-        // Проверяем, было ли сообщение отправлено сегодня
-        if (messageDate.toDateString() === now.toDateString()) {
-            // Если да, форматируем как ЧЧ:ММ
-            return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
-        } else {
-            // Если нет, форматируем как ДД-ММ
-            return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
-        }
+function formatMessageTime(timestamp) {
+    if (!timestamp) {
+        return "Invalid Date";
     }
+
+    const messageDate = new Date(timestamp);
+    const now = new Date();
+
+    // Проверяем, было ли сообщение отправлено сегодня
+    if (messageDate.toDateString() === now.toDateString()) {
+        // Если да, форматируем как ЧЧ:ММ
+        return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+    } else {
+        // Если нет, форматируем как ДД-ММ
+        return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+    }
+}
 
     function submitForm(event) {
         event.preventDefault();
@@ -811,37 +791,29 @@ function initializeDialogJS(dialogId, currentUserId) {
 
         // Отображение зеленого индикатора онлайн-статуса
         document.querySelector('.online-indicator').style.display = 'block';
-        // Показать индикатор, если собеседник онлайн
-        showInterlocutorOnlineIndicator();
+        showDialogInterlocutorOnlineIndicator();
     };
 
     ws.onclose = function (event) {
         console.log("WebSocket connection closed.", event);
-        // Скрытие зеленого индикатора онлайн-статуса
         document.querySelector('.online-indicator').style.display = 'none';
-        // Скрыть индикатор, если собеседник не онлайн
-        hideInterlocutorOnlineIndicator();
+        hideDialogInterlocutorOnlineIndicator();
     };
 
-    // Показать индикатор, если собеседник онлайн
-function showInterlocutorOnlineIndicator() {
-    const indicator = document.querySelector('.online-indicator-interlocutor');
-    if (indicator) {
-        indicator.style.display = 'block';
+    // Функции для показа/скрытия индикатора онлайн-статуса
+    function showDialogInterlocutorOnlineIndicator() {
+        const indicator = document.getElementById('online-indicator-interlocutor');
+        if (indicator) {
+            indicator.style.display = 'block';
+        }
     }
-}
 
-// Скрыть индикатор, если собеседник не онлайн
-function hideInterlocutorOnlineIndicator() {
-    const indicator = document.querySelector('.online-indicator-interlocutor');
-    if (indicator) {
-        indicator.style.display = 'none';
+    function hideDialogInterlocutorOnlineIndicator() {
+        const indicator = document.getElementById('online-indicator-interlocutor');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
     }
-}
-
-
-
-
 
         // Автоматическая плавная прокрутка к последнему сообщению
         const messagesList = document.querySelector('.list-group');
@@ -1056,6 +1028,19 @@ function hideInterlocutorOnlineIndicator() {
                         dialogElement.appendChild(lastMessageTimeElement);
                     }
                 }
+             } else if (action === 'user_online_status') {
+        // Обработка статуса онлайн пользователя
+        const userId = messageData.user_id;
+        const isOnline = messageData.is_online;
+
+        // Проверка, соответствует ли ID пользователя собеседнику в диалоге
+        if (userId === parseInt(dialogId)) {
+            if (isOnline) {
+                showDialogInterlocutorOnlineIndicator();
+            } else {
+                hideDialogInterlocutorOnlineIndicator();
+            }
+        }
             } else if (messageData.message && messageData.message.sender_id) {
                 const currentUserId = "{{ current_user.id }}";
                 const newMessage = document.createElement('li');
@@ -1154,6 +1139,7 @@ function hideInterlocutorOnlineIndicator() {
                 }, 100);
             }
         };
+
     }
 
     function updateFileNameDisplay() {

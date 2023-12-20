@@ -4105,18 +4105,33 @@ class ConnectionManager:
         self.global_active_connections: Dict[str, List[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: int, room: str):
+        is_first_connection = False
+
+        if user_id not in self.active_connections:
+            is_first_connection = True
+
         if user_id in self.active_connections and room in self.active_connections[user_id]:
             logging.warning(f"Already an active connection for user {user_id} in room {room}.")
             old_websocket = self.active_connections[user_id][room]['websocket']
             if old_websocket.client_state == WebSocketState.CONNECTED:
                 await old_websocket.close()
 
-        self.active_connections.setdefault(user_id, {})[room] = {"websocket": websocket,
-                                                                 "state": WebSocketState.CONNECTED}
+        self.active_connections.setdefault(user_id, {})[room] = {
+            "websocket": websocket,
+            "state": WebSocketState.CONNECTED,
+            "is_first_connection": is_first_connection
+        }
         self.add_global_connection(room, websocket)
         logging.info(f"Successfully connected user {user_id} to room {room}.")
 
-    def disconnect(self, user_id: int, room: str):
+        if is_first_connection:
+            await self.notify_all_users_about_status(user_id, True)
+
+    # Метод для уведомления об онлайн-статусе пользователя
+    async def notify_user_online(self, user_id: int):
+        await self.notify_all_users_about_status(user_id, True)
+
+    async def disconnect(self, user_id: int, room: str):
         if user_id not in self.active_connections or room not in self.active_connections[user_id]:
             logging.warning(f"No active connection for user {user_id} in room {room}.")
             return
@@ -4126,6 +4141,34 @@ class ConnectionManager:
         if not self.active_connections[user_id]:
             del self.active_connections[user_id]
         logging.info(f"User {user_id} disconnected from room {room}.")
+
+        # Новый вызов для отправки сообщения о статусе "не в сети"
+        await self.notify_user_offline(user_id)
+
+    async def notify_user_offline(self, user_id: int):
+        status_message = json.dumps({
+            "action": "user_online_status",
+            "user_id": user_id,
+            "is_online": False
+        })
+        for _, user_connections in self.active_connections.items():
+            for connection in user_connections.values():
+                websocket = connection['websocket']
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_text(status_message)
+        logging.info(f"Notified about user {user_id} offline status")
+
+    async def notify_all_users_about_status(self, user_id: int, is_online: bool):
+        status_message = json.dumps({
+            "action": "user_online_status",
+            "user_id": user_id,
+            "is_online": is_online
+        })
+        for _, user_connections in self.global_active_connections.items():
+            for websocket in user_connections:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_text(status_message)
+        logging.info(f"Notified about user {user_id} online status: {is_online}")
 
     async def send_message(self, message: str, user_id: int, room: str):
         logging.info(f"Function send_message called for user {user_id} in room {room}")
@@ -4198,16 +4241,6 @@ class ConnectionManager:
                 message_json = json.dumps({"action": "refresh_token", "new_token": new_token})
                 await websocket.send_text(message_json)
 
-    async def notify_user_status(self, user_id: int, is_online: bool):
-        room = f"user_{user_id}"
-        if room in self.global_active_connections:
-            status_message = json.dumps({
-                "action": "user_status_update",
-                "user_id": user_id,
-                "is_online": is_online
-            })
-            await self.send_message_to_room(room, status_message)
-            logging.info(f"Sent online status update for user {user_id} to room {room}: {status_message}")
     async def auto_reconnect(self, user_id: int, room: str, max_retries=5, max_delay=60):
         delay = 5  # начальная задержка в секундах
         retries = 0
@@ -4289,7 +4322,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             return
 
         await manager.connect(websocket, user_id, "some_room")
-        await manager.notify_user_status(user_id, True)  # Notify others that this user is online
+        await manager.notify_all_users_about_status(user_id, True)  # Notify others that this user is online
 
         while True:
             data = await websocket.receive_text()
@@ -4312,7 +4345,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
 
     except WebSocketDisconnect:
         logging.info(f"WebSocket disconnected for user_id: {user_id}. Attempting to reconnect.")
-        await manager.notify_user_status(user_id, False)  # Notify others that this user is offline
+        await manager.notify_user_online_status(user_id, False)  # Notify others that this user is offline
         if manager.get_connection(user_id, "some_room"):
             await manager.auto_reconnect(user_id, "some_room")
         manager.disconnect(user_id, "some_room")
@@ -4549,7 +4582,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                     else:
                         logging.error(f"Failed to update message with id {message_id}")
     except WebSocketDisconnect:
-        manager.disconnect(user.id, room_name)
+        await manager.disconnect(user.id, room_name)
+
         logging.warning(f"WebSocket disconnected for user {user.id}")
 
 
