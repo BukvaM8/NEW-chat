@@ -190,7 +190,16 @@
             {% endif %}
         </div>
     </div>
+
             <hr style="width: 500px; margin-right: 15px; height: 1px">
+            <div style="display: flex; align-items: center; gap: 16px; margin-left: 15px">
+                <button id="all-chats-button">Все чаты</button>
+<button id="dialogs-button">Диалоги</button>
+<button id="groups-button">Группы</button>
+
+                <button>Мои каналы</button>
+            </div>
+            <br>
             <div class="search-container" style="padding-left: 15px">
                 <form action="/home" method="get" class="search-input">
                     <input type="text" class="form-control search-input"
@@ -285,10 +294,10 @@
                                     {% set text_part = parts[0] %}
                                     {% set file_info = parts[1].split('[[/FILE]]')[0] %}
                                     {% set file_name = file_info.split(', File Path: ')[1] %}
-                                    {{ text_part | truncate(75, true, '...') }} (Файл: {{ file_name | truncate(25, true,
+                                    {{ text_part | truncate(65, true, '...') }} (Файл: {{ file_name | truncate(25, true,
                                     '...') }})
                                     {% else %}
-                                    {{ dialog.last_message | truncate(105, true, '...') }}
+                                    {{ dialog.last_message | truncate(95, true, '...') }}
                                     {% endif %}
                                 </div>
                             </div>
@@ -437,13 +446,46 @@ document.addEventListener('DOMContentLoaded', function () {
 
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
+
         if (data.action === 'user_online_status') {
             updateInterlocutorOnlineStatus(data.user_id, data.is_online);
+        } else if (data.action === 'update_last_dialog_message') {
+            updateLastDialogMessage(data.dialog_id, data.timestamp);
+        } else if (data.action === 'new_chat') {
+            // Вызов функции для обновления списка групп
+            addNewChatToList(data.chat_id);
         }
     };
 
+     // Функция для добавления нового чата в список
+    function addNewChatToList(chatId) {
+        // Отправьте запрос на сервер для получения информации о новом чате
+        fetch(`/chat/info/${chatId}`)
+            .then(response => response.json())
+            .then(chatData => {
+                // Построение HTML элемента на основе полученных данных и добавление его в список
+                const chatList = document.querySelector('.chat-list');
+                const newChatHtml = `
+                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container" data-chat-id="${chatData.id}" style="cursor: pointer">
+                        <div class="profile-picture-container">
+                            <img src="/chat/picture/${chatData.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
+                        </div>
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong class="username">${chatData['chat_name']}</strong>
+                                <div class="last_message_time" style="font-size: 0.8em;">${chatData['last_message_time_formatted']}</div>
+                            </div>
+                            <div class="last_message" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <strong>${chatData['last_message_sender_phone']}:</strong> ${chatData['last_message']}
+                            </div>
+                        </div>
+                    </div>`;
+                chatList.innerHTML += newChatHtml;
+            })
+            .catch(error => console.error('Ошибка при получении данных о чате:', error));
+    }
+
     function updateInterlocutorOnlineStatus(interlocutorId, isOnline) {
-        // Обновление статуса в диалогах в левой панели
         const dialogElements = document.querySelectorAll('.clickable-dialog');
         dialogElements.forEach(element => {
             if (element.dataset.interlocutorId === interlocutorId.toString()) {
@@ -454,7 +496,73 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    function updateLastDialogMessage(dialogId, timestamp) {
+        const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
+        if (dialogElement) {
+            const lastMessageTimeElement = dialogElement.querySelector('.last_message_time');
+            const formattedTime = formatMessageTime(timestamp);
+            if (lastMessageTimeElement) {
+                lastMessageTimeElement.textContent = formattedTime;
+            }
+        }
+    }
+
+    function formatMessageTime(timestamp) {
+        if (!timestamp) {
+            return "Invalid Date";
+        }
+        const messageDate = new Date(timestamp);
+        const now = new Date();
+        if (messageDate.toDateString() === now.toDateString()) {
+            return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+        } else {
+            return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+        }
+    }
+
+    const allChatsButton = document.getElementById('all-chats-button');
+    const dialogsButton = document.getElementById('dialogs-button');
+    const groupsButton = document.getElementById('groups-button');
+
+    allChatsButton.addEventListener('click', showAllChatsAndDialogs);
+    dialogsButton.addEventListener('click', showDialogs);
+    groupsButton.addEventListener('click', showGroupsOnly);
+
+    function showAllChatsAndDialogs() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'block';
+        chatList.style.display = 'block';
+
+        chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+            chat.style.display = 'flex';
+        });
+    }
+
+    function showDialogs() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'block';
+        chatList.style.display = 'none';
+    }
+
+    function showGroupsOnly() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'none';
+        chatList.style.display = 'block';
+
+        chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+            chat.style.display = 'flex';
+        });
+    }
 });
+
+
 
 function formatMessageTime(timestamp) {
     if (!timestamp) {
@@ -1808,35 +1916,35 @@ function initializeDialogJS(dialogId, currentUserId) {
                     }
                 }
             } else if (action === 'update_last_message') {
-                const chatElement = document.querySelector(`.clickable-chat[data-chat-id="${messageData.chat_id}"]`);
-                if (chatElement) {
-                    let lastMessageText = messageData.last_message;
-                    let lastMessageTime = formatMessageTime(messageData.timestamp); // Форматирование времени сообщения
+    const chatElement = document.querySelector(`.clickable-chat[data-chat-id="${messageData.chat_id}"]`);
+    if (chatElement) {
+        let lastMessageText = messageData.last_message;
+        let lastMessageTime = formatMessageTime(messageData.timestamp); // Форматирование времени сообщения
 
-                    // Обработка специального формата сообщения, например, для файлов
-                    if (lastMessageText.includes('[[FILE]]')) {
-                        const fileParts = lastMessageText.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ');
-                        const fileName = fileParts.find(part => part.startsWith('File Name')).split(': ')[1];
-                        lastMessageText = fileName; // Использование только имени файла для отображения
-                    }
+        // Обработка специального формата сообщения, например, для файлов
+        if (lastMessageText.includes('[[FILE]]')) {
+            const fileParts = lastMessageText.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ');
+            const fileName = fileParts.find(part => part.startsWith('File Name')).split(': ')[1];
+            lastMessageText = fileName; // Использование только имени файла для отображения
+        }
 
-                    // Получение или создание элемента для текста последнего сообщения
-                    let lastMessageElement = chatElement.querySelector('.last_message');
-                    if (!lastMessageElement) {
-                        lastMessageElement = document.createElement('div');
-                        lastMessageElement.classList.add('last_message');
-                        chatElement.appendChild(lastMessageElement);
-                    }
-                    lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
+        // Получение или создание элемента для текста последнего сообщения
+        let lastMessageElement = chatElement.querySelector('.last_message');
+        if (!lastMessageElement) {
+            lastMessageElement = document.createElement('div');
+            lastMessageElement.classList.add('last_message');
+            chatElement.appendChild(lastMessageElement);
+        }
+        lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
 
-                    // Получение или создание элемента для времени последнего сообщения
-                    let lastMessageTimeElement = chatElement.querySelector('.last_message_time');
-                    if (!lastMessageTimeElement) {
-                        lastMessageTimeElement = document.createElement('div');
-                        lastMessageTimeElement.classList.add('last_message_time');
-                        chatElement.appendChild(lastMessageTimeElement);
-                    }
-                    lastMessageTimeElement.textContent = lastMessageTime;
+        // Получение или создание элемента для времени последнего сообщения
+        let lastMessageTimeElement = chatElement.querySelector('.last_message_time');
+        if (!lastMessageTimeElement) {
+            lastMessageTimeElement = document.createElement('div');
+            lastMessageTimeElement.classList.add('last_message_time');
+            chatElement.appendChild(lastMessageTimeElement);
+        }
+        lastMessageTimeElement.textContent = lastMessageTime;
 
                 }
             } else if (messageData.message && messageData.sender_phone_number) {

@@ -4170,6 +4170,7 @@ class ConnectionManager:
                     await websocket.send_text(status_message)
         logging.info(f"Notified about user {user_id} online status: {is_online}")
 
+
     async def send_message(self, message: str, user_id: int, room: str):
         logging.info(f"Function send_message called for user {user_id} in room {room}")
         if not message:
@@ -4240,6 +4241,20 @@ class ConnectionManager:
             if websocket.client_state == WebSocketState.CONNECTED:
                 message_json = json.dumps({"action": "refresh_token", "new_token": new_token})
                 await websocket.send_text(message_json)
+
+    # Ваш метод notify_new_chat
+    async def notify_new_chat(self, chat_id: int, member_ids: List[int]):
+        new_chat_message = json.dumps({
+            "action": "new_chat",
+            "chat_id": chat_id
+        })
+        # Отправка сообщения всем участникам нового чата
+        for member_id in member_ids:
+            if member_id in self.active_connections:
+                for room, connection in self.active_connections[member_id].items():
+                    websocket = connection['websocket']
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        await websocket.send_text(new_chat_message)
 
     async def auto_reconnect(self, user_id: int, room: str, max_retries=5, max_delay=60):
         delay = 5  # начальная задержка в секундах
