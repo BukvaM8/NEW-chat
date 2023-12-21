@@ -1,6 +1,7 @@
 # Встроенные модули Python
 import asyncio
 import configparser
+import gzip
 import io
 import json
 import logging
@@ -1323,7 +1324,11 @@ async def get_file(file_id: int):
 # Сохраняет файл в базу данных.
 async def save_file(nickname: str, file_path: str, file_content: bytes, file_extension: str):
     logging.info(f"Saving file for nickname: {nickname}")
-    query = files.insert().values(nickname=nickname, file_path=file_path, file=file_content,
+
+    # Сжатие содержимого файла
+    compressed_file_content = gzip.compress(file_content)
+
+    query = files.insert().values(nickname=nickname, file_path=file_path, file=compressed_file_content,
                                   file_extension=file_extension)
     file_id = await database.execute(query)
     return file_id
@@ -1958,7 +1963,8 @@ async def profile(request: Request, phone_number: str,
         if contact['nickname'] == user.id:
             user_fio = contact['phone_number']
 
-    return templates.TemplateResponse("another_user_profile.html", {"request": request, "user": user, "user_fio": user_fio})
+    return templates.TemplateResponse("another_user_profile.html",
+                                      {"request": request, "user": user, "user_fio": user_fio})
 
 
 class ChangePasswordRequest(BaseModel):
@@ -3607,6 +3613,7 @@ async def search_dialog_route(request: Request, current_user: Union[str, Redirec
 
 
 # Создает новый диалог между двумя пользователями.
+# Создает новый диалог между двумя пользователями.
 async def create_new_dialog(user1_id: int, user2_id: int) -> int:
     conn = await aiomysql.connect(user=USER, password=PASSWORD, db=DATABASE, host=HOST, port=3306)
     cur = await conn.cursor()
@@ -3617,6 +3624,20 @@ async def create_new_dialog(user1_id: int, user2_id: int) -> int:
     await conn.commit()
     await cur.close()
     conn.close()
+
+    # Подготавливаем данные обоих пользователей для WebSocket сообщения
+    user1_info = await get_user_by_id(user1_id)
+    user2_info = await get_user_by_id(user2_id)
+
+    message_data = {
+        "action": "new_dialog_created",
+        "dialog_id": dialog_id,
+        "user1_info": user1_info,  # Допустим, что эта функция возвращает словарь с нужными данными
+        "user2_info": user2_info
+    }
+
+    await manager.send_message_to_room(f"user_{user1_id}", json.dumps(message_data))
+    await manager.send_message_to_room(f"user_{user2_id}", json.dumps(message_data))
 
     return dialog_id
 
@@ -4049,6 +4070,7 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
     """, (dialog_id,))
     messages = []
     async for row in cur:
+        formatted_time = row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None
         messages.append({
             "id": row[0],
             "dialog_id": row[1],
@@ -4056,8 +4078,9 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
             "message": row[3],
             "timestamp": row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None,
             "delete_timestamp": row[5].strftime('%Y-%m-%d %H:%M:%S') if row[5] else None,
-            "edit_timestamp": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,  # Добавлено
-            "sender_nickname": row[7]
+            "edit_timestamp": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,
+            "sender_nickname": row[7],
+            "formatted_timestamp": formatted_time  # Добавлено форматированное время
         })
     await cur.close()
     conn.close()
@@ -4082,18 +4105,33 @@ class ConnectionManager:
         self.global_active_connections: Dict[str, List[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: int, room: str):
+        is_first_connection = False
+
+        if user_id not in self.active_connections:
+            is_first_connection = True
+
         if user_id in self.active_connections and room in self.active_connections[user_id]:
             logging.warning(f"Already an active connection for user {user_id} in room {room}.")
             old_websocket = self.active_connections[user_id][room]['websocket']
             if old_websocket.client_state == WebSocketState.CONNECTED:
                 await old_websocket.close()
 
-        self.active_connections.setdefault(user_id, {})[room] = {"websocket": websocket,
-                                                                 "state": WebSocketState.CONNECTED}
+        self.active_connections.setdefault(user_id, {})[room] = {
+            "websocket": websocket,
+            "state": WebSocketState.CONNECTED,
+            "is_first_connection": is_first_connection
+        }
         self.add_global_connection(room, websocket)
         logging.info(f"Successfully connected user {user_id} to room {room}.")
 
-    def disconnect(self, user_id: int, room: str):
+        if is_first_connection:
+            await self.notify_all_users_about_status(user_id, True)
+
+    # Метод для уведомления об онлайн-статусе пользователя
+    async def notify_user_online(self, user_id: int):
+        await self.notify_all_users_about_status(user_id, True)
+
+    async def disconnect(self, user_id: int, room: str):
         if user_id not in self.active_connections or room not in self.active_connections[user_id]:
             logging.warning(f"No active connection for user {user_id} in room {room}.")
             return
@@ -4103,6 +4141,35 @@ class ConnectionManager:
         if not self.active_connections[user_id]:
             del self.active_connections[user_id]
         logging.info(f"User {user_id} disconnected from room {room}.")
+
+        # Новый вызов для отправки сообщения о статусе "не в сети"
+        await self.notify_user_offline(user_id)
+
+    async def notify_user_offline(self, user_id: int):
+        status_message = json.dumps({
+            "action": "user_online_status",
+            "user_id": user_id,
+            "is_online": False
+        })
+        for _, user_connections in self.active_connections.items():
+            for connection in user_connections.values():
+                websocket = connection['websocket']
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_text(status_message)
+        logging.info(f"Notified about user {user_id} offline status")
+
+    async def notify_all_users_about_status(self, user_id: int, is_online: bool):
+        status_message = json.dumps({
+            "action": "user_online_status",
+            "user_id": user_id,
+            "is_online": is_online
+        })
+        for _, user_connections in self.global_active_connections.items():
+            for websocket in user_connections:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_text(status_message)
+        logging.info(f"Notified about user {user_id} online status: {is_online}")
+
 
     async def send_message(self, message: str, user_id: int, room: str):
         logging.info(f"Function send_message called for user {user_id} in room {room}")
@@ -4175,6 +4242,20 @@ class ConnectionManager:
                 message_json = json.dumps({"action": "refresh_token", "new_token": new_token})
                 await websocket.send_text(message_json)
 
+    # Ваш метод notify_new_chat
+    async def notify_new_chat(self, chat_id: int, member_ids: List[int]):
+        new_chat_message = json.dumps({
+            "action": "new_chat",
+            "chat_id": chat_id
+        })
+        # Отправка сообщения всем участникам нового чата
+        for member_id in member_ids:
+            if member_id in self.active_connections:
+                for room, connection in self.active_connections[member_id].items():
+                    websocket = connection['websocket']
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        await websocket.send_text(new_chat_message)
+
     async def auto_reconnect(self, user_id: int, room: str, max_retries=5, max_delay=60):
         delay = 5  # начальная задержка в секундах
         retries = 0
@@ -4219,13 +4300,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
     if isinstance(current_user, RedirectResponse):
         logging.warning("RedirectResponse received instead of current_user.")
         return
+
     try:
-        logging.info("WebSocket connection initiated for user_id: {}".format(user_id))
+        logging.info(f"WebSocket connection initiated for user_id: {user_id}")
 
-        # Пытаемся получить токен WebSocket
         access_token = await get_websocket_token(websocket)
-
-        # Добавленное логирование для отладки
         if access_token:
             logging.info(f"Received token: {access_token}")
         else:
@@ -4236,9 +4315,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             await websocket.close(code=4000)
             return
 
-        logging.info("Verifying access token for user_id: {}".format(user_id))
-
-        # Проверка и валидация токена
         _, is_valid = await verify_and_validate_token(access_token)
 
         if not is_valid:
@@ -4253,10 +4329,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                 await websocket.close(code=4001)
                 return
 
-        # Все проверки пройдены, принимаем соединение
-        logging.info("All checks passed. Accepting the WebSocket connection.")
-
-        # Получение текущего пользователя из WebSocket
         user = await get_current_user_from_websocket(websocket)
 
         if user is None:
@@ -4264,21 +4336,19 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             await websocket.close(code=4003)
             return
 
-        # Подключение к менеджеру
         await manager.connect(websocket, user_id, "some_room")
+        await manager.notify_all_users_about_status(user_id, True)  # Notify others that this user is online
 
-        # Основной цикл для приема и отправки сообщений
         while True:
             data = await websocket.receive_text()
             messageData = json.loads(data)
             action = messageData.get('action')
             logging.info(f"Received data from user {user_id}: {data}")
 
-            if action == "get_dialog_history":  # Новый блок кода
+            if action == "get_dialog_history":
                 dialog_id = messageData.get("dialog_id")
                 if dialog_id:
-                    dialog_history = await get_dialog_history(dialog_id,
-                                                              user_id)  # предполагается, что эту функцию нужно реализовать
+                    dialog_history = await get_dialog_history(dialog_id, user_id)
                     await websocket.send_json({"action": "dialog_history", "history": dialog_history})
             elif action == "get_initial_messages":
                 dialog_id = messageData.get("dialog_id")
@@ -4287,12 +4357,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                     await websocket.send_json({"action": "initial_messages", "messages": messages})
             else:
                 await manager.send_message(f"User {user_id} said: {data}", user_id, "some_room")
+
     except WebSocketDisconnect:
-        logging.info("WebSocket disconnected. Attempting to reconnect.")
-        # Здесь должны быть определены `manager` и `room`, если вы их используете
-        if manager.get_connection(user_id, room):
-            await manager.auto_reconnect(user_id, room)
-        manager.disconnect(user_id, room)
+        logging.info(f"WebSocket disconnected for user_id: {user_id}. Attempting to reconnect.")
+        await manager.notify_user_online_status(user_id, False)  # Notify others that this user is offline
+        if manager.get_connection(user_id, "some_room"):
+            await manager.auto_reconnect(user_id, "some_room")
+        manager.disconnect(user_id, "some_room")
 
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
@@ -4363,7 +4434,11 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         if nickname is None:
             nickname = "Unknown"
 
-        current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        # Определение текущего времени
+        current_time = datetime.utcnow()
+
+        # Форматирование времени в ISO 8601 для отправки
+        formatted_time = current_time.isoformat()
 
         # Вставка сообщения в базу данных
         query = chatmessages.insert().values(
@@ -4372,7 +4447,6 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
             message=message_content,
             timestamp=current_time
         )
-
         message_id = await database.execute(query)
         logging.info(f"Message saved to database with ID: {message_id}")
 
@@ -4380,13 +4454,27 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         room = f"chat_{chat_id}"
         message_data = {
             "action": "new_message",
+            "message_id": message_id,
+            "chat_id": chat_id,
             "message": message_content,
             "sender_phone_number": current_user.phone_number,
             "sender_nickname": nickname,
-            "timestamp": current_time
+            "timestamp": formatted_time
         }
-
         await manager.send_message_to_room(room, json.dumps(message_data))
+        logging.info(f"Sent message to room {room}")
+
+        # Отправка данных о последнем сообщении в левую панель
+        last_message_data = {
+            "action": "update_last_message",
+            "chat_id": chat_id,
+            "last_message": message_content,
+            "last_message_time": formatted_time,
+            "sender_phone": current_user.phone_number
+        }
+        await manager.broadcast(last_message_data, room=f"chat_{chat_id}")
+        logging.info(f"Sent last message update to room {room}")
+
         return message_id
     except Exception as e:
         logging.error(f"An error occurred while handling chat message: {e}")
@@ -4509,7 +4597,8 @@ async def common_websocket_endpoint_logic(websocket: WebSocket, room_name: str, 
                     else:
                         logging.error(f"Failed to update message with id {message_id}")
     except WebSocketDisconnect:
-        manager.disconnect(user.id, room_name)
+        await manager.disconnect(user.id, room_name)
+
         logging.warning(f"WebSocket disconnected for user {user.id}")
 
 

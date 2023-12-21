@@ -176,19 +176,30 @@
 <div class="container-fluid">
     <div class="row">
         <!-- Left Panel -->
-        <div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding: 0; margin-left: 240px">
-            <!-- Profile Section -->
-            <div class="d-flex align-items-center mb-2" style="padding-top: 13px; padding-left: 15px">
-                <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic"
-                     width="50" height="50" style="cursor:pointer;">
-                <div class="ms-3">
-                    <h1 class="my_nickname" style="cursor: pointer">{{ current_user.nickname }}</h1>
-                    {% if current_user.status %}
-                        <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
-                    {% endif %}
-                </div>
-            </div>
+<div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding: 0; margin-left: 240px">
+    <!-- Profile Section -->
+    <div class="d-flex align-items-center mb-2" style="padding-top: 13px; padding-left: 15px; position: relative;">
+        <div class="profile-picture-container" style="position: relative;">
+            <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic" width="50" height="50" style="cursor:pointer;">
+            <div class="online-indicator" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%;"></div>
+        </div>
+        <div class="ms-3">
+            <h1 class="my_nickname" style="cursor: pointer">{{ current_user.nickname }}</h1>
+            {% if current_user.status %}
+            <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
+            {% endif %}
+        </div>
+    </div>
+
             <hr style="width: 500px; margin-right: 15px; height: 1px">
+            <div style="display: flex; align-items: center; gap: 16px; margin-left: 15px">
+                <button id="all-chats-button">Все чаты</button>
+<button id="dialogs-button">Диалоги</button>
+<button id="groups-button">Группы</button>
+
+                <button>Мои каналы</button>
+            </div>
+            <br>
             <div class="search-container" style="padding-left: 15px">
                 <form action="/home" method="get" class="search-input">
                     <input type="text" class="form-control search-input"
@@ -256,40 +267,47 @@
             {% endif %}
 
             <div class="scrollable-content" style="padding-bottom: 55px;">
-                <div class="dialogs-list" style="cursor: pointer">
-                    {% for dialog in dialogs %}
-                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
-                         data-dialog-id="{{ dialog.id }}">
-                        <!-- Фото собеседника -->
-                        <div class="profile-picture-container">
-                            <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
-                                 alt="Interlocutor's profile picture" width="50" height="50"
-                                 class="profile-picture">
-                        </div>
+    <div class="dialogs-list" style="cursor: pointer">
+        {% for dialog in dialogs %}
+        <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
+             data-dialog-id="{{ dialog.id }}" data-interlocutor-id="{{ dialog.interlocutor_id }}" style="position: relative;">
+            <!-- Фото собеседника -->
+            <div class="profile-picture-container" style="position: relative;">
+                <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
+                     alt="Interlocutor's profile picture" width="50" height="50"
+                     class="profile-picture">
+                <!-- Индикатор онлайн-статуса -->
+                <div class="online-indicator-dialog" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: none;"></div>
+            </div>
+
                         <!-- Информация о диалоге -->
-                        <div class="dialogs-item small-title flex-grow">
+                        <div class="dialogs-item small-title flex-grow"
+                             style="display: flex; flex-direction: column; align-items: start;">
                             <div>
                                 <strong class="username">{{ dialog.user_fio }}</strong>
-                            </div>
-                            <div>
                                 <!-- Последнее сообщение -->
-                                <div class="last_message">
+                                <div class="last_message"
+                                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
                                     <strong>{{ dialog.interlocutor_nickname }}:</strong>
                                     {% if '[[FILE]]' in dialog.last_message %}
                                     {% set parts = dialog.last_message.split('[[FILE]]') %}
                                     {% set text_part = parts[0] %}
                                     {% set file_info = parts[1].split('[[/FILE]]')[0] %}
                                     {% set file_name = file_info.split(', File Path: ')[1] %}
-                                    {{ text_part | truncate(25, true, '...') }} (Файл: {{ file_name | truncate(25, true,
+                                    {{ text_part | truncate(65, true, '...') }} (Файл: {{ file_name | truncate(25, true,
                                     '...') }})
                                     {% else %}
-                                    {{ dialog.last_message | truncate(25, true, '...') }}
+                                    {{ dialog.last_message | truncate(95, true, '...') }}
                                     {% endif %}
                                 </div>
-
-
+                            </div>
+                            <!-- Время последнего сообщения -->
+                            <div class="last_message_time"
+                                 style="position: absolute; top: 10px; right: 10px; font-size: 0.8em;">
+                                {{ dialog.last_message_time_formatted }}
                             </div>
                         </div>
+
                         <!-- Действия с диалогом -->
                         <!--                            {#                            <div class="dialog-actions">#}-->
                         <!--                            {#                                <form action="/dialogs/{{ dialog['id'] }}/delete_post" method="post">#}-->
@@ -310,43 +328,39 @@
                                  class="profile-picture">
                         </div>
                         <!-- Информация о чате -->
-                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column;">
-                            <div style="flex: 1;">
+                        <div class="chat-item small-title flex-grow"
+                             style="display: flex; flex-direction: column; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <strong class="username">{{ chat['chat_name'] }}</strong>
                                 <!-- Название группы жирным текстом -->
-                                {% if chat['id'] in left_chats %}
-                                <p>Вы покинули чат</p>
-                                {% endif %}
+                                <div class="last_message_time"
+                                     style="font-size: 0.8em;">
+                                    {{ chat['last_message_time_formatted'] }}
+                                    <!-- Предполагается, что это форматированное время -->
+                                </div>
                             </div>
-                            <div style="flex: 1;">
+                            {% if chat['id'] in left_chats %}
+                            <p>Вы покинули чат</p>
+                            {% endif %}
+                            <div class="last_message"
+                                 style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <!-- Обработка последнего сообщения -->
+                                <strong>{{ chat['last_message_sender_phone'] }}:</strong>
                                 {% if '[[FILE]]' in chat['last_message'] %}
                                 {% set file_message_parts = chat['last_message'].split('[[FILE]]') %}
                                 {% if ', ' in file_message_parts[1] %}
                                 {% set file_info_parts = file_message_parts[1].replace('[[/FILE]]', '').split(', ') %}
-                                <p class="last_message">
-                                    <strong class="last_message">{{ chat['last_message_sender_phone'] }}</strong>: {{
-                                    file_info_parts[1].split(': ')[1] }}
-                                </p>
-                                <!-- Никнейм пользователя жирным текстом -->
+                                {{ file_info_parts[1].split(': ')[1] }}
                                 {% endif %}
                                 {% else %}
-                                <div class="last_message">
-                                    <strong>{{ chat['last_message_sender_phone'] }}:</strong>
-                                    {% if '[[FILE]]' in chat['last_message'] %}
-                                    {{ chat['last_message'].split('[[FILE]]')[1].split('[[/FILE]]')[0].split(',
-                                    ')[1].split(': ')[1] | truncate(55, true, '...') }}
-                                    {% else %}
-                                    {{ chat['last_message'] | truncate(55, true, '...') }}
-                                    {% endif %}
-                                </div>
-
-                                <!-- Никнейм пользователя жирным текстом -->
+                                {{ chat['last_message'] }}
                                 {% endif %}
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
+
 
                 <!--                {#                <h2 class="small-header">Ваши каналы</h2>#}-->
                 <!--                {#                <div class="channel-list">#}-->
@@ -422,6 +436,152 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const currentUserId = "{{ current_user.id }}";
+    const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
+
+    socket.onopen = () => console.log("WebSocket connection opened for left panel");
+    socket.onclose = () => console.log("WebSocket connection closed for left panel");
+    socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
+
+    socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        if (data.action === 'user_online_status') {
+            updateInterlocutorOnlineStatus(data.user_id, data.is_online);
+        } else if (data.action === 'update_last_dialog_message') {
+            updateLastDialogMessage(data.dialog_id, data.timestamp);
+        } else if (data.action === 'new_chat') {
+            // Вызов функции для обновления списка групп
+            addNewChatToList(data.chat_id);
+        }
+    };
+
+     // Функция для добавления нового чата в список
+    function addNewChatToList(chatId) {
+        // Отправьте запрос на сервер для получения информации о новом чате
+        fetch(`/chat/info/${chatId}`)
+            .then(response => response.json())
+            .then(chatData => {
+                // Построение HTML элемента на основе полученных данных и добавление его в список
+                const chatList = document.querySelector('.chat-list');
+                const newChatHtml = `
+                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container" data-chat-id="${chatData.id}" style="cursor: pointer">
+                        <div class="profile-picture-container">
+                            <img src="/chat/picture/${chatData.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
+                        </div>
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong class="username">${chatData['chat_name']}</strong>
+                                <div class="last_message_time" style="font-size: 0.8em;">${chatData['last_message_time_formatted']}</div>
+                            </div>
+                            <div class="last_message" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <strong>${chatData['last_message_sender_phone']}:</strong> ${chatData['last_message']}
+                            </div>
+                        </div>
+                    </div>`;
+                chatList.innerHTML += newChatHtml;
+            })
+            .catch(error => console.error('Ошибка при получении данных о чате:', error));
+    }
+
+    function updateInterlocutorOnlineStatus(interlocutorId, isOnline) {
+        const dialogElements = document.querySelectorAll('.clickable-dialog');
+        dialogElements.forEach(element => {
+            if (element.dataset.interlocutorId === interlocutorId.toString()) {
+                const onlineIndicator = element.querySelector('.online-indicator-dialog');
+                if (onlineIndicator) {
+                    onlineIndicator.style.display = isOnline ? 'block' : 'none';
+                }
+            }
+        });
+    }
+
+    function updateLastDialogMessage(dialogId, timestamp) {
+        const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
+        if (dialogElement) {
+            const lastMessageTimeElement = dialogElement.querySelector('.last_message_time');
+            const formattedTime = formatMessageTime(timestamp);
+            if (lastMessageTimeElement) {
+                lastMessageTimeElement.textContent = formattedTime;
+            }
+        }
+    }
+
+    function formatMessageTime(timestamp) {
+        if (!timestamp) {
+            return "Invalid Date";
+        }
+        const messageDate = new Date(timestamp);
+        const now = new Date();
+        if (messageDate.toDateString() === now.toDateString()) {
+            return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+        } else {
+            return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+        }
+    }
+
+    const allChatsButton = document.getElementById('all-chats-button');
+    const dialogsButton = document.getElementById('dialogs-button');
+    const groupsButton = document.getElementById('groups-button');
+
+    allChatsButton.addEventListener('click', showAllChatsAndDialogs);
+    dialogsButton.addEventListener('click', showDialogs);
+    groupsButton.addEventListener('click', showGroupsOnly);
+
+    function showAllChatsAndDialogs() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'block';
+        chatList.style.display = 'block';
+
+        chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+            chat.style.display = 'flex';
+        });
+    }
+
+    function showDialogs() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'block';
+        chatList.style.display = 'none';
+    }
+
+    function showGroupsOnly() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'none';
+        chatList.style.display = 'block';
+
+        chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+            chat.style.display = 'flex';
+        });
+    }
+});
+
+
+
+function formatMessageTime(timestamp) {
+    if (!timestamp) {
+        return "Invalid Date";
+    }
+
+    const messageDate = new Date(timestamp);
+    const now = new Date();
+
+    // Проверяем, было ли сообщение отправлено сегодня
+    if (messageDate.toDateString() === now.toDateString()) {
+        // Если да, форматируем как ЧЧ:ММ
+        return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+    } else {
+        // Если нет, форматируем как ДД-ММ
+        return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+    }
+}
+
     function submitForm(event) {
         event.preventDefault();
         document.getElementById('dialogForm').submit();
@@ -532,142 +692,140 @@
     var ws;
     var isEditingMessage = false;
 
-function editMessage(messageIdStr) {
-    console.log("Editing message with ID:", messageIdStr);
-    const messageId = parseInt(messageIdStr, 10);
-    if (isNaN(messageId)) {
-        console.error(`Invalid messageId: ${messageIdStr}`);
-        return;
-    }
+    function editMessage(messageIdStr) {
+        console.log("Editing message with ID:", messageIdStr);
+        const messageId = parseInt(messageIdStr, 10);
+        if (isNaN(messageId)) {
+            console.error(`Invalid messageId: ${messageIdStr}`);
+            return;
+        }
 
-    let messageElement = document.querySelector(`[data-message-id="${messageId}"] .message-content`) ||
-        document.querySelector(`[data-message-id="${messageId}"] .message-self`);
+        let messageElement = document.querySelector(`[data-message-id="${messageId}"] .message-content`) ||
+            document.querySelector(`[data-message-id="${messageId}"] .message-self`);
 
-    if (!messageElement) {
-        console.error("Message element not found for ID:", messageId);
-        return;
-    }
+        if (!messageElement) {
+            console.error("Message element not found for ID:", messageId);
+            return;
+        }
 
-    // Извлечение текста сообщения
-    let messageText = extractMessageText(messageElement);
+        // Извлечение текста сообщения
+        let messageText = extractMessageText(messageElement);
 
-    // Обновление формы ввода сообщения
-    const textArea = document.querySelector('textarea[name="message"]');
-    if (textArea) {
-        textArea.value = messageText;
-        const submitButton = document.querySelector('#message-form button[type="submit"]');
-        if (submitButton) {
-            submitButton.textContent = 'Сохранить';
-            submitButton.onclick = function (e) {
-                e.preventDefault();
-                saveEditedMessage(messageId);
-            };
+        // Обновление формы ввода сообщения
+        const textArea = document.querySelector('textarea[name="message"]');
+        if (textArea) {
+            textArea.value = messageText;
+            const submitButton = document.querySelector('#message-form button[type="submit"]');
+            if (submitButton) {
+                submitButton.textContent = 'Сохранить';
+                submitButton.onclick = function (e) {
+                    e.preventDefault();
+                    saveEditedMessage(messageId);
+                };
+            } else {
+                console.error('Submit button not found');
+            }
         } else {
-            console.error('Submit button not found');
+            console.error('Textarea for message not found');
         }
-    } else {
-        console.error('Textarea for message not found');
+
+        // Обновление имени файла в элементе отображения
+        updateFileNameDisplayForEditing(messageElement);
+
+        isEditingMessage = true;
     }
 
-    // Обновление имени файла в элементе отображения
-    updateFileNameDisplayForEditing(messageElement);
+    function updateFileNameDisplayForEditing(messageElement) {
+        const fileLinkElement = messageElement.querySelector('a[href^="/files/"]');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const fileName = fileLinkElement ? fileLinkElement.textContent : '';
 
-    isEditingMessage = true;
-}
-
-function updateFileNameDisplayForEditing(messageElement) {
-    const fileLinkElement = messageElement.querySelector('a[href^="/files/"]');
-    const fileNameDisplay = document.getElementById('file-name-display');
-    const fileName = fileLinkElement ? fileLinkElement.textContent : '';
-
-    if (fileName) {
-        fileNameDisplay.textContent = 'Выбранный файл: ' + fileName;
-    } else {
-        fileNameDisplay.textContent = '';
-    }
-}
-
-function extractMessageText(messageElement) {
-    let fullText = messageElement.textContent || '';
-    const fileLinkElement = messageElement.querySelector('a[href^="/files/"]');
-
-    if (fileLinkElement) {
-        // Если есть файл, обрезаем текст до начала ссылки на файл
-        const fileLinkIndex = fullText.indexOf(fileLinkElement.textContent);
-        if (fileLinkIndex !== -1) {
-            fullText = fullText.substring(0, fileLinkIndex);
+        if (fileName) {
+            fileNameDisplay.textContent = 'Выбранный файл: ' + fileName;
+        } else {
+            fileNameDisplay.textContent = '';
         }
     }
 
-    // Удаление служебных слов и фраз
-    const serviceWords = ["Переслать", "Изменить", "Удалить сообщение", "Отправлено:", "None"];
-    serviceWords.forEach(word => {
-        fullText = fullText.replace(new RegExp(word, 'g'), '');
-    });
+    function extractMessageText(messageElement) {
+        let fullText = messageElement.textContent || '';
+        const fileLinkElement = messageElement.querySelector('a[href^="/files/"]');
 
-    return fullText.trim();
-}
+        if (fileLinkElement) {
+            // Если есть файл, обрезаем текст до начала ссылки на файл
+            const fileLinkIndex = fullText.indexOf(fileLinkElement.textContent);
+            if (fileLinkIndex !== -1) {
+                fullText = fullText.substring(0, fileLinkIndex);
+            }
+        }
+
+        // Удаление служебных слов и фраз
+        const serviceWords = ["Переслать", "Изменить", "Удалить сообщение", "Отправлено:", "None"];
+        serviceWords.forEach(word => {
+            fullText = fullText.replace(new RegExp(word, 'g'), '');
+        });
+
+        return fullText.trim();
+    }
 
 
+    function saveEditedMessage(messageId) {
+        const newMessageText = document.querySelector('textarea[name="message"]').value;
+        const currentDate = new Date().toLocaleString();
 
-function saveEditedMessage(messageId) {
-    const newMessageText = document.querySelector('textarea[name="message"]').value;
-    const currentDate = new Date().toLocaleString();
+        // Отправка обновленного сообщения через WebSocket
+        ws.send(JSON.stringify({
+            action: 'edit_message',
+            message_id: messageId,
+            new_text: newMessageText
+        }));
 
-    // Отправка обновленного сообщения через WebSocket
-    ws.send(JSON.stringify({
-        action: 'edit_message',
-        message_id: messageId,
-        new_text: newMessageText
-    }));
+        // Обновление элемента сообщения в DOM
+        let messageElement = document.querySelector(`[data-message-id="${messageId}"] .message-content`) ||
+            document.querySelector(`[data-message-id="${messageId}"] .message-self`);
 
-    // Обновление элемента сообщения в DOM
-    let messageElement = document.querySelector(`[data-message-id="${messageId}"] .message-content`) ||
-        document.querySelector(`[data-message-id="${messageId}"] .message-self`);
+        if (messageElement) {
+            // Очистка текущего текста сообщения
+            messageElement.innerHTML = '';
 
-    if (messageElement) {
-        // Очистка текущего текста сообщения
-        messageElement.innerHTML = '';
+            // Добавление нового текста сообщения
+            const newTextElement = document.createElement('div');
+            newTextElement.textContent = newMessageText;
+            messageElement.appendChild(newTextElement);
 
-        // Добавление нового текста сообщения
-        const newTextElement = document.createElement('div');
-        newTextElement.textContent = newMessageText;
-        messageElement.appendChild(newTextElement);
+            // Добавление метки "Изменено"
+            const editedMark = document.createElement('span');
+            editedMark.className = 'edited-mark';
+            editedMark.textContent = ` Изменено: ${currentDate}`;
+            messageElement.appendChild(editedMark);
 
-        // Добавление метки "Изменено"
-        const editedMark = document.createElement('span');
-        editedMark.className = 'edited-mark';
-        editedMark.textContent = ` Изменено: ${currentDate}`;
-        messageElement.appendChild(editedMark);
+            // Восстановление выпадающего меню
+            const dropdownMenu = messageElement.querySelector('.message-dropdown');
+            if (dropdownMenu) {
+                messageElement.appendChild(dropdownMenu);
+            }
+        }
 
-        // Восстановление выпадающего меню
-        const dropdownMenu = messageElement.querySelector('.message-dropdown');
-        if (dropdownMenu) {
-            messageElement.appendChild(dropdownMenu);
+        // Сброс состояния редактирования
+        resetEditingState();
+    }
+
+    function resetEditingState() {
+        // Обновление кнопки отправки и очистка поля ввода сообщения
+        const submitButton = document.querySelector('#message-form button[type="submit"]');
+        submitButton.textContent = 'Отправить';
+        submitButton.onclick = null;
+        document.querySelector('textarea[name="message"]').value = '';
+
+        // Сброс флага редактирования
+        isEditingMessage = false;
+
+        // Очистка отображения имени файла
+        const fileNameDisplay = document.getElementById('file-name-display');
+        if (fileNameDisplay) {
+            fileNameDisplay.textContent = '';
         }
     }
-
-    // Сброс состояния редактирования
-    resetEditingState();
-}
-
-function resetEditingState() {
-    // Обновление кнопки отправки и очистка поля ввода сообщения
-    const submitButton = document.querySelector('#message-form button[type="submit"]');
-    submitButton.textContent = 'Отправить';
-    submitButton.onclick = null;
-    document.querySelector('textarea[name="message"]').value = '';
-
-    // Сброс флага редактирования
-    isEditingMessage = false;
-
-    // Очистка отображения имени файла
-    const fileNameDisplay = document.getElementById('file-name-display');
-    if (fileNameDisplay) {
-        fileNameDisplay.textContent = '';
-    }
-}
-
 
 
     function updateDropdownMenuHandlers(dropdownMenu, messageId) {
@@ -729,16 +887,41 @@ function resetEditingState() {
         messageElement.appendChild(dropdown);
     }
 
-    // Инициализация кода для dialogs.html
-    function initializeDialogJS(dialogId, currentUserId) {  // Добавлен параметр currentUserId
-        const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
-        const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+// Инициализация кода для dialogs.html
+function initializeDialogJS(dialogId, currentUserId) {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
+    const access_token = cookie ? cookie.split('=')[1] : null;
+    ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
 
-        ws.onopen = function (event) {
-            console.log("WebSocket connection opened.", event);
-            ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
-        };
+    ws.onopen = function (event) {
+        console.log("WebSocket connection opened.", event);
+        ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
+
+        // Отображение зеленого индикатора онлайн-статуса
+        document.querySelector('.online-indicator').style.display = 'block';
+        showDialogInterlocutorOnlineIndicator();
+    };
+
+    ws.onclose = function (event) {
+        console.log("WebSocket connection closed.", event);
+        document.querySelector('.online-indicator').style.display = 'none';
+        hideDialogInterlocutorOnlineIndicator();
+    };
+
+    // Функции для показа/скрытия индикатора онлайн-статуса
+    function showDialogInterlocutorOnlineIndicator() {
+        const indicator = document.getElementById('online-indicator-interlocutor');
+        if (indicator) {
+            indicator.style.display = 'block';
+        }
+    }
+
+    function hideDialogInterlocutorOnlineIndicator() {
+        const indicator = document.getElementById('online-indicator-interlocutor');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
 
         // Автоматическая плавная прокрутка к последнему сообщению
         const messagesList = document.querySelector('.list-group');
@@ -790,66 +973,66 @@ function resetEditingState() {
 
 
         // Функция отправки сообщения
-const form = document.getElementById('message-form');
-form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    const formData = new FormData(form);
+        const form = document.getElementById('message-form');
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(form);
 
-    fetch(`/dialogs/${dialogId}/send_message`, {
-        method: 'POST',
-        body: formData
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to send message');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.message_id) {
-                const messagesList = document.querySelector('.list-group');
-                const newMessage = document.createElement('li');
-                newMessage.className = "message-item user";
-                newMessage.dataset.messageId = data.message_id;
+            fetch(`/dialogs/${dialogId}/send_message`, {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to send message');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.message_id) {
+                        const messagesList = document.querySelector('.list-group');
+                        const newMessage = document.createElement('li');
+                        newMessage.className = "message-item user";
+                        newMessage.dataset.messageId = data.message_id;
 
-                const messageContent = document.createElement('div');
-                messageContent.className = "message-content";
-                messageContent.dataset.messageId = data.message_id;
+                        const messageContent = document.createElement('div');
+                        messageContent.className = "message-content";
+                        messageContent.dataset.messageId = data.message_id;
 
-                // Создаем и добавляем текстовый узел для текста сообщения
-                const messageTextNode = document.createTextNode(data.message_text);
-                messageContent.appendChild(messageTextNode);
+                        // Создаем и добавляем текстовый узел для текста сообщения
+                        const messageTextNode = document.createTextNode(data.message_text);
+                        messageContent.appendChild(messageTextNode);
 
-                // Создаем и добавляем выпадающее меню
-                createDropdownMenu(messageContent, data.message_id);
+                        // Создаем и добавляем выпадающее меню
+                        createDropdownMenu(messageContent, data.message_id);
 
-                newMessage.appendChild(messageContent);
-                messagesList.appendChild(newMessage);
+                        newMessage.appendChild(messageContent);
+                        messagesList.appendChild(newMessage);
 
-                // Прокрутка к последнему сообщению
-                messagesList.scrollTop = messagesList.scrollHeight;
-            }
+                        // Прокрутка к последнему сообщению
+                        messagesList.scrollTop = messagesList.scrollHeight;
+                    }
 
-            // Очищаем поля ввода после отправки
-            form.querySelector('textarea[name="message"]').value = '';
-            const fileInput = form.querySelector('input[type="file"]');
-            if (fileInput) {
-                fileInput.value = '';
-                resetFileNameDisplay(); // Сброс отображения имени файла
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
+                    // Очищаем поля ввода после отправки
+                    form.querySelector('textarea[name="message"]').value = '';
+                    const fileInput = form.querySelector('input[type="file"]');
+                    if (fileInput) {
+                        fileInput.value = '';
+                        resetFileNameDisplay(); // Сброс отображения имени файла
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
         });
-});
 
 // Функция для сброса отображения имени файла
-function resetFileNameDisplay() {
-    var fileNameDisplay = document.getElementById('file-name-display');
-    if (fileNameDisplay) {
-        fileNameDisplay.textContent = '';
-    }
-}
+        function resetFileNameDisplay() {
+            var fileNameDisplay = document.getElementById('file-name-display');
+            if (fileNameDisplay) {
+                fileNameDisplay.textContent = '';
+            }
+        }
 
         ws.onmessage = function (event) {
             console.log("Получено сообщение через WebSocket:", event.data);
@@ -917,8 +1100,12 @@ function resetFileNameDisplay() {
                 const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${messageData.dialog_id}"]`);
                 if (dialogElement) {
                     let lastMessageElement = dialogElement.querySelector('.last_message');
+                    let lastMessageTimeElement = dialogElement.querySelector('.last_message_time'); // Элемент для времени
 
                     let messageText = messageData.last_message;
+                    // Форматируем время сообщения
+                    let messageTime = formatMessageTime(messageData.timestamp);
+
                     // Проверка наличия информации о файле в сообщении
                     if (messageText.includes('[[FILE]]') && messageText.includes('[[/FILE]]')) {
                         const [text, fileInfo] = messageText.split('[[FILE]]');
@@ -926,6 +1113,7 @@ function resetFileNameDisplay() {
                         messageText = text + (fileName ? " (Файл: " + fileName + ")" : ""); // Конкатенация текста сообщения и имени файла
                     }
 
+                    // Обновляем текст последнего сообщения
                     if (lastMessageElement) {
                         console.log("Обновляем существующий элемент последнего сообщения");
                         lastMessageElement.textContent = messageText;
@@ -936,7 +1124,31 @@ function resetFileNameDisplay() {
                         lastMessageElement.textContent = messageText;
                         dialogElement.appendChild(lastMessageElement);
                     }
+
+                    // Обновляем время последнего сообщения
+                    if (lastMessageTimeElement) {
+                        lastMessageTimeElement.textContent = messageTime;
+                    } else {
+                        console.log("Создаем новый элемент для времени последнего сообщения");
+                        lastMessageTimeElement = document.createElement('span');
+                        lastMessageTimeElement.classList.add('last_message_time');
+                        lastMessageTimeElement.textContent = messageTime;
+                        dialogElement.appendChild(lastMessageTimeElement);
+                    }
                 }
+             } else if (action === 'user_online_status') {
+        // Обработка статуса онлайн пользователя
+        const userId = messageData.user_id;
+        const isOnline = messageData.is_online;
+
+        // Проверка, соответствует ли ID пользователя собеседнику в диалоге
+        if (userId === parseInt(dialogId)) {
+            if (isOnline) {
+                showDialogInterlocutorOnlineIndicator();
+            } else {
+                hideDialogInterlocutorOnlineIndicator();
+            }
+        }
             } else if (messageData.message && messageData.message.sender_id) {
                 const currentUserId = "{{ current_user.id }}";
                 const newMessage = document.createElement('li');
@@ -1035,21 +1247,23 @@ function resetFileNameDisplay() {
                 }, 100);
             }
         };
-    }
-    function updateFileNameDisplay() {
-    var fileInput = document.getElementById('fileInput');
-    var fileNameDisplay = document.getElementById('file-name-display');
 
-    if (fileInput.files.length > 0) {
-        var fileNames = [];
-        for (var i = 0; i < fileInput.files.length; i++) {
-            fileNames.push(fileInput.files[i].name);
-        }
-        fileNameDisplay.textContent = 'Выбранные файлы: ' + fileNames.join(', ');
-    } else {
-        fileNameDisplay.textContent = '';
     }
-     }
+
+    function updateFileNameDisplay() {
+        var fileInput = document.getElementById('fileInput');
+        var fileNameDisplay = document.getElementById('file-name-display');
+
+        if (fileInput.files.length > 0) {
+            var fileNames = [];
+            for (var i = 0; i < fileInput.files.length; i++) {
+                fileNames.push(fileInput.files[i].name);
+            }
+            fileNameDisplay.textContent = 'Выбранные файлы: ' + fileNames.join(', ');
+        } else {
+            fileNameDisplay.textContent = '';
+        }
+    }
 
     // Функции для работы с сообщениями
     function deleteMessage(messageIdStr) {
@@ -1066,35 +1280,35 @@ function resetFileNameDisplay() {
 
 
     function toggleDropdownMenu(event) {
-    event.stopPropagation(); // Предотвращаем всплытие события
-    const dropdownMenu = event.target.nextElementSibling;
-    const isDisplayed = dropdownMenu.style.display === 'block';
+        event.stopPropagation(); // Предотвращаем всплытие события
+        const dropdownMenu = event.target.nextElementSibling;
+        const isDisplayed = dropdownMenu.style.display === 'block';
 
-    // Закрыть все открытые выпадающие меню перед открытием нового
-    closeAllDropdowns();
-
-    // Переключить состояние выбранного выпадающего списка
-    dropdownMenu.style.display = isDisplayed ? 'none' : 'block';
-
-    // Закрытие выпадающего списка при убирании курсора
-    dropdownMenu.onmouseleave = function() {
-        dropdownMenu.style.display = 'none';
-    };
-}
-
-function closeAllDropdowns() {
-    const allDropdowns = document.querySelectorAll('.message-options');
-    allDropdowns.forEach(function (menu) {
-        menu.style.display = 'none';
-    });
-}
-
-// Обработчик клика вне выпадающего списка
-document.addEventListener('click', function (event) {
-    if (!event.target.matches('.message-options-icon')) {
+        // Закрыть все открытые выпадающие меню перед открытием нового
         closeAllDropdowns();
+
+        // Переключить состояние выбранного выпадающего списка
+        dropdownMenu.style.display = isDisplayed ? 'none' : 'block';
+
+        // Закрытие выпадающего списка при убирании курсора
+        dropdownMenu.onmouseleave = function () {
+            dropdownMenu.style.display = 'none';
+        };
     }
-});
+
+    function closeAllDropdowns() {
+        const allDropdowns = document.querySelectorAll('.message-options');
+        allDropdowns.forEach(function (menu) {
+            menu.style.display = 'none';
+        });
+    }
+
+    // Обработчик клика вне выпадающего списка
+    document.addEventListener('click', function (event) {
+        if (!event.target.matches('.message-options-icon')) {
+            closeAllDropdowns();
+        }
+    });
 
 
     // Функция для открытия шторки с профилем пользователя
@@ -1373,7 +1587,7 @@ document.addEventListener('click', function (event) {
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -1707,34 +1921,37 @@ document.addEventListener('click', function (event) {
                         messageContentElement.appendChild(dropdownMenu);
                     }
                 }
-
-
             } else if (action === 'update_last_message') {
-                const chatElement = document.querySelector(`.clickable-chat[data-chat-id="${messageData.chat_id}"]`);
-                if (chatElement) {
-                    let lastMessageText = messageData.last_message;
+    const chatElement = document.querySelector(`.clickable-chat[data-chat-id="${messageData.chat_id}"]`);
+    if (chatElement) {
+        let lastMessageText = messageData.last_message;
+        let lastMessageTime = formatMessageTime(messageData.timestamp); // Форматирование времени сообщения
 
-                    // Проверяем, содержит ли сообщение информацию о файле
-                    if (lastMessageText.includes('[[FILE]]')) {
-                        const fileParts = lastMessageText.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ');
-                        const fileName = fileParts.find(part => part.startsWith('File Name')).split(': ')[1];
-                        lastMessageText = fileName; // Используем только имя файла для отображения
-                    }
+        // Обработка специального формата сообщения, например, для файлов
+        if (lastMessageText.includes('[[FILE]]')) {
+            const fileParts = lastMessageText.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ');
+            const fileName = fileParts.find(part => part.startsWith('File Name')).split(': ')[1];
+            lastMessageText = fileName; // Использование только имени файла для отображения
+        }
 
-                    // Обрезаем текст сообщения до 35 символов
-                    if (lastMessageText.length > 35) {
-                        lastMessageText = lastMessageText.substring(0, 35) + '...';
-                    }
+        // Получение или создание элемента для текста последнего сообщения
+        let lastMessageElement = chatElement.querySelector('.last_message');
+        if (!lastMessageElement) {
+            lastMessageElement = document.createElement('div');
+            lastMessageElement.classList.add('last_message');
+            chatElement.appendChild(lastMessageElement);
+        }
+        lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
 
-                    let lastMessageElement = chatElement.querySelector('.last_message');
-                    if (lastMessageElement) {
-                        lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
-                    } else {
-                        lastMessageElement = document.createElement('p');
-                        lastMessageElement.classList.add('last_message');
-                        lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
-                        chatElement.appendChild(lastMessageElement);
-                    }
+        // Получение или создание элемента для времени последнего сообщения
+        let lastMessageTimeElement = chatElement.querySelector('.last_message_time');
+        if (!lastMessageTimeElement) {
+            lastMessageTimeElement = document.createElement('div');
+            lastMessageTimeElement.classList.add('last_message_time');
+            chatElement.appendChild(lastMessageTimeElement);
+        }
+        lastMessageTimeElement.textContent = lastMessageTime;
+
                 }
             } else if (messageData.message && messageData.sender_phone_number) {
                 const messagesList = document.getElementById('chat-history');
@@ -1830,6 +2047,8 @@ document.addEventListener('click', function (event) {
                 console.warn('Неожиданный формат сообщения: ', messageData);
             }
         };
+
+
         let chatOwnerId;
 
 // Предполагается, что chatId уже определен
