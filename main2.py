@@ -21,6 +21,11 @@ from typing import List, Optional, Dict, Tuple, Any
 from typing import Union
 from urllib.parse import quote, unquote
 
+from PIL import Image
+import io
+import ffmpeg
+import zstandard as zstd
+
 # Модули для работы с SQL базами данных
 import aiomysql
 # Сторонние библиотеки для безопасности и хеширования паролей
@@ -1320,19 +1325,60 @@ async def get_file(file_id: int):
         headers=headers
     )
 
+async def compress_video(input_file_content):
+    """
+    Функция для асинхронного сжатия видео.
+    input_file_content: байты исходного видео файла.
+    Возвращает: байты сжатого видео файла.
+    """
+    # Создаем временный файл для исходного видео
+    with tempfile.NamedTemporaryFile(suffix='.mp4') as temp_input:
+        temp_input.write(input_file_content)
+        temp_input.flush()
 
-# Сохраняет файл в базу данных.
+        # Создаем временный файл для сжатого видео
+        with tempfile.NamedTemporaryFile(suffix='.mp4') as temp_output:
+            # Конфигурация сжатия видео: уменьшение разрешения и битрейта
+            stream = ffmpeg.input(temp_input.name)
+            stream = ffmpeg.output(stream, temp_output.name, vcodec='libx265', crf=28, video_bitrate='500k', size='640x360')
+            ffmpeg.run(stream)
+
+            # Чтение сжатого видео и возврат его содержимого
+            temp_output.seek(0)
+            return temp_output.read()
+
+# Сохраняет файл в базу данных
 async def save_file(nickname: str, file_path: str, file_content: bytes, file_extension: str):
     logging.info(f"Saving file for nickname: {nickname}")
 
-    # Сжатие содержимого файла
-    compressed_file_content = gzip.compress(file_content)
+    original_size_bytes = len(file_content)
+
+    # Определение типа файла и применение соответствующего сжатия
+    if file_extension.lower() in ['.jpg', '.jpeg', '.png']:
+        # Сжатие изображения с уменьшением размера и преобразованием в JPEG
+        image = Image.open(io.BytesIO(file_content))
+        image.thumbnail((800, 800), Image.ANTIALIAS)  # Более сильное уменьшение размера
+        output = io.BytesIO()
+        image.save(output, format='JPEG', quality=70)  # Уменьшение качества
+        compressed_file_content = output.getvalue()
+    elif file_extension.lower() in ['.mp4', '.avi', '.mov']:  # Добавлен .mov
+        # Сжатие видео
+        compressed_file_content = await compress_video(file_content)
+    else:
+        # Применение алгоритма Zstandard для сжатия
+        cctx = zstd.ZstdCompressor()
+        compressed_file_content = cctx.compress(file_content)
+
+    compressed_size_bytes = len(compressed_file_content)
+
+    # Логирование размеров файла
+    logging.info(f"Original file size: {original_size_bytes} bytes, {original_size_bytes / 1024:.2f} KB, {original_size_bytes / 1024**2:.2f} MB")
+    logging.info(f"Compressed file size: {compressed_size_bytes} bytes, {compressed_size_bytes / 1024:.2f} KB, {compressed_size_bytes / 1024**2:.2f} MB")
 
     query = files.insert().values(nickname=nickname, file_path=file_path, file=compressed_file_content,
                                   file_extension=file_extension)
     file_id = await database.execute(query)
     return file_id
-
 
 # Удаляет файл по его идентификатору
 async def delete_file(file_id: int) -> bool:
