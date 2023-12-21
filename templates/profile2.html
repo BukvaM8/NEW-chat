@@ -160,15 +160,30 @@
                 <div class="d-flex flex-column align-items-start">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="text-left text-blue mb-2"><strong>Статус:</strong></div>
-                        <img src="../static/edit.svg" alt="Картинка" class="ml-2" style="padding-left: 50px">
+                        <button id="edit-status-button"
+                                style="text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none; margin-left: 310px">
+                            <img id="status_id" src="../static/edit.svg" alt="Картинка" class="ml-2">
+                        </button>
+                        <div class="form-group" style="display: none;" id="status-edit-fields">
+                            <div style="display: flex;">
+                                <button id="reject-status"
+                                        style="display: flex; text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none; margin-left: 300px">
+                                    <img id="status_reject_id" src="../static/confirm.svg" alt="Картинка" class="ml-2">
+                                </button>
+                                <button id="confirm-status"
+                                        style="display: flex; text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none">
+                                    <img id="status_confirm_id" src="../static/reject.svg" alt="Картинка" class="ml-2"
+                                         style="padding-left: 5px;">
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="text-left mb-2" id="user-status">{{ user.status }}</div>
-                    <button class="btn btn-primary edit-button" id="edit-status-button">Редактировать статус</button>
-                    <div class="form-group" style="display: none;" id="status-edit-fields">
-                        <input type="text" class="form-control" id="new-status">
-                        <button class="btn btn-success mt-2 edit-button" id="confirm-status">Подтвердить</button>
-                    </div>
+                    <input type="text" class="form-control" id="new-status" style="display: none">
                     <div class="form-check mb-2">
                         <input type="checkbox" class="form-check-input" id="showStatus"
                                {% if user.status_visibility %}checked{% endif %}>
@@ -179,69 +194,106 @@
                 <br>
                 <div class="d-flex flex-column align-items-start">
                     <div class="text-left text-blue mb-2"><strong>Пароль:</strong></div>
-                    <div class="text-left" id="password">{{ user.password }}</div>
-                    <button class="btn btn-primary edit-button" id="changePassword">Изменить пароль</button>
+                    <button id="changePassword"
+                            style="text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none; margin-left: 310px">
+                        <img id="password_id" src="../static/edit.svg" alt="Картинка" class="ml-2">
+                    </button>
                     <div class="form-group" style="display: none;" id="password-change-fields">
+                        <div style="display: flex;">
+                            <button id="reject-password"
+                                    style="display: flex; text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none; margin-left: 300px">
+                                <img id="password_reject_id" src="../static/confirm.svg" alt="Картинка" class="ml-2">
+                            </button>
+                            <button id="confirm-password"
+                                    style="display: flex; text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none">
+                                <img id="password_confirm_id" src="../static/reject.svg" alt="Картинка" class="ml-2"
+                                     style="padding-left: 5px;">
+                            </button>
+                        </div>
                         <input type="password" class="form-control" id="new-password">
-                        <input type="text" class="form-control" id="show-password" style="display: none;">
-                        <button class="btn btn-success mt-2 edit-button" id="toggle-password">Показать пароль</button>
-                        <button class="btn btn-success mt-2 edit-button" id="confirm-password">Подтвердить</button>
                     </div>
+                    <div class="text-left" id="password">{{ user.password }}</div>
                     <div class="form-group" style="display: none;" id="confirmation-code-password">
                         <div class="code-input">
                             <input type="text" maxlength="6" id="code" class="code-box"/>
                             <div class="code-container">
-                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                <input type="text" maxlength="1" class="code-digit"
+                                       oninput="moveToNextOrPrevious(this, 'password')"
                                        onkeydown="moveToPrevious(this)"/>
-                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                <input type="text" maxlength="1" class="code-digit"
+                                       oninput="moveToNextOrPrevious(this, 'password')"
                                        onkeydown="moveToPrevious(this)"/>
-                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                <input type="text" maxlength="1" class="code-digit"
+                                       oninput="moveToNextOrPrevious(this, 'password')"
                                        onkeydown="moveToPrevious(this)"/>
-                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                <input type="text" maxlength="1" class="code-digit"
+                                       oninput="moveToNextOrPrevious(this, 'password')"
                                        onkeydown="moveToPrevious(this)"/>
-                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                <input type="text" maxlength="1" class="code-digit"
+                                       oninput="moveToNextOrPrevious(this, 'password')"
                                        onkeydown="moveToPrevious(this)"/>
-                                <input type="text" maxlength="1" class="code-digit" oninput="moveToNextOrPrevious(this)"
+                                <input type="text" maxlength="1" class="code-digit"
+                                       oninput="moveToNextOrPrevious(this, 'password')"
                                        onkeydown="moveToPrevious(this)"/>
                             </div>
                         </div>
-                        <button class="btn btn-success mt-2 edit-button" id="confirm-code">Подтвердить изменения
-                        </button>
                     </div>
                 </div>
 
                 <br>
                 <div class="d-flex flex-column align-items-start">
                     <div class="text-left text-blue mb-2"><strong>Почта:</strong></div>
-                    <div class="text-left mb-2" id="email">{{ user.email }}</div>
-                    <!-- Добавляем кнопку для изменения почты -->
-                    <button class="btn btn-primary edit-button" id="changeEmail">Изменить почту</button>
+                    <button id="changeEmail"
+                            style="text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none; margin-left: 310px">
+                        <img id="email_id" src="../static/edit.svg" alt="Картинка" class="ml-2">
+                    </button>
                     <div class="form-group" style="display: none;" id="email-change-fields">
+                        <div style="display: flex;">
+                            <button id="reject-email"
+                                    style="display: flex; text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none; margin-left: 300px">
+                                <img id="email_reject_id" src="../static/confirm.svg" alt="Картинка" class="ml-2">
+                            </button>
+                            <button id="confirm-email"
+                                    style="display: flex; text-decoration: none; background: none; border: none; padding: 0;
+                                margin: 0; overflow: hidden; outline: none">
+                                <img id="email_confirm_id" src="../static/reject.svg" alt="Картинка" class="ml-2"
+                                     style="padding-left: 5px;">
+                            </button>
+                        </div>
                         <input type="email" class="form-control" id="new-email">
-                        <button class="btn btn-success mt-2 edit-button" id="confirm-email">Подтвердить</button>
                     </div>
+                    <div class="text-left mb-2" id="email">{{ user.email }}</div>
+                    {#                    <div class="form-group" style="display: none;" id="email-change-fields">#}
+                    {#                        <input type="email" class="form-control" id="new-email">#}
+                    {#                        <button class="btn btn-success mt-2 edit-button" id="confirm-email">Подтвердить</button>#}
+                    {#                    </div>#}
                     <div class="form-group" style="display: none;" id="confirmation-code-newemail">
                         <label for="newemail-confirmation-code">Код подтверждения (придет на новую почту)</label>
                         <div class="code-input">
                             <input type="text" maxlength="6" id="newcode-email" class="code-box"/>
                             <div class="code-container">
                                 <input type="text" maxlength="1" class="code-digit-new-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-new-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-new-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-new-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-new-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-new-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                             </div>
                         </div>
@@ -252,22 +304,22 @@
                             <input type="text" maxlength="6" id="oldcode-email" class="code-box"/>
                             <div class="code-container">
                                 <input type="text" maxlength="1" class="code-digit-old-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-old-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-old-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-old-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-old-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                                 <input type="text" maxlength="1" class="code-digit-old-email"
-                                       oninput="moveToNextOrPrevious(this)"
+                                       oninput="moveToNextOrPrevious(this, 'email')"
                                        onkeydown="moveToPrevious(this)"/>
                             </div>
                         </div>
@@ -317,7 +369,8 @@
     });
 
 
-    function moveToNextOrPrevious(input) {
+    function moveToNextOrPrevious(input, key) {
+        console.log(key);
         var maxLength = input.maxLength;
         var currentLength = input.value.length;
 
@@ -325,6 +378,11 @@
             var nextInput = input.nextElementSibling;
             if (nextInput) {
                 nextInput.focus();
+            } else {
+                if (key === 'password')
+                    confirmPassword();
+                else
+                    confirmEmail();
             }
         } else if (currentLength === 0) {
             var previousInput = input.previousElementSibling;
@@ -343,304 +401,348 @@
         }
     }
 
-    document.getElementById('toggle-password').addEventListener('click', function () {
-        var newPasswordInput = document.getElementById('new-password');
-        var showPasswordInput = document.getElementById('show-password');
+    {#document.getElementById('toggle-password').addEventListener('click', function () {#}
+    {#    var newPasswordInput = document.getElementById('new-password');#}
+    {#    var showPasswordInput = document.getElementById('show-password');#}
+    {##}
+    {#    if (newPasswordInput.style.display === 'none') {#}
+    {#        newPasswordInput.style.display = 'block';#}
+    {#        showPasswordInput.style.display = 'none';#}
+    {#        this.textContent = 'Показать пароль';#}
+    {#    } else {#}
+    {#        newPasswordInput.style.display = 'none';#}
+    {#        showPasswordInput.style.display = 'block';#}
+    {#        showPasswordInput.value = newPasswordInput.value;#}
+    {#        this.textContent = 'Скрыть пароль';#}
+    {#    }#}
+    {#})
+        ;
+        #}
 
-        if (newPasswordInput.style.display === 'none') {
-            newPasswordInput.style.display = 'block';
-            showPasswordInput.style.display = 'none';
-            this.textContent = 'Показать пароль';
-        } else {
-            newPasswordInput.style.display = 'none';
-            showPasswordInput.style.display = 'block';
-            showPasswordInput.value = newPasswordInput.value;
-            this.textContent = 'Скрыть пароль';
-        }
-    });
-
-    $(document).ready(function () {
-        $("#changePassword").click(function () {
-            $("#changePassword").hide();
-            $("#password-change-fields").show();
+        $(document).ready(function () {
+            $("#changePassword").click(function () {
+                $("#changePassword").hide();
+                $("#password").hide();
+                $("#password-change-fields").show();
+                $("#confirm-password").show();
+                $("#reject-password").show();
+            });
+            $("#changeEmail").click(function () {
+                $("#changeEmail").hide();
+                $("#email").hide();
+                $("#email-change-fields").show();
+            });
+            $("#edit-status-button").click(function () {
+                $("#edit-status-button").hide();
+                $("#status_id").hide();
+                $("#status_reject_id").show();
+                $("#status_confirm_id").show();
+                $("#status-edit-fields").show();
+                $("#new-status").show();
+                $("#user-status").hide();
+                document.getElementById("new-status").value = document.getElementById("user-status").innerHTML;
+            });
+            $("#reject-status").click(function () {
+                $("#edit-status-button").show();
+                $("#status_id").show();
+                $("#status_reject_id").hide();
+                $("#status_confirm_id").hide();
+                $("#status-edit-fields").hide();
+                $("#new-status").hide();
+                $("#user-status").show();
+            });
+            $("#reject-password").click(function () {
+                $("#changePassword").show();
+                $("#password").show();
+                $("#password-change-fields").hide();
+                $("#confirm-password").hide();
+                $("#reject-password").hide();
+                $("#confirmation-code-password").hide();
+            });
+            $("#reject-email").click(function () {
+                $("#changeEmail").show();
+                $("#email").show();
+                $("#email-change-fields").hide();
+                $("#confirmation-code-email").hide();
+                $("#confirmation-code-newemail").hide();
+            });
         });
-        $("#changeEmail").click(function () {
-            $("#changeEmail").hide();
-            $("#email-change-fields").show();
+
+        changePhotoButton.addEventListener("click", function () {
+            photoUpload.click();
         });
-        $("#edit-status-button").click(function () {
-            $("#edit-status-button").hide();
-            $("#status-edit-fields").show();
+
+        document.getElementById("photo-upload").addEventListener("change", function (event) {
+            const fileInput = event.target;
+
+            if (fileInput.files && fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append("image", fileInput.files[0]);
+
+                fetch(`/upload/${userId}/profile_picture/`, {
+                    method: "POST",
+                    body: formData,
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        const selectedFile = event.target.files[0];
+
+                        if (selectedFile) {
+                            const reader = new FileReader();
+                            reader.onload = function (e) {
+                                profileImage.src = e.target.result;
+                            };
+                            reader.readAsDataURL(selectedFile);
+                        }
+                    })
+                    .catch(error => {
+                    });
+            }
         });
-    });
 
-    changePhotoButton.addEventListener("click", function () {
-        photoUpload.click();
-    });
-
-    document.getElementById("photo-upload").addEventListener("change", function (event) {
-        const fileInput = event.target;
-
-        if (fileInput.files && fileInput.files[0]) {
-            const formData = new FormData();
-            formData.append("image", fileInput.files[0]);
-
-            fetch(`/upload/${userId}/profile_picture/`, {
-                method: "POST",
-                body: formData,
+        document.getElementById('logout-button').addEventListener('click', function () {
+// Выполнение AJAX-запроса к серверу для вызова функции logout
+            fetch('/logout', {
+                method: 'GET', // или другой HTTP метод, который ваш сервер ожидает
+// Может потребоваться добавить заголовки или токен аутентификации, если они требуются
             })
-                .then(response => response.json())
-                .then(data => {
-                    const selectedFile = event.target.files[0];
-
-                    if (selectedFile) {
-                        const reader = new FileReader();
-                        reader.onload = function (e) {
-                            profileImage.src = e.target.result;
-                        };
-                        reader.readAsDataURL(selectedFile);
+                .then(response => {
+                    if (response.status === 200) {
+// Обработка успешного выхода
+                        window.location.href = '/login'; // Перенаправление пользователя на страницу входа
+                    } else {
+// Обработка ошибки
+                        console.error('Не удалось выполнить выход');
                     }
                 })
                 .catch(error => {
+                    console.error('Ошибка при выполнении запроса:', error);
+                });
+        });
+
+        document.getElementById("confirm-status").addEventListener("click", function () {
+            let newStatus = document.getElementById("new-status").value;
+            let nickname = document.getElementById("nickname").innerHTML;
+
+            fetch("/update-status", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({nickname: nickname, showStatus: newStatus}),
+            })
+                .then(response => {
+                    if (response.ok) {
+                        document.getElementById("status-edit-fields").style.display = "none";
+                        document.getElementById("edit-status-button").style.display = "block";
+                        document.getElementById("user-status").innerHTML = newStatus;
+                        $("#new-status").hide();
+                        $("#user-status").show();
+                        $("#edit-status-button").show();
+                    } else {
+                        throw new Error("Network response was not ok");
+                    }
+                })
+                .then(data => {
+
+                })
+                .catch(error => {
+// Обработка ошибки, если необходимо
+                    console.error("Ошибка: " + error.message);
+                });
+        });
+
+
+        document.getElementById("confirm-password").addEventListener("click", function () {
+            let nickname = document.getElementById("nickname").innerHTML;
+            let email = document.getElementById("email").innerHTML;
+            fetch("/send-code", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({nickname: nickname, email: email})
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error("Network response was not ok");
+                    }
+                })
+                .then(data => {
+                })
+                .catch(error => {
+                    console.error("Ошибка: " + error.message);
+                });
+
+            document.getElementById("confirmation-code-password").style.display = "block";
+            document.getElementById("confirm-password").style.display = "none";
+        });
+
+        function confirmPassword() {
+            const codeValues = Array.from(codeDigits).map(input => input.value);
+            let newPassword = document.getElementById("new-password").value;
+            let confirmationCode = codeValues.join('');
+            let nickname = document.getElementById("nickname").innerHTML;
+
+            fetch("/change_password", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    new_password: newPassword,
+                    confirmation_code: confirmationCode,
+                    nickname: nickname
+                })
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error("Network response was not ok");
+                    }
+                })
+                .then(data => {
+                    alert(data.message);
+                    console.log(document.getElementById("password").value)
+                    document.getElementById("password-change-fields").style.display = "none";
+                    document.getElementById("confirmation-code-password").style.display = "none";
+                    document.getElementById("changePassword").style.display = "block";
+                    document.getElementById("password").innerHTML = data.password.substring(0, 8).replace(/./g, "&#8226; ");
+                    $("#password").show();
+                })
+                .catch(error => {
+                    alert(error.message);
+                    $("#password").show();
                 });
         }
-    });
 
-    document.getElementById('logout-button').addEventListener('click', function () {
-// Выполнение AJAX-запроса к серверу для вызова функции logout
-        fetch('/logout', {
-            method: 'GET', // или другой HTTP метод, который ваш сервер ожидает
-// Может потребоваться добавить заголовки или токен аутентификации, если они требуются
-        })
-            .then(response => {
-                if (response.status === 200) {
-// Обработка успешного выхода
-                    window.location.href = '/login'; // Перенаправление пользователя на страницу входа
-                } else {
-// Обработка ошибки
-                    console.error('Не удалось выполнить выход');
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка при выполнении запроса:', error);
-            });
-    });
-
-    document.getElementById("confirm-status").addEventListener("click", function () {
-        let newStatus = document.getElementById("new-status").value;
-        let nickname = document.getElementById("nickname").innerHTML;
-
-        fetch("/update-status", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({nickname: nickname, showStatus: newStatus}),
-        })
-            .then(response => {
-                if (response.ok) {
-                    document.getElementById("status-edit-fields").style.display = "none";
-                    document.getElementById("edit-status-button").style.display = "block";
-                    document.getElementById("user-status").innerHTML = newStatus;
-                } else {
-                    throw new Error("Network response was not ok");
-                }
-            })
-            .then(data => {
-
-            })
-            .catch(error => {
-// Обработка ошибки, если необходимо
-                console.error("Ошибка: " + error.message);
-            });
-    });
-
-
-    document.getElementById("confirm-password").addEventListener("click", function () {
-        let nickname = document.getElementById("nickname").innerHTML;
-        let email = document.getElementById("email").innerHTML;
-        fetch("/send-code", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({nickname: nickname, email: email})
-        })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                } else {
-                    throw new Error("Network response was not ok");
-                }
-            })
-            .then(data => {
-            })
-            .catch(error => {
-                console.error("Ошибка: " + error.message);
-            });
-
-        document.getElementById("confirmation-code-password").style.display = "block";
-        document.getElementById("confirm-password").style.display = "none";
-    });
-
-    document.getElementById("confirm-code").addEventListener("click", function () {
-        const codeValues = Array.from(codeDigits).map(input => input.value);
-        let newPassword = document.getElementById("new-password").value;
-        let confirmationCode = codeValues.join('');
-        let nickname = document.getElementById("nickname").innerHTML;
-
-        fetch("/change_password", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                new_password: newPassword,
-                confirmation_code: confirmationCode,
-                nickname: nickname
-            })
-        })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                } else {
-                    throw new Error("Network response was not ok");
-                }
-            })
-            .then(data => {
-                alert(data.message);
-                console.log(document.getElementById("password").value)
-                document.getElementById("password-change-fields").style.display = "none";
-                document.getElementById("confirmation-code-password").style.display = "none";
-                document.getElementById("changePassword").style.display = "block";
-                document.getElementById("password").innerHTML = data.password.substring(0, 8).replace(/./g, "&#8226; ");
-            })
-            .catch(error => {
-                alert(error.message);
-            });
-    });
-    document.getElementById("confirm-email").addEventListener("click", function () {
-        let email = document.getElementById("email").innerHTML;
-        let newEmail = document.getElementById("new-email").value;
-        let nickname = document.getElementById("nickname").innerHTML;
+        document.getElementById("confirm-email").addEventListener("click", function () {
+            let email = document.getElementById("email").innerHTML;
+            let newEmail = document.getElementById("new-email").value;
+            let nickname = document.getElementById("nickname").innerHTML;
 
 // Отправить запрос на отправку кода подтверждения для email
-        fetch("/send-email-code", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({nickname: nickname, email: email, new_email: newEmail})
-        })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                } else {
-                    throw new Error("Network response was not ok");
-                }
+            fetch("/send-email-code", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({nickname: nickname, email: email, new_email: newEmail})
             })
-            .then(data => {
-            })
-            .catch(error => {
-                console.error("Ошибка: " + error.message);
-            });
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error("Network response was not ok");
+                    }
+                })
+                .then(data => {
+                })
+                .catch(error => {
+                    console.error("Ошибка: " + error.message);
+                });
 
-        document.getElementById("confirmation-code-email").style.display = "block";
-        document.getElementById("confirmation-code-newemail").style.display = "block";
-    });
+            document.getElementById("confirmation-code-email").style.display = "block";
+            document.getElementById("confirmation-code-newemail").style.display = "block";
+            document.getElementById("confirm-email").style.display = "none";
+        });
 
-    document.getElementById("confirm-email-code").addEventListener("click", function () {
-        let email = document.getElementById("email").innerHTML;
-        let newEmail = document.getElementById("new-email").value;
-        const codeValuesNew = Array.from(codeDigitsNewEmail).map(input => input.value);
-        const codeValuesOld = Array.from(codeDigitsOldEmail).map(input => input.value);
-        let emailConfirmationCode = codeValuesOld.join('');
-        let newEmailConfirmationCode = codeValuesNew.join('');
-        let nickname = document.getElementById("nickname").innerHTML;
+        document.getElementById("confirm-email-code").addEventListener("click", function () {
+            let email = document.getElementById("email").innerHTML;
+            let newEmail = document.getElementById("new-email").value;
+            const codeValuesNew = Array.from(codeDigitsNewEmail).map(input => input.value);
+            const codeValuesOld = Array.from(codeDigitsOldEmail).map(input => input.value);
+            let emailConfirmationCode = codeValuesOld.join('');
+            let newEmailConfirmationCode = codeValuesNew.join('');
+            let nickname = document.getElementById("nickname").innerHTML;
 
 // Отправить запрос для изменения email с помощью кода подтверждения
-        fetch("/change_email", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                email: email,
-                new_email: newEmail,
-                confirmation_code: emailConfirmationCode,
-                new_confirmation_code: newEmailConfirmationCode,
-                nickname: nickname
+            fetch("/change_email", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    email: email,
+                    new_email: newEmail,
+                    confirmation_code: emailConfirmationCode,
+                    new_confirmation_code: newEmailConfirmationCode,
+                    nickname: nickname
+                })
             })
-        })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                } else {
-                    throw new Error("Network response was not ok");
-                }
-            })
-            .then(data => {
-                alert(data.message);
-                document.getElementById("confirmation-code-email").style.display = "none";
-                document.getElementById("confirmation-code-newemail").style.display = "none";
-                document.getElementById("email-change-fields").style.display = "none";
-                document.getElementById("changeEmail").style.display = "block";
-                document.getElementById("email").innerHTML = data.email
-            })
-            .catch(error => {
-                alert(error.message);
-            });
-    });
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error("Network response was not ok");
+                    }
+                })
+                .then(data => {
+                    alert(data.message);
+                    document.getElementById("confirmation-code-email").style.display = "none";
+                    document.getElementById("confirmation-code-newemail").style.display = "none";
+                    document.getElementById("email-change-fields").style.display = "none";
+                    document.getElementById("changeEmail").style.display = "block";
+                    document.getElementById("email").innerHTML = data.email
+                    document.getElementById("email").style.display = "block";
+                })
+                .catch(error => {
+                    alert(error.message);
+                });
+        });
 
-    document.getElementById("showStatus").addEventListener("change", function () {
-        const isChecked = this.checked;
-        const nickname = document.getElementById("nickname").textContent;
-
-// Отправляем запрос к FastAPI бэкенду с использованием fetch
-        fetch("/update-status-visibility", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({nickname: nickname, showStatus: isChecked}),
-        })
-            .then(response => {
-                if (response.ok) {
-// Обработка успешного ответа от сервера, если необходимо
-                } else {
-                    throw new Error("Network response was not ok");
-                }
-            })
-            .catch(error => {
-// Обработка ошибки, если необходимо
-                console.error("Ошибка: " + error.message);
-            });
-    });
-
-    document.getElementById("showEmail").addEventListener("change", function () {
-        const isChecked = this.checked;
-        const nickname = document.getElementById("nickname").textContent;
+        document.getElementById("showStatus").addEventListener("change", function () {
+            const isChecked = this.checked;
+            const nickname = document.getElementById("nickname").textContent;
 
 // Отправляем запрос к FastAPI бэкенду с использованием fetch
-        fetch("/update-email-visibility", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({nickname: nickname, showEmail: isChecked}),
-        })
-            .then(response => {
-                if (response.ok) {
-// Обработка успешного ответа от сервера, если необходимо
-                } else {
-                    throw new Error("Network response was not ok");
-                }
+            fetch("/update-status-visibility", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({nickname: nickname, showStatus: isChecked}),
             })
-            .catch(error => {
+                .then(response => {
+                    if (response.ok) {
+// Обработка успешного ответа от сервера, если необходимо
+                    } else {
+                        throw new Error("Network response was not ok");
+                    }
+                })
+                .catch(error => {
 // Обработка ошибки, если необходимо
-                console.error("Ошибка: " + error.message);
-            });
-    });
+                    console.error("Ошибка: " + error.message);
+                });
+        });
+
+        document.getElementById("showEmail").addEventListener("change", function () {
+            const isChecked = this.checked;
+            const nickname = document.getElementById("nickname").textContent;
+
+// Отправляем запрос к FastAPI бэкенду с использованием fetch
+            fetch("/update-email-visibility", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({nickname: nickname, showEmail: isChecked}),
+            })
+                .then(response => {
+                    if (response.ok) {
+// Обработка успешного ответа от сервера, если необходимо
+                    } else {
+                        throw new Error("Network response was not ok");
+                    }
+                })
+                .catch(error => {
+// Обработка ошибки, если необходимо
+                    console.error("Ошибка: " + error.message);
+                });
+        });
 </script>
 
 </body>

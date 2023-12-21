@@ -461,10 +461,10 @@
                             <small class="status">{{ owner['status'] }}</small>
                         </div>
                     </div>
-                    <hr class="my-0">
                 </div>
             </div>
         </div>
+        <hr class="my-0" ; style="margin-right: 13px">
     </div>
 
     <hr>
@@ -487,8 +487,8 @@
                                 <small class="status">{{ user['status'] }}</small>
                             </div>
                         </div>
-                        <hr class="my-0">
                     </div>
+                    <hr class="my-0" style="width: 400px">
                 {% endfor %}
             </div>
             <!-- Кнопка "Добавить участника" -->
@@ -539,7 +539,8 @@
         <!-- Список сообщений -->
         <ul class="messages-list" id="chat-history">
             {% for message in messages %}
-                <div style="margin-bottom: 0">
+                <div class="all_message" data-message-id="{{ message.id }}">
+                <div class="message-nickname" data-message-id="{{ message.id }}" style="margin-bottom: 0">
                     {% if message.sender_phone_number != current_user.phone_number %}
                         <a href="/profile/{{ message.sender_nickname }}"
                            style="text-decoration: none; color: black">
@@ -549,7 +550,7 @@
                 </div>
                 <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"
                      data-message-id="{{ message.id }}" style="padding-top: 0; margin-bottom: 0">
-                    <div class="message-content">
+                    <div class="message-content" style="margin-bottom: 0">
                         <div class="message-header">
                             {% if message.sender_phone_number == "deleted" %}
                                 <h4>Deleted message</h4>
@@ -591,9 +592,9 @@
                     </div>
                 </div>
                 {% if message.sender_phone_number == current_user.phone_number %}
-                    <div style="text-align: right">
+                    <div class="message-time" style="text-align: right" data-message-id="{{ message.id }}">
                 {% else %}
-                    <div style="text-align: left">
+                    <div class="message-time" style="text-align: left" data-message-id="{{ message.id }}">
                 {% endif %}
             <small class="time">
                 {% if message.edit_timestamp %}
@@ -602,8 +603,9 @@
                     {{ message.timestamp }}
                 {% endif %}
             </small>
+            <div style="height: 12px"></div>
             </div>
-                <br>
+            </div>
             {% endfor %}
         </ul>
     </div>
@@ -741,6 +743,8 @@
             } else if (action === 'message_deleted') {
                 const messageId = messageData.message_id;
                 const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+                const timeElement = document.querySelector(`#data-message-id=${messageId}`);
+                console.log(timeElement)
                 if (messageElement) {
                     messageElement.remove();
                 }
@@ -776,6 +780,7 @@
         const deleteButtons = document.querySelectorAll('.delete-message');
         deleteButtons.forEach(function (button) {
             button.addEventListener('click', function () {
+                console.log('here')
                 const messageId = button.closest('.message-item').getAttribute('data-message-id');
                 ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
             });

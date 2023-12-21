@@ -1657,8 +1657,13 @@ document.addEventListener('click', function (event) {
             } else if (action === 'message_deleted') {
                 const messageId = messageData.message_id;
                 const messageElement = document.querySelector(`.message-item[data-message-id="${String(messageId)}"]`);
+                const timeElement = document.querySelector(`.message-time[data-message-id="${String(messageId)}"]`);
+                const nicknameElement = document.querySelector(`.message-nickname[data-message-id="${String(messageId)}"]`);
+
                 if (messageElement) {
+                    timeElement.remove();
                     messageElement.remove();
+                    nicknameElement.remove();
                     console.log(`Сообщение с ID: ${messageId} удалено`);
                 } else {
                     console.warn(`Message with id: ${messageId} not found for deletion`);
@@ -1670,6 +1675,7 @@ document.addEventListener('click', function (event) {
                 const newFileName = messageData.file_name;
                 const editTimestamp = messageData.edit_timestamp;
 
+                const allMessage = document.querySelector(`.all_message[data-message-id="${messageId}"]`);
                 const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
                 if (messageElement) {
                     const messageContentElement = messageElement.querySelector('.message-content');
@@ -1692,7 +1698,7 @@ document.addEventListener('click', function (event) {
                     }
 
                     // Добавляем метку об изменении
-                    const timeElement = document.createElement('div');
+                    const timeElement = document.querySelector(`.message-time[data-message-id="${String(messageId)}"]`);
                     timeElement.textContent = `Изменено: ${new Date(editTimestamp).toLocaleString()}`;
                     messageContentElement.appendChild(timeElement);
 
