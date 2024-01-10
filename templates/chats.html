@@ -190,13 +190,15 @@
         }
 
         .top-button {
-            border: none;
-            padding: 0;
-            background: none;
-            text-decoration: none;
-            cursor: pointer;
-            color: #928F8F;
-        }
+    border: none;
+    padding: 0;
+    background: none;
+    text-decoration: none;
+    cursor: pointer;
+    color: #928F8F;
+    margin-right: 10px; /* Добавить отступ справа */
+}
+
 
 
     </style>
@@ -475,174 +477,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const scrollContainer = document.querySelector('.button-container');
 
-        scrollContainer.addEventListener('wheel', function (event) {
-            if (event.deltaY !== 0) {
-                event.preventDefault(); // Предотвращаем стандартное поведение прокрутки
-                scrollContainer.scrollLeft += event.deltaY + event.deltaX; // Прокрутка горизонтально
-            }
-        });
-    });
-
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const currentUserId = "{{ current_user.id }}";
-        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/main_page/${currentUserId}/`);
-
-        socket.onopen = () => {
-            console.log("WebSocket connection opened for left panel");
-            // Отправка статуса онлайн на сервер
-            socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
-        };
-
-        socket.onclose = () => {
-            console.log("WebSocket connection closed for left panel");
-            // Отправка статуса оффлайн на сервер
-            socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
-        };
-        socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
-
-        socket.onmessage = function (event) {
-            const data = JSON.parse(event.data);
-
-            if (data.action === 'user_online_status') {
-                updateInterlocutorOnlineStatus(data.user_id, data.is_online);
-            } else if (data.action === 'update_last_dialog_message') {
-                updateLastDialogMessage(data.dialog_id, data.timestamp);
-            } else if (data.action === 'new_chat') {
-                // Вызов функции для обновления списка групп
-                addNewChatToList(data.chat_id);
-            }
-        };
-
-
-        // Функция для добавления нового чата в список
-        function addNewChatToList(chatId) {
-            // Отправьте запрос на сервер для получения информации о новом чате
-            fetch(`/chat/info/${chatId}`)
-                .then(response => response.json())
-                .then(chatData => {
-                    // Построение HTML элемента на основе полученных данных и добавление его в список
-                    const chatList = document.querySelector('.chat-list');
-                    const newChatHtml = `
-                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container" data-chat-id="${chatData.id}" style="cursor: pointer">
-                        <div class="profile-picture-container">
-                            <img src="/chat/picture/${chatData.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
-                        </div>
-                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column; position: relative;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <strong class="username">${chatData['chat_name']}</strong>
-                                <div class="last_message_time" style="font-size: 0.8em;">${chatData['last_message_time_formatted']}</div>
-                            </div>
-                            <div class="last_message" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                                <strong>${chatData['last_message_sender_phone']}:</strong> ${chatData['last_message']}
-                            </div>
-                        </div>
-                    </div>`;
-                    chatList.innerHTML += newChatHtml;
-                })
-                .catch(error => console.error('Ошибка при получении данных о чате:', error));
-        }
-
-        function updateInterlocutorOnlineStatus(interlocutorId, isOnline) {
-            const dialogElements = document.querySelectorAll('.clickable-dialog');
-            dialogElements.forEach(element => {
-                if (element.dataset.interlocutorId === interlocutorId.toString()) {
-                    const onlineIndicator = element.querySelector('.online-indicator-dialog');
-                    if (onlineIndicator) {
-                        onlineIndicator.style.display = isOnline ? 'block' : 'none';
-                    }
-                }
-            });
-        }
-
-        function updateLastDialogMessage(dialogId, timestamp) {
-            const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
-            if (dialogElement) {
-                const lastMessageTimeElement = dialogElement.querySelector('.last_message_time');
-                const formattedTime = formatMessageTime(timestamp);
-                if (lastMessageTimeElement) {
-                    lastMessageTimeElement.textContent = formattedTime;
-                }
-            }
-        }
-
-        function formatMessageTime(timestamp) {
-            if (!timestamp) {
-                return "Invalid Date";
-            }
-            const messageDate = new Date(timestamp);
-            const now = new Date();
-            if (messageDate.toDateString() === now.toDateString()) {
-                return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
-            } else {
-                return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
-            }
-        }
-
-        const allChatsButton = document.getElementById('all-chats-button');
-        const dialogsButton = document.getElementById('dialogs-button');
-        const groupsButton = document.getElementById('groups-button');
-
-        allChatsButton.addEventListener('click', showAllChatsAndDialogs);
-        dialogsButton.addEventListener('click', showDialogs);
-        groupsButton.addEventListener('click', showGroupsOnly);
-
-        function showAllChatsAndDialogs() {
-            const dialogsList = document.querySelector('.dialogs-list');
-            const chatList = document.querySelector('.chat-list');
-
-            dialogsList.style.display = 'block';
-            chatList.style.display = 'block';
-
-            chatList.querySelectorAll('.clickable-chat').forEach(chat => {
-                chat.style.display = 'flex';
-            });
-        }
-
-        function showDialogs() {
-            const dialogsList = document.querySelector('.dialogs-list');
-            const chatList = document.querySelector('.chat-list');
-
-            dialogsList.style.display = 'block';
-            chatList.style.display = 'none';
-        }
-
-        function showGroupsOnly() {
-            const dialogsList = document.querySelector('.dialogs-list');
-            const chatList = document.querySelector('.chat-list');
-
-            dialogsList.style.display = 'none';
-            chatList.style.display = 'block';
-
-            chatList.querySelectorAll('.clickable-chat').forEach(chat => {
-                chat.style.display = 'flex';
-            });
-        }
-    });
-
-
-    function formatMessageTime(timestamp) {
-        if (!timestamp) {
-            return "Invalid Date";
-        }
-
-        const messageDate = new Date(timestamp);
-        const now = new Date();
-
-        // Проверяем, было ли сообщение отправлено сегодня
-        if (messageDate.toDateString() === now.toDateString()) {
-            // Если да, форматируем как ЧЧ:ММ
-            return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
-        } else {
-            // Если нет, форматируем как ДД-ММ
-            return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
-        }
-    }
-
-    function submitForm(event) {
+function submitForm(event) {
         event.preventDefault();
         document.getElementById('dialogForm').submit();
     }
@@ -747,6 +583,211 @@
             });
         }
     });
+
+// Глобальная переменная для хранения ID собеседника в диалоге
+var globalInterlocutorId;
+
+
+
+document.addEventListener('DOMContentLoaded', function () {
+    const currentUserId = "{{ current_user.id }}";
+
+    // Глобальное соединение WebSocket
+    const globalSocket = new WebSocket(`ws://127.0.0.1:8080/ws/global/${currentUserId}/`);
+
+    globalSocket.onopen = () => {
+        console.log("Global WebSocket connection opened");
+        // Отправляем информацию о том, что пользователь онлайн
+        globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
+    };
+
+    globalSocket.onclose = () => {
+    console.log("Global WebSocket connection closed");
+    // Отправляем информацию о том, что пользователь оффлайн
+    globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
+};
+
+
+    globalSocket.onerror = (error) => console.error(`Global WebSocket error: ${error.message}`);
+
+   // Функция для обновления статуса пользователя в диалоге
+window.updateDialogUserStatus = function(userId, isOnline) {
+    console.log("updateDialogUserStatus called: ", userId, isOnline, globalInterlocutorId);
+    if (userId === globalInterlocutorId) {
+        const statusDisplay = document.querySelector('#online-status-display');
+        if (statusDisplay) {
+            statusDisplay.textContent = isOnline ? 'Онлайн' : 'Оффлайн';
+        }
+    }
+};
+
+globalSocket.onmessage = function (event) {
+    const data = JSON.parse(event.data);
+    console.log("WebSocket onmessage: action:", data.action, "data:", data);
+    if (data.action === 'user_online_status' && parseInt(data.user_id) === parseInt(globalInterlocutorId)) {
+        // Обновляем статус "онлайн"/"оффлайн" в диалоге
+        const statusDisplay = document.querySelector('#online-status-display');
+        if (statusDisplay) {
+            statusDisplay.textContent = data.is_online ? 'Онлайн' : 'Оффлайн';
+        }
+    }
+    // Обработка других сообщений...
+};
+
+
+
+
+    // Локальное соединение WebSocket для левой панели
+    const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
+
+    socket.onopen = () => {
+        console.log("WebSocket connection opened for left panel");
+        socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
+    };
+
+    socket.onclose = () => {
+        console.log("WebSocket connection closed for left panel");
+        socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
+    };
+
+    socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
+
+    socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        // Дополнительные обработчики для локального WebSocket
+        if (data.action === 'update_last_dialog_message') {
+            updateLastDialogMessage(data.dialog_id, data.timestamp);
+        } else if (data.action === 'new_chat') {
+            addNewChatToList(data.chat_id);
+        }
+    };
+
+        // Функция для добавления нового чата в список
+        function addNewChatToList(chatId) {
+            // Отправьте запрос на сервер для получения информации о новом чате
+            fetch(`/chat/info/${chatId}`)
+                .then(response => response.json())
+                .then(chatData => {
+                    // Построение HTML элемента на основе полученных данных и добавление его в список
+                    const chatList = document.querySelector('.chat-list');
+                    const newChatHtml = `
+                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container" data-chat-id="${chatData.id}" style="cursor: pointer">
+                        <div class="profile-picture-container">
+                            <img src="/chat/picture/${chatData.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
+                        </div>
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong class="username">${chatData['chat_name']}</strong>
+                                <div class="last_message_time" style="font-size: 0.8em;">${chatData['last_message_time_formatted']}</div>
+                            </div>
+                            <div class="last_message" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <strong>${chatData['last_message_sender_phone']}:</strong> ${chatData['last_message']}
+                            </div>
+                        </div>
+                    </div>`;
+                    chatList.innerHTML += newChatHtml;
+                })
+                .catch(error => console.error('Ошибка при получении данных о чате:', error));
+        }
+
+        function updateLastDialogMessage(dialogId, timestamp) {
+            const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
+            if (dialogElement) {
+                const lastMessageTimeElement = dialogElement.querySelector('.last_message_time');
+                const formattedTime = formatMessageTime(timestamp);
+                if (lastMessageTimeElement) {
+                    lastMessageTimeElement.textContent = formattedTime;
+                }
+            }
+        }
+
+        function formatMessageTime(timestamp) {
+            if (!timestamp) {
+                return "Invalid Date";
+            }
+            const messageDate = new Date(timestamp);
+            const now = new Date();
+            if (messageDate.toDateString() === now.toDateString()) {
+                return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+            } else {
+                return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+            }
+        }
+
+        const allChatsButton = document.getElementById('all-chats-button');
+        const dialogsButton = document.getElementById('dialogs-button');
+        const groupsButton = document.getElementById('groups-button');
+
+        allChatsButton.addEventListener('click', showAllChatsAndDialogs);
+        dialogsButton.addEventListener('click', showDialogs);
+        groupsButton.addEventListener('click', showGroupsOnly);
+
+        function showAllChatsAndDialogs() {
+            const dialogsList = document.querySelector('.dialogs-list');
+            const chatList = document.querySelector('.chat-list');
+
+            dialogsList.style.display = 'block';
+            chatList.style.display = 'block';
+
+            chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+                chat.style.display = 'flex';
+            });
+        }
+
+        function showDialogs() {
+            const dialogsList = document.querySelector('.dialogs-list');
+            const chatList = document.querySelector('.chat-list');
+
+            dialogsList.style.display = 'block';
+            chatList.style.display = 'none';
+        }
+
+        function showGroupsOnly() {
+            const dialogsList = document.querySelector('.dialogs-list');
+            const chatList = document.querySelector('.chat-list');
+
+            dialogsList.style.display = 'none';
+            chatList.style.display = 'block';
+
+            chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+                chat.style.display = 'flex';
+            });
+        }
+    });
+
+        document.addEventListener('DOMContentLoaded', function () {
+        const scrollContainer = document.querySelector('.button-container');
+
+        scrollContainer.addEventListener('wheel', function (event) {
+            if (event.deltaY !== 0) {
+                event.preventDefault(); // Предотвращаем стандартное поведение прокрутки
+                scrollContainer.scrollLeft += event.deltaY + event.deltaX; // Прокрутка горизонтально
+            }
+        });
+    });
+
+
+
+    function formatMessageTime(timestamp) {
+        if (!timestamp) {
+            return "Invalid Date";
+        }
+
+        const messageDate = new Date(timestamp);
+        const now = new Date();
+
+        // Проверяем, было ли сообщение отправлено сегодня
+        if (messageDate.toDateString() === now.toDateString()) {
+            // Если да, форматируем как ЧЧ:ММ
+            return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+        } else {
+            // Если нет, форматируем как ДД-ММ
+            return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+        }
+    }
+
+
 
 
     var ws;
@@ -948,40 +989,25 @@
     }
 
     // Инициализация кода для dialogs.html
-    function initializeDialogJS(dialogId, currentUserId, interlocutorId) {
+    function initializeDialogJS(dialogId, currentUserId) {
+    const interlocutorIdElement = document.getElementById('interlocutor-id');
+    globalInterlocutorId = interlocutorIdElement ? interlocutorIdElement.value : undefined;
+
+    console.log("initializeDialogJS: dialogId =", dialogId, ", currentUserId =", currentUserId, ", interlocutorId =", globalInterlocutorId);
+
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
-            console.log("WebSocket connection opened.", event);
-            ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
+        console.log("WebSocket connection opened.", event);
+        ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
+    };
 
-            // Отображение зеленого индикатора онлайн-статуса
-            document.querySelector('.online-indicator').style.display = 'block';
-            showDialogInterlocutorOnlineIndicator();
-        };
+    ws.onclose = function (event) {
+        console.log("WebSocket connection closed.", event);
+    };
 
-        ws.onclose = function (event) {
-            console.log("WebSocket connection closed.", event);
-            document.querySelector('.online-indicator').style.display = 'none';
-            hideDialogInterlocutorOnlineIndicator();
-        };
-
-        // Функции для показа/скрытия индикатора онлайн-статуса
-        function showDialogInterlocutorOnlineIndicator() {
-            const indicator = document.getElementById('online-indicator-interlocutor');
-            if (indicator) {
-                indicator.style.display = 'block';
-            }
-        }
-
-        function hideDialogInterlocutorOnlineIndicator() {
-            const indicator = document.getElementById('online-indicator-interlocutor');
-            if (indicator) {
-                indicator.style.display = 'none';
-            }
-        }
 
         // Автоматическая плавная прокрутка к последнему сообщению
         const messagesList = document.querySelector('.list-group');
@@ -1109,14 +1135,7 @@
 
             if (action === 'new_token') {
                 document.cookie = "access_token=" + messageData.token;
-            } else if (messageData.action === 'user_online_status') {
-                // Проверяем, соответствует ли ID пользователя собеседнику в диалоге
-                if (messageData.user_id === interlocutorId) {
-                    const indicator = document.getElementById('online-indicator-interlocutor');
-                    if (indicator) {
-                        indicator.style.display = messageData.is_online ? 'block' : 'none';
-                    }
-                }
+
             } else if (action === 'message_deleted') {
                 const messageId = messageData.message_id;
                 console.log("Attempting to delete message with ID:", messageId);
@@ -1203,19 +1222,7 @@
                         dialogElement.appendChild(lastMessageTimeElement);
                     }
                 }
-            } else if (action === 'user_online_status') {
-                // Обработка статуса онлайн пользователя
-                const userId = messageData.user_id;
-                const isOnline = messageData.is_online;
 
-                // Проверка, соответствует ли ID пользователя собеседнику в диалоге
-                if (userId === parseInt(dialogId)) {
-                    if (isOnline) {
-                        showDialogInterlocutorOnlineIndicator();
-                    } else {
-                        hideDialogInterlocutorOnlineIndicator();
-                    }
-                }
             } else if (messageData.message && messageData.message.sender_id) {
                 const currentUserId = "{{ current_user.id }}";
                 const newMessage = document.createElement('li');
@@ -1524,6 +1531,12 @@
         }
     }
 
+    // Обработка закрытия страницы
+    window.addEventListener('beforeunload', function(event) {
+        ws.close(1000, "Страница закрыта пользователем");
+    });
+
+
 
     // Загрузка dialogs.html в правую панель
     document.addEventListener('DOMContentLoaded', function () {
@@ -1654,7 +1667,7 @@
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -2273,6 +2286,12 @@
         };
         ws.send(JSON.stringify(pollData));
     }
+
+     // Обработка закрытия страницы
+    window.addEventListener('beforeunload', function(event) {
+        ws.close(1000, "Страница закрыта пользователем");
+    });
+
 
 
     // Инициализация кода для create_chat.html

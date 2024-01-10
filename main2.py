@@ -1,7 +1,6 @@
 # Встроенные модули Python
 import asyncio
 import configparser
-import gzip
 import io
 import json
 import logging
@@ -16,58 +15,65 @@ from email.mime.text import MIMEText
 from enum import Enum
 from operator import and_
 from random import randint
-from typing import List, Optional, Dict, Tuple, Any
-# from pydantic.json import Union
-from typing import Union
+from typing import List, Optional, Dict, Tuple, Any, Union
 from urllib.parse import quote, unquote
-
-from PIL import Image
-import io
-import ffmpeg
-import zstandard as zstd
 
 # Модули для работы с SQL базами данных
 import aiomysql
+
 # Сторонние библиотеки для безопасности и хеширования паролей
 import bcrypt
-# Сторонние библиотеки для безопасности и хеширования паролей
 import jwt
-import pytz
-import requests
-# import room
-# import room
-import uvicorn
-# Сторонние библиотеки для работы с файлами, датами и временем
+
+# Сторонние библиотеки для работы с мультимедиа и файлами
+import ffmpeg
+from PIL import Image
 from aiofile import async_open
-from databases import Database
-# Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
+
+# Библиотеки для работы с датами и временем
+import pytz
+from pytz import timezone
+
+# Сторонние библиотеки для работы с HTTP и веб-запросами
+import requests
+import uvicorn
+
+# Библиотеки для работы с WebSocket
+import websockets
+from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
+
+# Библиотеки для сжатия данных
+import zstandard as zstd
+
+# Фреймворки и библиотеки для веб-разработки
 from fastapi import FastAPI, WebSocket, HTTPException, Depends, status, Form, UploadFile, File
-# Сторонние библиотеки для работы с файлами, датами и временем
-# Сторонние библиотеки для веб-фреймворков, безопасности и шаблонизации
 from fastapi.params import Path
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer
 from fastapi.templating import Jinja2Templates
 from jose import JWTError
 from jwt import PyJWTError
-# Другие сторонние библиотеки
-from pydantic import BaseModel
-from pytz import timezone
-# Другие сторонние библиотеки
 from sqlalchemy import MetaData, Column, Integer, String, ForeignKey, PrimaryKeyConstraint, DateTime, \
     Table, func, LargeBinary, desc, Boolean, BLOB, Text, Float, JSON, delete, create_engine, update
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import select
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import StreamingResponse, PlainTextResponse, Response, JSONResponse
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocketDisconnect, WebSocketState
+
+# Библиотеки для работы с базами данных
+from databases import Database
+
+# Библиотеки для работы с JSON и моделями данных
+from pydantic import BaseModel
+
+
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -160,6 +166,7 @@ users = Table(
     Column("status", Text, default=None),
     Column("status_visibility", Boolean, default=True),  # Новый столбец
     Column("email_visibility", Boolean, default=True),  # Новый столбец
+    Column("is_online", Boolean, default=False),
 )
 
 userchats = Table(
@@ -1325,6 +1332,7 @@ async def get_file(file_id: int):
         headers=headers
     )
 
+
 async def compress_video(input_file_content):
     """
     Функция для асинхронного сжатия видео.
@@ -1340,12 +1348,14 @@ async def compress_video(input_file_content):
         with tempfile.NamedTemporaryFile(suffix='.mp4') as temp_output:
             # Конфигурация сжатия видео: уменьшение разрешения и битрейта
             stream = ffmpeg.input(temp_input.name)
-            stream = ffmpeg.output(stream, temp_output.name, vcodec='libx265', crf=28, video_bitrate='500k', size='640x360')
+            stream = ffmpeg.output(stream, temp_output.name, vcodec='libx265', crf=28, video_bitrate='500k',
+                                   size='640x360')
             ffmpeg.run(stream)
 
             # Чтение сжатого видео и возврат его содержимого
             temp_output.seek(0)
             return temp_output.read()
+
 
 # Сохраняет файл в базу данных
 async def save_file(nickname: str, file_path: str, file_content: bytes, file_extension: str):
@@ -1372,13 +1382,16 @@ async def save_file(nickname: str, file_path: str, file_content: bytes, file_ext
     compressed_size_bytes = len(compressed_file_content)
 
     # Логирование размеров файла
-    logging.info(f"Original file size: {original_size_bytes} bytes, {original_size_bytes / 1024:.2f} KB, {original_size_bytes / 1024**2:.2f} MB")
-    logging.info(f"Compressed file size: {compressed_size_bytes} bytes, {compressed_size_bytes / 1024:.2f} KB, {compressed_size_bytes / 1024**2:.2f} MB")
+    logging.info(
+        f"Original file size: {original_size_bytes} bytes, {original_size_bytes / 1024:.2f} KB, {original_size_bytes / 1024 ** 2:.2f} MB")
+    logging.info(
+        f"Compressed file size: {compressed_size_bytes} bytes, {compressed_size_bytes / 1024:.2f} KB, {compressed_size_bytes / 1024 ** 2:.2f} MB")
 
     query = files.insert().values(nickname=nickname, file_path=file_path, file=compressed_file_content,
                                   file_extension=file_extension)
     file_id = await database.execute(query)
     return file_id
+
 
 # Удаляет файл по его идентификатору
 async def delete_file(file_id: int) -> bool:
@@ -3739,8 +3752,9 @@ async def get_dialog_by_id(dialog_id: int, current_user_id: int, check_user_dele
         "id": row['id'],
         "user1_id": row['user1_id'],
         "user2_id": row['user2_id'],
+        "interlocutor_id": interlocutor_id,  # Добавляем interlocutor_id
         "interlocutor_phone_number": interlocutor_info['phone_number'],
-        "last_online": last_online,  # Updated to pass the formatted 'last_online' or 'нет данных'
+        "last_online": last_online,
         "user1_deleted": row['user1_deleted'],
         "user2_deleted": row['user2_deleted'],
         "user_fio": None
@@ -3875,23 +3889,30 @@ async def get_dialog_and_messages(dialog_id: int, current_user):
 async def dialog_route(dialog_id: int, request: Request,
                        current_user: Union[str, RedirectResponse] = Depends(get_current_user),
                        db: Session = Depends(get_db)):
+    # Перенаправление пользователя, если это необходимо
     redirect, dialog, messages = await get_dialog_and_messages(dialog_id, current_user)
-    fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=dialog["user2_id"]).first()
-    if fio:
-        dialog["user_fio"] = fio.FIO
-    else:
-        dialog["user_fio"] = dialog["interlocutor_phone_number"]
-
     if redirect:
         return redirect
 
+    # Получаем дополнительные данные о диалоге (включая interlocutor_id)
+    dialog_info = await get_dialog_by_id(dialog_id, current_user.id)
+
+    # Получение ФИО собеседника, если оно есть в контактах
+    fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=dialog_info["interlocutor_id"]).first()
+    if fio:
+        dialog_info["user_fio"] = fio.FIO
+    else:
+        dialog_info["user_fio"] = dialog_info["interlocutor_phone_number"]
+
+    # Возвращаем ответ с шаблоном и данными
     return templates.TemplateResponse("dialogs.html", {
         "request": request,
         "current_user": current_user,
-        "dialog": dialog,
+        "dialog": dialog_info,  # Используем обновленные данные диалога
         "messages": messages,
         "current_user_id": current_user.id,
     })
+
 
 
 # Маршрут для API диалога
@@ -4150,6 +4171,14 @@ class ConnectionManager:
         self.active_connections: Dict[int, Dict[str, Dict[str, Any]]] = {}
         self.global_active_connections: Dict[str, List[WebSocket]] = {}
 
+    async def notify_user_online(self, user_id: int):
+        await self.notify_all_users_about_status(user_id, True)
+        await self.broadcast_to_user_rooms(user_id, True)
+
+    async def notify_user_offline(self, user_id: int):
+        await self.notify_all_users_about_status(user_id, False)
+        await self.broadcast_to_user_rooms(user_id, False)
+
     async def connect(self, websocket: WebSocket, user_id: int, room: str):
         is_first_connection = False
 
@@ -4157,65 +4186,68 @@ class ConnectionManager:
             is_first_connection = True
 
         if user_id in self.active_connections and room in self.active_connections[user_id]:
-            logging.warning(f"Already an active connection for user {user_id} in room {room}.")
-            old_websocket = self.active_connections[user_id][room]['websocket']
-            if old_websocket.client_state == WebSocketState.CONNECTED:
-                await old_websocket.close()
-
-        self.active_connections.setdefault(user_id, {})[room] = {
-            "websocket": websocket,
-            "state": WebSocketState.CONNECTED,
-            "is_first_connection": is_first_connection
-        }
-        self.add_global_connection(room, websocket)
-        logging.info(f"Successfully connected user {user_id} to room {room}.")
+            # Если соединение уже существует, просто обновляем его, вместо закрытия и пересоздания
+            logging.info(f"Reusing active connection for user {user_id} in room {room}.")
+        else:
+            self.active_connections.setdefault(user_id, {})[room] = {
+                "websocket": websocket,
+                "state": WebSocketState.CONNECTED,
+                "is_first_connection": is_first_connection
+            }
+            self.add_global_connection(room, websocket)
+            logging.info(f"Successfully connected user {user_id} to room {room}.")
 
         if is_first_connection:
             await self.notify_all_users_about_status(user_id, True)
 
-    # Метод для уведомления об онлайн-статусе пользователя
-    async def notify_user_online(self, user_id: int):
-        await self.notify_all_users_about_status(user_id, True)
-
     async def disconnect(self, user_id: int, room: str):
+        # Отключение пользователя и обновление его статуса
         if user_id not in self.active_connections or room not in self.active_connections[user_id]:
             logging.warning(f"No active connection for user {user_id} in room {room}.")
             return
 
+        websocket = self.active_connections[user_id][room]['websocket']
+        if websocket.client_state == WebSocketState.CONNECTED:
+            try:
+                await websocket.close()
+                logging.info(f"Closed websocket for user {user_id} in room {room}")
+            except Exception as e:
+                logging.error(f"Error closing websocket for user {user_id} in room {room}: {e}")
+
         self.active_connections[user_id][room]['state'] = WebSocketState.DISCONNECTED
-        self.remove_global_connection(room, self.active_connections[user_id][room]['websocket'])
+        self.remove_global_connection(room, websocket)
+
         if not self.active_connections[user_id]:
             del self.active_connections[user_id]
+
         logging.info(f"User {user_id} disconnected from room {room}.")
 
-        # Новый вызов для отправки сообщения о статусе "не в сети"
         await self.notify_user_offline(user_id)
 
     async def notify_user_offline(self, user_id: int):
-        status_message = json.dumps({
-            "action": "user_online_status",
-            "user_id": user_id,
-            "is_online": False
-        })
-        for _, user_connections in self.active_connections.items():
-            for connection in user_connections.values():
-                websocket = connection['websocket']
-                if websocket.client_state == WebSocketState.CONNECTED:
-                    await websocket.send_text(status_message)
-        logging.info(f"Notified about user {user_id} offline status")
+        # Уведомление всех пользователей о том, что данный пользователь не в сети
+        await self.notify_all_users_about_status(user_id, False)
 
     async def notify_all_users_about_status(self, user_id: int, is_online: bool):
+        # Отправка статуса пользователя всем подключенным клиентам
         status_message = json.dumps({
             "action": "user_online_status",
             "user_id": user_id,
             "is_online": is_online
         })
-        for _, user_connections in self.global_active_connections.items():
+
+        # Создаем копию списка соединений для итерации
+        connections_copy = {k: v[:] for k, v in self.global_active_connections.items()}
+
+        for _, user_connections in connections_copy.items():
             for websocket in user_connections:
                 if websocket.client_state == WebSocketState.CONNECTED:
-                    await websocket.send_text(status_message)
+                    try:
+                        await websocket.send_text(status_message)
+                    except ConnectionClosedOK:
+                        # Обработка закрытого соединения
+                        pass
         logging.info(f"Notified about user {user_id} online status: {is_online}")
-
 
     async def send_message(self, message: str, user_id: int, room: str):
         logging.info(f"Function send_message called for user {user_id} in room {room}")
@@ -4280,6 +4312,20 @@ class ConnectionManager:
                     except RuntimeError as e:
                         logging.error(f"An error occurred: {e}")
 
+    async def broadcast_to_user_rooms(self, user_id: int, is_online: bool):
+        status_message = json.dumps({
+            "action": "user_online_status",
+            "user_id": user_id,
+            "is_online": is_online
+        })
+        if user_id in self.active_connections:
+            for room in self.active_connections[user_id]:
+                try:
+                    await self.broadcast(status_message, room)
+                except websockets.exceptions.ConnectionClosedOK:
+                    logging.info(f"Connection to room {room} was closed.")
+                    continue  # Продолжаем с следующего WebSocket
+
     async def send_token_refresh_command(self, user_id: int, room: str, new_token: str):
         connection = self.get_connection(user_id, room)
         if connection:
@@ -4338,6 +4384,36 @@ async def send_member_count_update(chat_id: int, count: int):
     }
     await manager.send_message_to_room(room, json.dumps(message_data))
 
+@app.websocket("/ws/global/{user_id}/")
+async def global_websocket_endpoint(websocket: WebSocket, user_id: str):
+    await websocket.accept()
+    user = await get_current_user_from_websocket(websocket)
+
+    if not user:
+        logging.error("Failed to get the user from the websocket.")
+        await websocket.close()
+        return
+
+    logging.info(f"WebSocket accepted for global updates for user {user.id}")
+
+    try:
+        # Подключаемся к глобальным соединениям
+        await manager.connect(websocket, user.id, "global")
+        await manager.notify_all_users_about_status(user.id, True)  # Уведомляем всех о статусе онлайн данного пользователя
+
+        while True:
+            data = await websocket.receive_text()
+            # Обработка данных, полученных через глобальный WebSocket
+            # Этот пример не обрабатывает входящие данные, но здесь можно добавить логику обработки
+
+    except WebSocketDisconnect:
+        logging.info(f"WebSocket disconnected for global updates for user {user.id}")
+        await manager.notify_all_users_about_status(user.id, False)  # Уведомляем всех о статусе оффлайн данного пользователя
+        await manager.disconnect(user.id, "global")
+
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        await websocket.close()
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
