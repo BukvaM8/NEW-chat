@@ -4171,13 +4171,48 @@ class ConnectionManager:
         self.active_connections: Dict[int, Dict[str, Dict[str, Any]]] = {}
         self.global_active_connections: Dict[str, List[WebSocket]] = {}
 
+    async def update_user_online_status_in_db(self, user_id: int, is_online: bool):
+        logging.info(f"Updating online status for user {user_id} to {is_online}")
+        query = users.update().where(users.c.id == user_id).values(is_online=is_online)
+        try:
+            result = await database.execute(query)
+            logging.info(f"Online status update query result for user {user_id}: {result}")
+
+            # Дополнительная проверка статуса в базе данных
+            db_status = await database.fetch_one(select([users.c.is_online]).where(users.c.id == user_id))
+            logging.info(f"Verified online status in database for user {user_id}: {db_status['is_online']}")
+        except Exception as e:
+            logging.error(f"Error updating online status in database for user {user_id}: {e}")
+
     async def notify_user_online(self, user_id: int):
+        logging.info(f"Notifying that user {user_id} is online")
         await self.notify_all_users_about_status(user_id, True)
         await self.broadcast_to_user_rooms(user_id, True)
+        await self.update_user_online_status_in_db(user_id, True)
 
     async def notify_user_offline(self, user_id: int):
         await self.notify_all_users_about_status(user_id, False)
         await self.broadcast_to_user_rooms(user_id, False)
+        await self.update_user_online_status_in_db(user_id, False)
+
+    async def notify_all_users_about_status(self, user_id: int, is_online: bool):
+        status_message = json.dumps({
+            "action": "user_online_status",
+            "user_id": user_id,
+            "is_online": is_online
+        })
+
+        connections_copy = {k: v[:] for k, v in self.global_active_connections.items()}
+
+        for _, user_connections in connections_copy.items():
+            for websocket in user_connections:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    logging.info(f"Attempting to send status update to user: {status_message}")
+                    try:
+                        await websocket.send_text(status_message)
+                        logging.info(f"Sent status update to user")
+                    except ConnectionClosedOK:
+                        logging.error("Connection closed while sending status update")
 
     async def connect(self, websocket: WebSocket, user_id: int, room: str):
         is_first_connection = False
@@ -4224,30 +4259,7 @@ class ConnectionManager:
 
         await self.notify_user_offline(user_id)
 
-    async def notify_user_offline(self, user_id: int):
-        # Уведомление всех пользователей о том, что данный пользователь не в сети
-        await self.notify_all_users_about_status(user_id, False)
 
-    async def notify_all_users_about_status(self, user_id: int, is_online: bool):
-        # Отправка статуса пользователя всем подключенным клиентам
-        status_message = json.dumps({
-            "action": "user_online_status",
-            "user_id": user_id,
-            "is_online": is_online
-        })
-
-        # Создаем копию списка соединений для итерации
-        connections_copy = {k: v[:] for k, v in self.global_active_connections.items()}
-
-        for _, user_connections in connections_copy.items():
-            for websocket in user_connections:
-                if websocket.client_state == WebSocketState.CONNECTED:
-                    try:
-                        await websocket.send_text(status_message)
-                    except ConnectionClosedOK:
-                        # Обработка закрытого соединения
-                        pass
-        logging.info(f"Notified about user {user_id} online status: {is_online}")
 
     async def send_message(self, message: str, user_id: int, room: str):
         logging.info(f"Function send_message called for user {user_id} in room {room}")

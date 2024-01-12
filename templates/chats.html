@@ -190,15 +190,14 @@
         }
 
         .top-button {
-    border: none;
-    padding: 0;
-    background: none;
-    text-decoration: none;
-    cursor: pointer;
-    color: #928F8F;
-    margin-right: 10px; /* Добавить отступ справа */
-}
-
+            border: none;
+            padding: 0;
+            background: none;
+            text-decoration: none;
+            cursor: pointer;
+            color: #928F8F;
+            margin-right: 10px; /* Добавить отступ справа */
+        }
 
 
     </style>
@@ -478,7 +477,7 @@
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
 
-function submitForm(event) {
+    function submitForm(event) {
         event.preventDefault();
         document.getElementById('dialogForm').submit();
     }
@@ -584,84 +583,94 @@ function submitForm(event) {
         }
     });
 
-// Глобальная переменная для хранения ID собеседника в диалоге
-var globalInterlocutorId;
+    // Глобальная переменная для хранения ID собеседника в диалоге
+    var globalInterlocutorId;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const currentUserId = "{{ current_user.id }}";
+
+        // Глобальное соединение WebSocket
+        const globalSocket = new WebSocket(`ws://127.0.0.1:8000/ws/global/${currentUserId}/`);
+
+        globalSocket.onopen = () => {
+            console.log("Global WebSocket connection opened");
+            // Отправляем информацию о том, что пользователь онлайн
+            globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
+        };
+
+        globalSocket.onclose = () => {
+            console.log("Global WebSocket connection closed", event);
+            // Отправляем информацию о том, что пользователь оффлайн
+            globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
+        };
 
 
+        globalSocket.onerror = (error) => console.error(`Global WebSocket error: ${error.message}`);
 
-document.addEventListener('DOMContentLoaded', function () {
-    const currentUserId = "{{ current_user.id }}";
+        // Функция для обновления статуса пользователя в диалоге
+        window.updateDialogUserStatus = function (userId, isOnline) {
+            // Логирование для отладки
+            console.log("updateDialogUserStatus called for userId: ", userId, "isOnline: ", isOnline, "globalInterlocutorId: ", globalInterlocutorId);
 
-    // Глобальное соединение WebSocket
-    const globalSocket = new WebSocket(`ws://127.0.0.1:8080/ws/global/${currentUserId}/`);
-
-    globalSocket.onopen = () => {
-        console.log("Global WebSocket connection opened");
-        // Отправляем информацию о том, что пользователь онлайн
-        globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
-    };
-
-    globalSocket.onclose = () => {
-    console.log("Global WebSocket connection closed");
-    // Отправляем информацию о том, что пользователь оффлайн
-    globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
-};
+            if (userId === globalInterlocutorId) {
+                const statusDisplay = document.querySelector('#online-status-display');
+                if (statusDisplay) {
+                    statusDisplay.textContent = isOnline ? 'Онлайн' : 'Оффлайн';
+                } else {
+                    console.error('Status display element not found for userId:', userId);
+                }
+            }
+        };
 
 
-    globalSocket.onerror = (error) => console.error(`Global WebSocket error: ${error.message}`);
+        globalSocket.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+            console.log("WebSocket onmessage: action:", data.action, "data:", data);
 
-   // Функция для обновления статуса пользователя в диалоге
-window.updateDialogUserStatus = function(userId, isOnline) {
-    console.log("updateDialogUserStatus called: ", userId, isOnline, globalInterlocutorId);
-    if (userId === globalInterlocutorId) {
-        const statusDisplay = document.querySelector('#online-status-display');
-        if (statusDisplay) {
-            statusDisplay.textContent = isOnline ? 'Онлайн' : 'Оффлайн';
-        }
-    }
-};
-
-globalSocket.onmessage = function (event) {
-    const data = JSON.parse(event.data);
-    console.log("WebSocket onmessage: action:", data.action, "data:", data);
-    if (data.action === 'user_online_status' && parseInt(data.user_id) === parseInt(globalInterlocutorId)) {
-        // Обновляем статус "онлайн"/"оффлайн" в диалоге
-        const statusDisplay = document.querySelector('#online-status-display');
-        if (statusDisplay) {
-            statusDisplay.textContent = data.is_online ? 'Онлайн' : 'Оффлайн';
-        }
-    }
-    // Обработка других сообщений...
-};
+            if (data.action === 'user_online_status') {
+                console.log(`Received status update: User ID ${data.user_id} is ${data.is_online ? 'online' : 'offline'}`);
+                if (parseInt(data.user_id) === parseInt(globalInterlocutorId)) {
+                    // Обновляем статус собеседника
+                    const statusDisplay = document.querySelector('#online-status-display');
+                    if (statusDisplay) {
+                        console.log(`Updating status display for user ID ${data.user_id}`);
+                        statusDisplay.textContent = data.is_online ? 'Онлайн' : 'Оффлайн';
+                    } else {
+                        console.error('Status display element not found');
+                    }
+                } else {
+                    console.log(`Status update for a different user ID ${data.user_id}, not updating the display`);
+                }
+            }
+            // Обработка других сообщений...
+        };
 
 
+        // Локальное соединение WebSocket для левой панели
+        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/main_page/${currentUserId}/`);
 
+        socket.onopen = () => {
+            console.log("WebSocket connection opened for left panel");
+            socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
+        };
 
-    // Локальное соединение WebSocket для левой панели
-    const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
+        socket.onclose = () => {
+            console.log("WebSocket connection closed for left panel");
+            socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
+        };
 
-    socket.onopen = () => {
-        console.log("WebSocket connection opened for left panel");
-        socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
-    };
+        socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
 
-    socket.onclose = () => {
-        console.log("WebSocket connection closed for left panel");
-        socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
-    };
+        socket.onmessage = function (event) {
+            const data = JSON.parse(event.data);
 
-    socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
-
-    socket.onmessage = function (event) {
-        const data = JSON.parse(event.data);
-
-        // Дополнительные обработчики для локального WebSocket
-        if (data.action === 'update_last_dialog_message') {
-            updateLastDialogMessage(data.dialog_id, data.timestamp);
-        } else if (data.action === 'new_chat') {
-            addNewChatToList(data.chat_id);
-        }
-    };
+            // Дополнительные обработчики для локального WebSocket
+            if (data.action === 'update_last_dialog_message') {
+                updateLastDialogMessage(data.dialog_id, data.timestamp);
+            } else if (data.action === 'new_chat') {
+                addNewChatToList(data.chat_id);
+            }
+        };
 
         // Функция для добавления нового чата в список
         function addNewChatToList(chatId) {
@@ -756,7 +765,7 @@ globalSocket.onmessage = function (event) {
         }
     });
 
-        document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function () {
         const scrollContainer = document.querySelector('.button-container');
 
         scrollContainer.addEventListener('wheel', function (event) {
@@ -766,7 +775,6 @@ globalSocket.onmessage = function (event) {
             }
         });
     });
-
 
 
     function formatMessageTime(timestamp) {
@@ -786,8 +794,6 @@ globalSocket.onmessage = function (event) {
             return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
         }
     }
-
-
 
 
     var ws;
@@ -990,23 +996,23 @@ globalSocket.onmessage = function (event) {
 
     // Инициализация кода для dialogs.html
     function initializeDialogJS(dialogId, currentUserId) {
-    const interlocutorIdElement = document.getElementById('interlocutor-id');
-    globalInterlocutorId = interlocutorIdElement ? interlocutorIdElement.value : undefined;
+        const interlocutorIdElement = document.getElementById('interlocutor-id');
+        globalInterlocutorId = interlocutorIdElement ? interlocutorIdElement.value : undefined;
 
-    console.log("initializeDialogJS: dialogId =", dialogId, ", currentUserId =", currentUserId, ", interlocutorId =", globalInterlocutorId);
+        console.log("initializeDialogJS: dialogId =", dialogId, ", currentUserId =", currentUserId, ", interlocutorId =", globalInterlocutorId);
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
-        console.log("WebSocket connection opened.", event);
-        ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
-    };
+            console.log("WebSocket connection opened.", event);
+            ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
+        };
 
-    ws.onclose = function (event) {
-        console.log("WebSocket connection closed.", event);
-    };
+        ws.onclose = function (event) {
+            console.log("WebSocket connection closed.", event);
+        };
 
 
         // Автоматическая плавная прокрутка к последнему сообщению
@@ -1532,10 +1538,9 @@ globalSocket.onmessage = function (event) {
     }
 
     // Обработка закрытия страницы
-    window.addEventListener('beforeunload', function(event) {
+    window.addEventListener('beforeunload', function (event) {
         ws.close(1000, "Страница закрыта пользователем");
     });
-
 
 
     // Загрузка dialogs.html в правую панель
@@ -1667,7 +1672,7 @@ globalSocket.onmessage = function (event) {
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -2287,11 +2292,10 @@ globalSocket.onmessage = function (event) {
         ws.send(JSON.stringify(pollData));
     }
 
-     // Обработка закрытия страницы
-    window.addEventListener('beforeunload', function(event) {
+    // Обработка закрытия страницы
+    window.addEventListener('beforeunload', function (event) {
         ws.close(1000, "Страница закрыта пользователем");
     });
-
 
 
     // Инициализация кода для create_chat.html
