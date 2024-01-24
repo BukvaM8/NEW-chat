@@ -4182,26 +4182,30 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, user_id: int, room: str):
         is_first_connection = False
 
+        # Проверяем, существует ли уже соединение для данного пользователя и комнаты
         if user_id not in self.active_connections:
             is_first_connection = True
-
-        if user_id in self.active_connections and room in self.active_connections[user_id]:
-            # Если соединение уже существует, просто обновляем его, вместо закрытия и пересоздания
-            logging.info(f"Reusing active connection for user {user_id} in room {room}.")
         else:
-            self.active_connections.setdefault(user_id, {})[room] = {
-                "websocket": websocket,
-                "state": WebSocketState.CONNECTED,
-                "is_first_connection": is_first_connection
-            }
-            self.add_global_connection(room, websocket)
-            logging.info(f"Successfully connected user {user_id} to room {room}.")
+            # Если соединение существует, но открыто, сначала закрываем его
+            existing_connection = self.active_connections[user_id].get(room)
+            if existing_connection and existing_connection['websocket'].client_state == WebSocketState.CONNECTED:
+                await existing_connection['websocket'].close()
+                logging.info(f"Closed existing websocket for user {user_id} in room {room} due to new connection.")
 
+        # Добавляем новое соединение (или заменяем старое)
+        self.active_connections.setdefault(user_id, {})[room] = {
+            "websocket": websocket,
+            "state": WebSocketState.CONNECTED,
+            "is_first_connection": is_first_connection
+        }
+        self.add_global_connection(room, websocket)
+        logging.info(f"Successfully connected user {user_id} to room {room}.")
+
+        # Оповещаем всех о подключении пользователя
         if is_first_connection:
             await self.notify_all_users_about_status(user_id, True)
 
     async def disconnect(self, user_id: int, room: str):
-        # Отключение пользователя и обновление его статуса
         if user_id not in self.active_connections or room not in self.active_connections[user_id]:
             logging.warning(f"No active connection for user {user_id} in room {room}.")
             return
@@ -4217,11 +4221,11 @@ class ConnectionManager:
         self.active_connections[user_id][room]['state'] = WebSocketState.DISCONNECTED
         self.remove_global_connection(room, websocket)
 
-        if not self.active_connections[user_id]:
+        # Если все соединения пользователя закрыты, удаляем пользователя из активных соединений
+        if not any(conn['state'] == WebSocketState.CONNECTED for conn in self.active_connections[user_id].values()):
             del self.active_connections[user_id]
 
         logging.info(f"User {user_id} disconnected from room {room}.")
-
         await self.notify_user_offline(user_id)
 
     async def notify_user_offline(self, user_id: int):
