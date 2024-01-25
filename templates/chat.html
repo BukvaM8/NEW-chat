@@ -204,8 +204,6 @@
 
         .profile-picture-overlay {
             position: relative;
-        {#display: inline-block;#}{#display: flex;      #} align-items: center;
-            justify-content: center;
         }
 
         .edit-photo-label {
@@ -494,10 +492,7 @@
             <!-- Кнопка "Добавить участника" -->
             {% if chat.owner_phone_number == current_user.phone_number %}
                 <button id="addParticipantButton" class="btn btn-primary button">Добавить участника</button>
-            {% else %}
-                <button id="addParticipantButton" class="btn btn-primary button" style="display: none">Добавить
-                    участника
-                </button>
+
             {% endif %}
         </div>
     </div>

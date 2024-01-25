@@ -4172,10 +4172,12 @@ class ConnectionManager:
         self.global_active_connections: Dict[str, List[WebSocket]] = {}
 
     async def notify_user_online(self, user_id: int):
+        logging.info(f"User {user_id} is set to online")  # Логируем изменение статуса на "онлайн"
         await self.notify_all_users_about_status(user_id, True)
         await self.broadcast_to_user_rooms(user_id, True)
 
     async def notify_user_offline(self, user_id: int):
+        logging.info(f"User {user_id} is set to offline")  # Логируем изменение статуса на "оффлайн"
         await self.notify_all_users_about_status(user_id, False)
         await self.broadcast_to_user_rooms(user_id, False)
 
@@ -4183,23 +4185,31 @@ class ConnectionManager:
         is_first_connection = False
 
         # Проверяем, существует ли уже соединение для данного пользователя и комнаты
-        if user_id not in self.active_connections:
+        if user_id not in self.active_connections or room not in self.active_connections[user_id]:
             is_first_connection = True
+            self.active_connections.setdefault(user_id, {})[room] = {
+                "websocket": websocket,
+                "state": WebSocketState.CONNECTED,
+                "is_first_connection": is_first_connection
+            }
+            self.add_global_connection(room, websocket)
+            logging.info(f"Successfully connected user {user_id} to room {room}.")
         else:
-            # Если соединение существует, но открыто, сначала закрываем его
-            existing_connection = self.active_connections[user_id].get(room)
-            if existing_connection and existing_connection['websocket'].client_state == WebSocketState.CONNECTED:
+            # Если соединение существует, но открыто, обновляем его
+            existing_connection = self.active_connections[user_id][room]
+            if existing_connection['websocket'].client_state == WebSocketState.CONNECTED:
+                # Если предыдущее соединение открыто, закрываем его
                 await existing_connection['websocket'].close()
                 logging.info(f"Closed existing websocket for user {user_id} in room {room} due to new connection.")
 
-        # Добавляем новое соединение (или заменяем старое)
-        self.active_connections.setdefault(user_id, {})[room] = {
-            "websocket": websocket,
-            "state": WebSocketState.CONNECTED,
-            "is_first_connection": is_first_connection
-        }
-        self.add_global_connection(room, websocket)
-        logging.info(f"Successfully connected user {user_id} to room {room}.")
+            # Обновляем соединение
+            self.active_connections[user_id][room] = {
+                "websocket": websocket,
+                "state": WebSocketState.CONNECTED,
+                "is_first_connection": False
+            }
+            self.add_global_connection(room, websocket)
+            logging.info(f"Reconnected user {user_id} to room {room}.")
 
         # Оповещаем всех о подключении пользователя
         if is_first_connection:
@@ -4248,7 +4258,9 @@ class ConnectionManager:
                 if websocket.client_state == WebSocketState.CONNECTED:
                     try:
                         await websocket.send_text(status_message)
+                        logging.info(f"Sent online status to websocket {websocket}")
                     except ConnectionClosedOK:
+                        logging.error(f"Connection closed for websocket {websocket}")
                         # Обработка закрытого соединения
                         pass
         logging.info(f"Notified about user {user_id} online status: {is_online}")

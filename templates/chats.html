@@ -190,17 +190,14 @@
         }
 
         .top-button {
-    border: none;
-    padding: 0;
-    background: none;
-    text-decoration: none;
-    cursor: pointer;
-    color: #928F8F;
-    margin-right: 10px; /* Добавить отступ справа */
-}
-
-
-
+            border: none;
+            padding: 0;
+            background: none;
+            text-decoration: none;
+            cursor: pointer;
+            color: #928F8F;
+            margin-right: 10px; /* Добавить отступ справа */
+        }
     </style>
 </head>
 <body>
@@ -477,8 +474,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
-
-function submitForm(event) {
+    function submitForm(event) {
         event.preventDefault();
         document.getElementById('dialogForm').submit();
     }
@@ -584,94 +580,151 @@ function submitForm(event) {
         }
     });
 
-// Глобальная переменная для хранения ID собеседника в диалоге
-var globalInterlocutorId;
+    // Глобальная переменная для хранения ID собеседника в диалоге
+    var globalInterlocutorId;
+
+    document.addEventListener('DOMContentLoaded', function () {
+            const currentUserId = "{{ current_user.id }}";
+
+            // Глобальное соединение WebSocket
+            const globalSocket = new WebSocket(`ws://127.0.0.1:8000/ws/global/${currentUserId}/`);
+
+            globalSocket.onopen = () => {
+                console.log("Global WebSocket connection opened");
+                // Отправляем информацию о том, что пользователь онлайн
+                globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
+            };
+
+            globalSocket.onclose = () => {
+                console.log("Global WebSocket connection closed");
+            };
+
+            globalSocket.onerror = (error) => console.error(`Global WebSocket error: ${error.message}`);
+
+            let currentUserStatus = {}; // Словарь для хранения текущего статуса пользователей
+
+            globalSocket.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                console.log("WebSocket onmessage: action:", data.action, "data:", data);
+
+                if (data.action === 'user_online_status') {
+                    console.log(`Received online status for user ${data.user_id}: ${data.is_online}`);
+
+                    // Обновляем статус пользователя в локальном хранилище статусов
+                    currentUserStatus[data.user_id] = data.is_online;
+                    console.log(`Current status of user ${data.user_id}: ${currentUserStatus[data.user_id]}`);
+
+                    // Обновление статуса пользователя в диалоге
+                    updateDialogUserStatus(data.user_id, data.is_online);
+                }
+                // Обработка других сообщений...
+            };
+
+            // Функция для обновления статуса пользователя в диалоге
+            function updateDialogUserStatus(userId, isOnline) {
+                console.log("updateDialogUserStatus called: ", userId, isOnline, globalInterlocutorId);
+                if (parseInt(userId) === parseInt(globalInterlocutorId)) {
+                    const statusDisplay = document.querySelector('#online-status-display');
+                    if (statusDisplay) {
+                        statusDisplay.textContent = isOnline ? 'Онлайн' : 'Оффлайн';
+                        console.log(`Updated online status display for user ${userId}: ${isOnline}`);
+                    } else {
+                        console.error('Element #online-status-display was not found in the DOM.');
+                    }
+                }
+            }
+
+            // Локальное соединение WebSocket для левой панели
+            const socket = new WebSocket(`ws://127.0.0.1:8000/ws/main_page/${currentUserId}/`);
+
+            socket.onopen = () => {
+                console.log("WebSocket connection opened for left panel");
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        action: "user_status_change",
+                        user_id: currentUserId,
+                        is_online: true
+                    }));
+                }
+            };
+
+            socket.onclose = () => {
+                console.log("WebSocket connection closed for left panel");
+            };
+
+            socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
+
+            socket.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+
+                // Дополнительные обработчики для локального WebSocket
+                if (data.action === 'update_last_dialog_message') {
+                    updateLastDialogMessage(data.dialog_id, data.timestamp);
+                } else if (data.action === 'new_chat') {
+                    addNewChatToList(data.chat_id);
+                }
+            };
+
+            // Функция для пересылки сообщения
+            window.forwardMessage = function (messageId) {
+                // Получение HTML кода левой панели, содержащего диалоги и чаты
+                const dialogsHtml = document.querySelector('.scrollable-content .dialogs-list').innerHTML;
+                const chatsHtml = document.querySelector('.scrollable-content .chat-list').innerHTML;
+
+                // Вставка HTML кода в модальное окно
+                document.querySelector('#forwardModal .dialogs-list').innerHTML = dialogsHtml;
+                document.querySelector('#forwardModal .chat-list').innerHTML = chatsHtml;
+
+                // Установка обработчиков событий для элементов списка в модальном окне
+                setupDialogAndChatClickHandlers(messageId);
+
+                // Отображение модального окна
+                $('#forwardModal').modal('show');
+            };
+
+            // Функция для установки обработчиков событий при нажатии на диалоги и чаты в модальном окне
+            function setupDialogAndChatClickHandlers(messageId) {
+                // Добавление обработчика для диалогов
+                document.querySelectorAll('#forwardModal .clickable-dialog').forEach(dialog => {
+                    dialog.addEventListener('click', function () {
+                        forwardToTarget(messageId, this.dataset.dialogId, true); // true означает, что это диалог
+                    });
+                });
+
+                // Добавление обработчика для чатов
+                document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
+                    chat.addEventListener('click', function () {
+                        forwardToTarget(messageId, this.dataset.chatId, false); // false означает, что это чат
+                    });
+                });
+            }
+
+            // Функция для пересылки сообщения в выбранный диалог или чат
+            function forwardToTarget(messageId, targetId, isDialog) {
+                const forwardData = {
+                    action: 'forward_message',
+                    message_id: messageId,
+                    target_id: targetId,
+                    is_dialog: isDialog
+                };
+
+                // Отправка данных через WebSocket
+                globalSocket.send(JSON.stringify(forwardData));
+
+                // Закрытие модального окна
+                $('#forwardModal').modal('hide');
+            }
 
 
-
-document.addEventListener('DOMContentLoaded', function () {
-    const currentUserId = "{{ current_user.id }}";
-
-    // Глобальное соединение WebSocket
-    const globalSocket = new WebSocket(`ws://127.0.0.1:8080/ws/global/${currentUserId}/`);
-
-    globalSocket.onopen = () => {
-        console.log("Global WebSocket connection opened");
-        // Отправляем информацию о том, что пользователь онлайн
-        globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
-    };
-
-    globalSocket.onclose = () => {
-    console.log("Global WebSocket connection closed");
-    // Отправляем информацию о том, что пользователь оффлайн
-    globalSocket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
-};
-
-
-    globalSocket.onerror = (error) => console.error(`Global WebSocket error: ${error.message}`);
-
-   // Функция для обновления статуса пользователя в диалоге
-window.updateDialogUserStatus = function(userId, isOnline) {
-    console.log("updateDialogUserStatus called: ", userId, isOnline, globalInterlocutorId);
-    if (userId === globalInterlocutorId) {
-        const statusDisplay = document.querySelector('#online-status-display');
-        if (statusDisplay) {
-            statusDisplay.textContent = isOnline ? 'Онлайн' : 'Оффлайн';
-        }
-    }
-};
-
-globalSocket.onmessage = function (event) {
-    const data = JSON.parse(event.data);
-    console.log("WebSocket onmessage: action:", data.action, "data:", data);
-    if (data.action === 'user_online_status' && parseInt(data.user_id) === parseInt(globalInterlocutorId)) {
-        // Обновляем статус "онлайн"/"оффлайн" в диалоге
-        const statusDisplay = document.querySelector('#online-status-display');
-        if (statusDisplay) {
-            statusDisplay.textContent = data.is_online ? 'Онлайн' : 'Оффлайн';
-        }
-    }
-    // Обработка других сообщений...
-};
-
-
-
-
-    // Локальное соединение WebSocket для левой панели
-    const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
-
-    socket.onopen = () => {
-        console.log("WebSocket connection opened for left panel");
-        socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: true}));
-    };
-
-    socket.onclose = () => {
-        console.log("WebSocket connection closed for left panel");
-        socket.send(JSON.stringify({action: "user_status_change", user_id: currentUserId, is_online: false}));
-    };
-
-    socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
-
-    socket.onmessage = function (event) {
-        const data = JSON.parse(event.data);
-
-        // Дополнительные обработчики для локального WebSocket
-        if (data.action === 'update_last_dialog_message') {
-            updateLastDialogMessage(data.dialog_id, data.timestamp);
-        } else if (data.action === 'new_chat') {
-            addNewChatToList(data.chat_id);
-        }
-    };
-
-        // Функция для добавления нового чата в список
-        function addNewChatToList(chatId) {
-            // Отправьте запрос на сервер для получения информации о новом чате
-            fetch(`/chat/info/${chatId}`)
-                .then(response => response.json())
-                .then(chatData => {
-                    // Построение HTML элемента на основе полученных данных и добавление его в список
-                    const chatList = document.querySelector('.chat-list');
-                    const newChatHtml = `
+            // Функция для добавления нового чата в список
+            function addNewChatToList(chatId) {
+                // Отправьте запрос на сервер для получения информации о новом чате
+                fetch(`/chat/info/${chatId}`)
+                    .then(response => response.json())
+                    .then(chatData => {
+                        // Построение HTML элемента на основе полученных данных и добавление его в список
+                        const chatList = document.querySelector('.chat-list');
+                        const newChatHtml = `
                     <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container" data-chat-id="${chatData.id}" style="cursor: pointer">
                         <div class="profile-picture-container">
                             <img src="/chat/picture/${chatData.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
@@ -686,77 +739,79 @@ globalSocket.onmessage = function (event) {
                             </div>
                         </div>
                     </div>`;
-                    chatList.innerHTML += newChatHtml;
-                })
-                .catch(error => console.error('Ошибка при получении данных о чате:', error));
-        }
+                        chatList.innerHTML += newChatHtml;
+                    })
+                    .catch(error => console.error('Ошибка при получении данных о чате:', error));
+            }
 
-        function updateLastDialogMessage(dialogId, timestamp) {
-            const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
-            if (dialogElement) {
-                const lastMessageTimeElement = dialogElement.querySelector('.last_message_time');
-                const formattedTime = formatMessageTime(timestamp);
-                if (lastMessageTimeElement) {
-                    lastMessageTimeElement.textContent = formattedTime;
+            function updateLastDialogMessage(dialogId, timestamp) {
+                const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
+                if (dialogElement) {
+                    const lastMessageTimeElement = dialogElement.querySelector('.last_message_time');
+                    const formattedTime = formatMessageTime(timestamp);
+                    if (lastMessageTimeElement) {
+                        lastMessageTimeElement.textContent = formattedTime;
+                    }
                 }
             }
-        }
 
-        function formatMessageTime(timestamp) {
-            if (!timestamp) {
-                return "Invalid Date";
+            function formatMessageTime(timestamp) {
+                if (!timestamp) {
+                    return "Invalid Date";
+                }
+                const messageDate = new Date(timestamp);
+                const now = new Date();
+                if (messageDate.toDateString() === now.toDateString()) {
+                    return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+                } else {
+                    return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+                }
             }
-            const messageDate = new Date(timestamp);
-            const now = new Date();
-            if (messageDate.toDateString() === now.toDateString()) {
-                return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
-            } else {
-                return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+
+            const allChatsButton = document.getElementById('all-chats-button');
+            const dialogsButton = document.getElementById('dialogs-button');
+            const groupsButton = document.getElementById('groups-button');
+
+            allChatsButton.addEventListener('click', showAllChatsAndDialogs);
+            dialogsButton.addEventListener('click', showDialogs);
+            groupsButton.addEventListener('click', showGroupsOnly);
+
+            function showAllChatsAndDialogs() {
+                const dialogsList = document.querySelector('.dialogs-list');
+                const chatList = document.querySelector('.chat-list');
+
+                dialogsList.style.display = 'block';
+                chatList.style.display = 'block';
+
+                chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+                    chat.style.display = 'flex';
+                });
+            }
+
+            function showDialogs() {
+                const dialogsList = document.querySelector('.dialogs-list');
+                const chatList = document.querySelector('.chat-list');
+
+                dialogsList.style.display = 'block';
+                chatList.style.display = 'none';
+            }
+
+            function showGroupsOnly() {
+                const dialogsList = document.querySelector('.dialogs-list');
+                const chatList = document.querySelector('.chat-list');
+
+                dialogsList.style.display = 'none';
+                chatList.style.display = 'block';
+
+                chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+                    chat.style.display = 'flex';
+                });
             }
         }
+    )
+    ;
 
-        const allChatsButton = document.getElementById('all-chats-button');
-        const dialogsButton = document.getElementById('dialogs-button');
-        const groupsButton = document.getElementById('groups-button');
-
-        allChatsButton.addEventListener('click', showAllChatsAndDialogs);
-        dialogsButton.addEventListener('click', showDialogs);
-        groupsButton.addEventListener('click', showGroupsOnly);
-
-        function showAllChatsAndDialogs() {
-            const dialogsList = document.querySelector('.dialogs-list');
-            const chatList = document.querySelector('.chat-list');
-
-            dialogsList.style.display = 'block';
-            chatList.style.display = 'block';
-
-            chatList.querySelectorAll('.clickable-chat').forEach(chat => {
-                chat.style.display = 'flex';
-            });
-        }
-
-        function showDialogs() {
-            const dialogsList = document.querySelector('.dialogs-list');
-            const chatList = document.querySelector('.chat-list');
-
-            dialogsList.style.display = 'block';
-            chatList.style.display = 'none';
-        }
-
-        function showGroupsOnly() {
-            const dialogsList = document.querySelector('.dialogs-list');
-            const chatList = document.querySelector('.chat-list');
-
-            dialogsList.style.display = 'none';
-            chatList.style.display = 'block';
-
-            chatList.querySelectorAll('.clickable-chat').forEach(chat => {
-                chat.style.display = 'flex';
-            });
-        }
-    });
-
-        document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function () {
         const scrollContainer = document.querySelector('.button-container');
 
         scrollContainer.addEventListener('wheel', function (event) {
@@ -766,7 +821,6 @@ globalSocket.onmessage = function (event) {
             }
         });
     });
-
 
 
     function formatMessageTime(timestamp) {
@@ -786,8 +840,6 @@ globalSocket.onmessage = function (event) {
             return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
         }
     }
-
-
 
 
     var ws;
@@ -990,23 +1042,27 @@ globalSocket.onmessage = function (event) {
 
     // Инициализация кода для dialogs.html
     function initializeDialogJS(dialogId, currentUserId) {
-    const interlocutorIdElement = document.getElementById('interlocutor-id');
-    globalInterlocutorId = interlocutorIdElement ? interlocutorIdElement.value : undefined;
+        const interlocutorIdElement = document.getElementById('interlocutor-id');
+        globalInterlocutorId = interlocutorIdElement ? interlocutorIdElement.value : undefined;
 
-    console.log("initializeDialogJS: dialogId =", dialogId, ", currentUserId =", currentUserId, ", interlocutorId =", globalInterlocutorId);
+        console.log("initializeDialogJS: dialogId =", dialogId, ", currentUserId =", currentUserId, ", interlocutorId =", globalInterlocutorId);
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
-        console.log("WebSocket connection opened.", event);
-        ws.send(JSON.stringify({"action": "init_connection", "dialog_id": dialogId, "access_token": access_token}));
-    };
+            console.log("WebSocket connection opened.", event);
+            ws.send(JSON.stringify({
+                "action": "init_connection",
+                "dialog_id": dialogId,
+                "access_token": access_token
+            }));
+        };
 
-    ws.onclose = function (event) {
-        console.log("WebSocket connection closed.", event);
-    };
+        ws.onclose = function (event) {
+            console.log("WebSocket connection closed.", event);
+        };
 
 
         // Автоматическая плавная прокрутка к последнему сообщению
@@ -1532,10 +1588,9 @@ globalSocket.onmessage = function (event) {
     }
 
     // Обработка закрытия страницы
-    window.addEventListener('beforeunload', function(event) {
+    window.addEventListener('beforeunload', function (event) {
         ws.close(1000, "Страница закрыта пользователем");
     });
-
 
 
     // Загрузка dialogs.html в правую панель
@@ -1662,276 +1717,20 @@ globalSocket.onmessage = function (event) {
         });
     });
 
+    var currentSubmitHandler = null; // Глобальная переменная для текущего обработчика отправки формы
+    let isSendingMessage = false;
+
     // Инициализация кода для chat.html
     function initializeChatJS(chatId) {
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
             ws.send(JSON.stringify({"action": "init_connection", "chat_id": chatId, "access_token": access_token}));
         };
-
-        ws.onclose = function (event) {
-            console.log("WebSocket connection closed:", event);
-        };
-
-        ws.onerror = function (error) {
-            console.log(`WebSocket Error: ${error}`);
-        };
-
-        // Автоматическая плавная прокрутка к последнему сообщению
-        const messagesList = document.getElementById('chat-history');
-        const lastMessage = messagesList.lastElementChild;
-        if (lastMessage) {
-            lastMessage.scrollIntoView();
-        }
-
-
-        // Инициализация модального окна для добавления участников
-        const addParticipantButton = document.getElementById('addParticipantButton');
-        const modal = $('#addParticipantModal');
-        const contactsListDiv = document.getElementById('contactsList');
-
-        addParticipantButton.addEventListener('click', function () {
-            modal.modal('show');
-            fetch(`/api/contacts/`)
-                .then(response => response.json())
-                .then(contacts => {
-                    contactsListDiv.innerHTML = contacts.map(contact => `
-                <div class="contact-item">
-                    <span>${contact.fio} (${contact.nickname})</span>
-                    <button class="btn btn-sm btn-primary add-to-chat" data-phone-number="${contact.phone_number}">Добавить</button>
-                </div>
-            `).join('');
-                })
-                .catch(error => console.error('Ошибка:', error));
-        });
-
-        contactsListDiv.addEventListener('click', function (event) {
-            if (event.target.classList.contains('add-to-chat')) {
-                const phoneNumber = event.target.getAttribute('data-phone-number');
-                fetch(`/chat/${chatId}/members/${phoneNumber}/add`, {method: 'POST'})
-                    .then(response => {
-                        if (response.ok) {
-                            console.log('Участник добавлен в чат');
-                            event.target.disabled = true;
-                        } else {
-                            console.error('Ошибка при добавлении участника');
-                        }
-                    })
-                    .catch(error => console.error('Ошибка:', error));
-            }
-        });
-
-        document.addEventListener('submit', function (event) {
-            const form = event.target;
-            if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
-                event.preventDefault();
-                const formData = new FormData(form);
-
-                fetch(form.action, {
-                    method: 'POST',
-                    body: formData
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            console.log('Сообщение успешно отправлено. Message ID:', data.message.id);
-                            // Дополнительные действия после отправки сообщения
-                            const lastMessage = document.querySelector('.messages-list .message-item:last-child');
-                            if (lastMessage) {
-                                lastMessage.dataset.messageId = data.message.id;
-                                console.log('Message ID установлен для нового сообщения:', data.message.id);
-                            }
-
-                            // Очистка формы
-                            form.reset();
-
-                            // Очистка области отображения информации о файле
-                            const fileDisplayArea = document.getElementById('file-display-area');
-                            if (fileDisplayArea) {
-                                fileDisplayArea.innerHTML = '';
-                            }
-                        } else {
-                            console.log('Ошибка при отправке сообщения:', data.error);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка при отправке формы:', error);
-                    });
-            }
-        });
-
-
-        document.getElementById('file').addEventListener('click', function () {
-            document.getElementById('file-input').click();
-        });
-
-        document.getElementById('file-input').addEventListener('change', function () {
-            const fileDisplayArea = document.getElementById('file-display-area');
-            fileDisplayArea.innerHTML = '';
-
-            const file = this.files[0];
-            if (file) {
-                const fileInfoDiv = document.createElement('div');
-                fileInfoDiv.textContent = `Прикрепленный файл: ${file.name}`;
-                fileDisplayArea.appendChild(fileInfoDiv);
-            }
-        });
-
-
-        function editChatMessage(messageId) {
-            const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
-            if (!messageElement) {
-                console.error("Message element not found for ID:", messageId);
-                return;
-            }
-
-            let messageTextElement = messageElement.querySelector('.message-content p') || messageElement.querySelector('.message-content div');
-            if (!messageTextElement) {
-                console.error("Message text element not found for ID:", messageId);
-                return;
-            }
-
-            const messageInput = document.getElementById('message-input');
-            const submitButton = document.getElementById('send-button');
-
-            messageInput.value = messageTextElement.textContent.trim();
-            submitButton.textContent = 'Сохранить';
-            submitButton.onclick = function (e) {
-                e.preventDefault();
-                saveEditedChatMessage(messageId, messageTextElement, messageElement); // Передача messageElement как аргумента
-            };
-        }
-
-        function saveEditedChatMessage(messageId, messageTextElement, messageElement) {
-            const newMessageText = document.getElementById('message-input').value.trim();
-            ws.send(JSON.stringify({
-                "action": "edit_message",
-                "message_id": messageId,
-                "new_text": newMessageText
-            }));
-
-            // Сохранение ссылки на выпадающее меню, если оно существует
-            let dropdownMenu = messageElement.querySelector('.message-dropdown');
-
-            // Обновление только текста сообщения
-            if (messageTextElement) {
-                messageTextElement.textContent = newMessageText;
-            }
-
-            // Создание или обновление метки об изменении сообщения
-            let editMark = messageElement.querySelector('.edit-mark');
-            if (!editMark) {
-                editMark = document.createElement('div');
-                editMark.className = 'edit-mark';
-                messageElement.querySelector('.message-content').appendChild(editMark);
-            }
-            editMark.textContent = `Изменено: ${new Date().toLocaleString()}`;
-
-            // Восстановление выпадающего меню после обновления текста сообщения
-            if (dropdownMenu) {
-                messageElement.appendChild(dropdownMenu);
-            } else {
-                // Если выпадающего меню нет, создать его
-                createOrUpdateDropdownMenu(messageElement, messageId);
-            }
-
-            // Сброс формы
-            document.getElementById('message-input').value = '';
-            document.getElementById('send-button').textContent = 'Отправить';
-            document.getElementById('send-button').onclick = null;
-        }
-
-        function createOrUpdateDropdownMenu(messageElement, messageId) {
-            let dropdown = messageElement.querySelector('.message-dropdown');
-            if (!dropdown) {
-                // Если выпадающего списка нет, создать его
-                dropdown = document.createElement('div');
-                dropdown.className = 'message-dropdown';
-                messageElement.appendChild(dropdown);
-            }
-
-            // Создание кнопки удаления, если она еще не существует
-            let deleteButton = dropdown.querySelector('.delete-message-button');
-            if (!deleteButton) {
-                deleteButton = document.createElement('button');
-                deleteButton.className = 'dropdown-item delete-message-button';
-                deleteButton.textContent = 'Удалить сообщение';
-                deleteButton.onclick = function () {
-                    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
-                };
-                dropdown.appendChild(deleteButton);
-            }
-
-            // Создание кнопки редактирования, если она еще не существует
-            let editButton = dropdown.querySelector('.edit-message-button');
-            if (!editButton) {
-                editButton = document.createElement('button');
-                editButton.className = 'dropdown-item edit-message-button';
-                editButton.textContent = 'Редактировать';
-                editButton.onclick = function () {
-                    editChatMessage(messageId);
-                };
-                dropdown.appendChild(editButton);
-            }
-
-        }
-
-
-        // Обработчик клика в правой панели для управления выпадающими списками и кнопками в сообщениях
-        document.querySelector('.right-panel').addEventListener('click',
-            function (event) {
-                // Сброс `z-index` для всех элементов сообщений
-                document.querySelectorAll('.message-item').forEach(function (messageItem) {
-                    messageItem.style.zIndex = 1;
-                });
-
-                // Закрытие всех открытых выпадающих списков
-                document.querySelectorAll('.message-options').forEach(function (dropdown) {
-                    dropdown.style.display = 'none';
-                });
-
-                // Проверка клика по иконке выпадающего списка
-                if (event.target.closest('.message-options-icon')) {
-                    const messageOptions = event.target.closest('.message-dropdown').querySelector('.message-options');
-                    const messageItem = event.target.closest('.message-item');
-
-                    messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
-                    messageItem.style.zIndex = messageOptions.style.display === 'block' ? 10000 : 1;
-                }
-
-                // Обработчик клика для кнопки "Удалить сообщение"
-                if (event.target.closest('.delete-message-button')) {
-                    const messageElement = event.target.closest('.message-item');
-                    const messageId = messageElement ? messageElement.dataset.messageId : null;
-                    if (messageId) {
-                        const messageIdNumber = parseInt(messageId, 10);
-                        ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
-                    }
-                }
-
-                if (event.target.classList.contains('edit-message-button')) {
-                    const messageId = event.target.closest('.message-item').dataset.messageId;
-                    editChatMessage(messageId);
-                }
-
-            });
-
-        // Обработчик клика в списке сообщений для обработки удаления сообщений
-        document.querySelector('.messages-list').addEventListener('click', function (event) {
-            if (event.target.className === 'dropdown-item' && event.target.textContent === 'Удалить сообщение') {
-                const messageElement = event.target.closest('.message-item');
-                const messageId = messageElement ? messageElement.dataset.messageId : null;
-                if (messageId) {
-                    const messageIdNumber = parseInt(messageId, 10);
-                    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
-                }
-            }
-        });
 
         ws.onmessage = function (event) {
             console.log("Получено сообщение через WebSocket:", event.data);
@@ -1954,14 +1753,26 @@ globalSocket.onmessage = function (event) {
                 const timeElement = document.querySelector(`.message-time[data-message-id="${String(messageId)}"]`);
                 const nicknameElement = document.querySelector(`.message-nickname[data-message-id="${String(messageId)}"]`);
 
+                // Для каждого элемента проверяем, найден ли он, и только после этого удаляем
                 if (messageElement) {
-                    timeElement.remove();
                     messageElement.remove();
-                    nicknameElement.remove();
                     console.log(`Сообщение с ID: ${messageId} удалено`);
                 } else {
                     console.warn(`Message with id: ${messageId} not found for deletion`);
                 }
+
+                if (timeElement) {
+                    timeElement.remove();
+                } else {
+                    console.warn(`Time element for message with id: ${messageId} not found`);
+                }
+
+                if (nicknameElement) {
+                    nicknameElement.remove();
+                } else {
+                    console.warn(`Nickname element for message with id: ${messageId} not found`);
+                }
+
             } else if (action === 'message_updated') {
                 const messageId = messageData.message_id;
                 const newMessageText = messageData.new_text;
@@ -2128,10 +1939,283 @@ globalSocket.onmessage = function (event) {
             }
         };
 
+        ws.onclose = function (event) {
+            console.log("WebSocket connection closed:", event);
+        };
+
+        ws.onerror = function (error) {
+            console.log(`WebSocket Error: ${error}`);
+        };
+
+        // Автоматическая плавная прокрутка к последнему сообщению
+        const messagesList = document.getElementById('chat-history');
+        const lastMessage = messagesList.lastElementChild;
+        if (lastMessage) {
+            lastMessage.scrollIntoView();
+        }
+
+
+        // // Инициализация модального окна для добавления участников
+        // const addParticipantButton = document.getElementById('addParticipantButton');
+        // const modal = $('#addParticipantModal');
+        // const contactsListDiv = document.getElementById('contactsList');
+
+        // addParticipantButton.addEventListener('click', function () {
+        //     modal.modal('show');
+        //     fetch(`/api/contacts/`)
+        //         .then(response => response.json())
+        //         .then(contacts => {
+        //             contactsListDiv.innerHTML = contacts.map(contact => `
+        //         <div class="contact-item">
+        //             <span>${contact.fio} (${contact.nickname})</span>
+        //             <button class="btn btn-sm btn-primary add-to-chat" data-phone-number="${contact.phone_number}">Добавить</button>
+        //         </div>
+        //     `).join('');
+        //         })
+        //         .catch(error => console.error('Ошибка:', error));
+        // });
+        //
+        // contactsListDiv.addEventListener('click', function (event) {
+        //     if (event.target.classList.contains('add-to-chat')) {
+        //         const phoneNumber = event.target.getAttribute('data-phone-number');
+        //         fetch(`/chat/${chatId}/members/${phoneNumber}/add`, {method: 'POST'})
+        //             .then(response => {
+        //                 if (response.ok) {
+        //                     console.log('Участник добавлен в чат');
+        //                     event.target.disabled = true;
+        //                 } else {
+        //                     console.error('Ошибка при добавлении участника');
+        //                 }
+        //             })
+        //             .catch(error => console.error('Ошибка:', error));
+        //     }
+        // });
+
+
+        // Отключение предыдущего обработчика события submit, если он существует
+        if (currentSubmitHandler) {
+            document.removeEventListener('submit', currentSubmitHandler);
+        }
+
+        // Создание нового обработчика события submit
+        currentSubmitHandler = function (event) {
+            const form = event.target;
+            if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
+                event.preventDefault();
+                if (isSendingMessage) {
+                    console.log('Сообщение уже отправляется...');
+                    return; // Выход, если сообщение уже отправляется
+                }
+                isSendingMessage = true; // Установка флага в состояние отправки
+                const submitButton = form.querySelector('[type="submit"]'); // Получение кнопки отправки формы
+                submitButton.disabled = true; // Отключение кнопки отправки
+
+                const formData = new FormData(form);
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log('Сообщение успешно отправлено. Message ID:', data.message.id);
+                            // Дополнительные действия после отправки сообщения
+                            const lastMessage = document.querySelector('.messages-list .message-item:last-child');
+                            if (lastMessage) {
+                                lastMessage.dataset.messageId = data.message.id;
+                                console.log('Message ID установлен для нового сообщения:', data.message.id);
+                            }
+
+                            // Очистка формы
+                            form.reset();
+
+                            // Очистка области отображения информации о файле
+                            const fileDisplayArea = document.getElementById('file-display-area');
+                            if (fileDisplayArea) {
+                                fileDisplayArea.innerHTML = '';
+                            }
+                        } else {
+                            console.log('Ошибка при отправке сообщения:', data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при отправке формы:', error);
+                    })
+                    .finally(() => {
+                        isSendingMessage = false; // Сброс флага после завершения отправки
+                        submitButton.disabled = false; // Включение кнопки отправки
+                    });
+            }
+        };
+
+        // Добавление нового обработчика события submit
+        document.addEventListener('submit', currentSubmitHandler);
+
+
+        // Добавление нового обработчика события submit
+        document.addEventListener('submit', currentSubmitHandler);
+
+
+        document.getElementById('file').addEventListener('click', function () {
+            document.getElementById('file-input').click();
+        });
+
+        document.getElementById('file-input').addEventListener('change', function () {
+            const fileDisplayArea = document.getElementById('file-display-area');
+            fileDisplayArea.innerHTML = '';
+
+            const file = this.files[0];
+            if (file) {
+                const fileInfoDiv = document.createElement('div');
+                fileInfoDiv.textContent = `Прикрепленный файл: ${file.name}`;
+                fileDisplayArea.appendChild(fileInfoDiv);
+            }
+        });
+
+
+        function editChatMessage(messageId) {
+            const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+            if (!messageElement) {
+                console.error("Message element not found for ID:", messageId);
+                return;
+            }
+
+            let messageTextElement = messageElement.querySelector('.message-content p') || messageElement.querySelector('.message-content div');
+            if (!messageTextElement) {
+                console.error("Message text element not found for ID:", messageId);
+                return;
+            }
+
+            const messageInput = document.getElementById('message-input');
+            const submitButton = document.getElementById('send-button');
+
+            messageInput.value = messageTextElement.textContent.trim();
+            submitButton.textContent = 'Сохранить';
+            submitButton.onclick = function (e) {
+                e.preventDefault();
+                saveEditedChatMessage(messageId, messageTextElement, messageElement); // Передача messageElement как аргумента
+            };
+        }
+
+        function saveEditedChatMessage(messageId, messageTextElement, messageElement) {
+            const newMessageText = document.getElementById('message-input').value.trim();
+            ws.send(JSON.stringify({
+                "action": "edit_message",
+                "message_id": messageId,
+                "new_text": newMessageText
+            }));
+
+            // Сохранение ссылки на выпадающее меню, если оно существует
+            let dropdownMenu = messageElement.querySelector('.message-dropdown');
+
+            // Обновление только текста сообщения
+            if (messageTextElement) {
+                messageTextElement.textContent = newMessageText;
+            }
+
+            // Создание или обновление метки об изменении сообщения
+            let editMark = messageElement.querySelector('.edit-mark');
+            if (!editMark) {
+                editMark = document.createElement('div');
+                editMark.className = 'edit-mark';
+                messageElement.querySelector('.message-content').appendChild(editMark);
+            }
+            editMark.textContent = `Изменено: ${new Date().toLocaleString()}`;
+
+            // Восстановление выпадающего меню после обновления текста сообщения
+            if (dropdownMenu) {
+                messageElement.appendChild(dropdownMenu);
+            } else {
+                // Если выпадающего меню нет, создать его
+                createOrUpdateDropdownMenu(messageElement, messageId);
+            }
+
+            // Сброс формы
+            document.getElementById('message-input').value = '';
+            document.getElementById('send-button').textContent = 'Отправить';
+            document.getElementById('send-button').onclick = null;
+        }
+
+        function createOrUpdateDropdownMenu(messageElement, messageId) {
+            let dropdown = messageElement.querySelector('.message-dropdown');
+            if (!dropdown) {
+                // Если выпадающего списка нет, создать его
+                dropdown = document.createElement('div');
+                dropdown.className = 'message-dropdown';
+                messageElement.appendChild(dropdown);
+            }
+
+            // Создание кнопки удаления, если она еще не существует
+            let deleteButton = dropdown.querySelector('.delete-message-button');
+            if (!deleteButton) {
+                deleteButton = document.createElement('button');
+                deleteButton.className = 'dropdown-item delete-message-button';
+                deleteButton.textContent = 'Удалить сообщение';
+                deleteButton.onclick = function () {
+                    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageId}));
+                };
+                dropdown.appendChild(deleteButton);
+            }
+
+            // Создание кнопки редактирования, если она еще не существует
+            let editButton = dropdown.querySelector('.edit-message-button');
+            if (!editButton) {
+                editButton = document.createElement('button');
+                editButton.className = 'dropdown-item edit-message-button';
+                editButton.textContent = 'Редактировать';
+                editButton.onclick = function () {
+                    editChatMessage(messageId);
+                };
+                dropdown.appendChild(editButton);
+            }
+
+        }
+
+
+        // Обработчик клика в правой панели для управления выпадающими списками и кнопками в сообщениях
+        document.querySelector('.right-panel').addEventListener('click',
+            function (event) {
+                // Сброс `z-index` для всех элементов сообщений
+                document.querySelectorAll('.message-item').forEach(function (messageItem) {
+                    messageItem.style.zIndex = 1;
+                });
+
+                // Закрытие всех открытых выпадающих списков
+                document.querySelectorAll('.message-options').forEach(function (dropdown) {
+                    dropdown.style.display = 'none';
+                });
+
+                // Проверка клика по иконке выпадающего списка
+                if (event.target.closest('.message-options-icon')) {
+                    const messageOptions = event.target.closest('.message-dropdown').querySelector('.message-options');
+                    const messageItem = event.target.closest('.message-item');
+
+                    messageOptions.style.display = messageOptions.style.display === 'none' ? 'block' : 'none';
+                    messageItem.style.zIndex = messageOptions.style.display === 'block' ? 10000 : 1;
+                }
+
+                // Обработчик клика для кнопки "Удалить сообщение"
+                if (event.target.closest('.delete-message-button')) {
+                    const messageElement = event.target.closest('.message-item');
+                    const messageId = messageElement ? messageElement.dataset.messageId : null;
+                    if (messageId) {
+                        const messageIdNumber = parseInt(messageId, 10);
+                        ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
+                    }
+                }
+
+                if (event.target.classList.contains('edit-message-button')) {
+                    const messageId = event.target.closest('.message-item').dataset.messageId;
+                    editChatMessage(messageId);
+                }
+
+            });
+
 
         let chatOwnerId;
 
-// Предполагается, что chatId уже определен
+        // Предполагается, что chatId уже определен
         fetchChatOwner(chatId)
             .then(ownerPhoneNumber => {
                 chatOwnerId = ownerPhoneNumber;
@@ -2261,37 +2345,10 @@ globalSocket.onmessage = function (event) {
         });
     }
 
-
-    function addOption() {
-        const newOption = document.createElement('input');
-        newOption.type = 'text';
-        newOption.name = 'options';
-        newOption.placeholder = 'New poll option';
-        document.getElementById('poll-options').appendChild(newOption);
-    }
-
-    function createPoll() {
-        const question = document.getElementById("poll-question").value;
-        const optionsNodes = document.getElementsByName("options");
-        const options = Array.from(optionsNodes).map(node => node.value);
-        if (question === '' || options.some(option => option === '')) {
-            alert('Вопрос и варианты ответа не должны быть пустыми.');
-            return;
-        }
-        const pollData = {
-            "action": "create_poll",
-            "question": question,
-            "options": options,
-            "creator_phone_number": "{{ current_user.phone_number }}"
-        };
-        ws.send(JSON.stringify(pollData));
-    }
-
-     // Обработка закрытия страницы
-    window.addEventListener('beforeunload', function(event) {
+    // Обработка закрытия страницы
+    window.addEventListener('beforeunload', function (event) {
         ws.close(1000, "Страница закрыта пользователем");
     });
-
 
 
     // Инициализация кода для create_chat.html
@@ -2397,28 +2454,28 @@ globalSocket.onmessage = function (event) {
         }
     });
 
-    function changeImage() {
-        var input = document.getElementById('chat_image');
-        var preview = document.getElementById('previewImage');
+    // function changeImage() {
+    //     var input = document.getElementById('chat_image');
+    //     var preview = document.getElementById('previewImage');
+    //
+    //     if (input.files && input.files[0]) {
+    //         var reader = new FileReader();
+    //
+    //         reader.onload = function (e) {
+    //             preview.src = e.target.result;
+    //         };
+    //
+    //         reader.readAsDataURL(input.files[0]);
+    //     } else {
+    //         // Если файл не выбран, используйте изображение по умолчанию
+    //         preview.src = '../static/default.svg';
+    //     }
+    // }
 
-        if (input.files && input.files[0]) {
-            var reader = new FileReader();
-
-            reader.onload = function (e) {
-                preview.src = e.target.result;
-            };
-
-            reader.readAsDataURL(input.files[0]);
-        } else {
-            // Если файл не выбран, используйте изображение по умолчанию
-            preview.src = '../static/default.svg';
-        }
-    }
-
-    document.getElementById('chat_image').addEventListener('change', function () {
-        var fileName = this.value.split('\\').pop();
-        document.getElementById('selected_image').textContent = fileName;
-    });
+    // document.getElementById('chat_image').addEventListener('change', function () {
+    //     var fileName = this.value.split('\\').pop();
+    //     document.getElementById('selected_image').textContent = fileName;
+    // });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
