@@ -587,7 +587,7 @@
             const currentUserId = "{{ current_user.id }}";
 
             // Глобальное соединение WebSocket
-            const globalSocket = new WebSocket(`ws://127.0.0.1:8000/ws/global/${currentUserId}/`);
+            const globalSocket = new WebSocket(`ws://127.0.0.1:8080/ws/global/${currentUserId}/`);
 
             globalSocket.onopen = () => {
                 console.log("Global WebSocket connection opened");
@@ -635,7 +635,7 @@
             }
 
             // Локальное соединение WebSocket для левой панели
-            const socket = new WebSocket(`ws://127.0.0.1:8000/ws/main_page/${currentUserId}/`);
+            const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
 
             socket.onopen = () => {
                 console.log("WebSocket connection opened for left panel");
@@ -665,56 +665,92 @@
                 }
             };
 
-            // Функция для пересылки сообщения
-            window.forwardMessage = function (messageId) {
-                // Получение HTML кода левой панели, содержащего диалоги и чаты
-                const dialogsHtml = document.querySelector('.scrollable-content .dialogs-list').innerHTML;
-                const chatsHtml = document.querySelector('.scrollable-content .chat-list').innerHTML;
+// Функция для пересылки сообщения
+window.forwardMessage = function (messageId) {
+    // Получение HTML кода левой панели, содержащего диалоги и чаты
+    const dialogsHtml = document.querySelector('.scrollable-content .dialogs-list').innerHTML;
+    const chatsHtml = document.querySelector('.scrollable-content .chat-list').innerHTML;
 
-                // Вставка HTML кода в модальное окно
-                document.querySelector('#forwardModal .dialogs-list').innerHTML = dialogsHtml;
-                document.querySelector('#forwardModal .chat-list').innerHTML = chatsHtml;
+    // Вставка HTML кода в модальное окно
+    document.querySelector('#forwardModal .dialogs-list').innerHTML = dialogsHtml;
+    document.querySelector('#forwardModal .chat-list').innerHTML = chatsHtml;
 
-                // Установка обработчиков событий для элементов списка в модальном окне
-                setupDialogAndChatClickHandlers(messageId);
+    // Установка обработчиков событий для элементов списка в модальном окне
+    setupDialogAndChatClickHandlers(messageId);
 
-                // Отображение модального окна
-                $('#forwardModal').modal('show');
-            };
+    // Сохранение идентификатора пересылаемого сообщения
+    const form = document.getElementById('message-form');
+    form.dataset.isForwarded = 'true';
+    form.dataset.originalMessageId = messageId;
+
+    // Найти исходное сообщение по messageId и скопировать его текст
+    const originalMessageContent = document.querySelector(`[data-message-id="${messageId}"] .message-content`);
+    if (originalMessageContent) {
+        // Клонируем элемент, чтобы исключить дочерние элементы, не являющиеся текстом
+        const clonedContent = originalMessageContent.cloneNode(true);
+        // Удаляем все дочерние элементы, кроме текста
+        while (clonedContent.children.length) {
+            clonedContent.removeChild(clonedContent.children[0]);
+        }
+        const originalText = clonedContent.textContent.trim();
+
+        form.querySelector('textarea[name="message"]').value = `Пересланное сообщение: ${originalText}`;
+        console.log("Пересылаемое сообщение:", originalText);
+    } else {
+        console.log("Исходное сообщение не найдено");
+    }
+
+    // Отображение модального окна
+    $('#forwardModal').modal('show');
+};
 
             // Функция для установки обработчиков событий при нажатии на диалоги и чаты в модальном окне
             function setupDialogAndChatClickHandlers(messageId) {
-                // Добавление обработчика для диалогов
-                document.querySelectorAll('#forwardModal .clickable-dialog').forEach(dialog => {
-                    dialog.addEventListener('click', function () {
-                        forwardToTarget(messageId, this.dataset.dialogId, true); // true означает, что это диалог
-                    });
-                });
+    // Обработчик для диалогов
+    document.querySelectorAll('#forwardModal .clickable-dialog').forEach(dialog => {
+        dialog.addEventListener('click', function () {
+            // Установка данных для формы отправки сообщения
+            const form = document.getElementById('message-form');
+            form.dataset.isForwarded = 'true';
+            form.dataset.originalMessageId = messageId;
+            form.dataset.recipientId = this.dataset.dialogId;
 
-                // Добавление обработчика для чатов
-                document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
-                    chat.addEventListener('click', function () {
-                        forwardToTarget(messageId, this.dataset.chatId, false); // false означает, что это чат
-                    });
-                });
-            }
+            // Инициировать отправку формы
+            form.dispatchEvent(new Event('submit'));
 
-            // Функция для пересылки сообщения в выбранный диалог или чат
-            function forwardToTarget(messageId, targetId, isDialog) {
-                const forwardData = {
-                    action: 'forward_message',
-                    message_id: messageId,
-                    target_id: targetId,
-                    is_dialog: isDialog
-                };
+            // Закрыть модальное окно
+            $('#forwardModal').modal('hide');
+        });
+    });
 
-                // Отправка данных через WebSocket
-                globalSocket.send(JSON.stringify(forwardData));
+    // Аналогично для чатов
+    document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
+        chat.addEventListener('click', function () {
+            // То же самое, что и для диалогов
+            const form = document.getElementById('message-form');
+            form.dataset.isForwarded = 'true';
+            form.dataset.originalMessageId = messageId;
+            form.dataset.recipientId = this.dataset.chatId;
+            form.dispatchEvent(new Event('submit'));
 
-                // Закрытие модального окна
-                $('#forwardModal').modal('hide');
-            }
+            // Закрыть модальное окно
+            $('#forwardModal').modal('hide');
+        });
+    });
 
+
+    // Аналогично для чатов
+    document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
+        chat.addEventListener('click', function () {
+            // То же самое, что и для диалогов
+            const form = document.getElementById('message-form');
+            form.dataset.isForwarded = 'true';
+            form.dataset.originalMessageId = messageId;
+            form.dataset.recipientId = this.dataset.chatId;
+            form.dispatchEvent(new Event('submit'));
+        });
+    });
+}
 
             // Функция для добавления нового чата в список
             function addNewChatToList(chatId) {
@@ -1033,6 +1069,7 @@
             editMessage(messageId.toString());
         };
 
+
         dropdownContent.appendChild(deleteButton);
         dropdownContent.appendChild(editButton);
         dropdown.appendChild(dropdownIcon);
@@ -1049,7 +1086,7 @@
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -1115,10 +1152,22 @@
 
 
         // Функция отправки сообщения
-        const form = document.getElementById('message-form');
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
-            const formData = new FormData(form);
+const form = document.getElementById('message-form');
+form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const formData = new FormData(form);
+
+    console.log("Отправка формы:", {
+        isForwarded: form.dataset.isForwarded,
+        originalMessageId: form.dataset.originalMessageId,
+        messageText: form.querySelector('textarea[name="message"]').value
+    });
+
+    // Добавляем флаг и идентификатор исходного сообщения, если оно пересылается
+    if (form.dataset.isForwarded === 'true') {
+        formData.append('is_forwarded', true);
+        formData.append('original_message_id', form.dataset.originalMessageId);
+    }
 
             fetch(`/dialogs/${dialogId}/send_message`, {
                 method: 'POST',
@@ -1359,10 +1408,22 @@
                 };
                 dropdownContent.appendChild(editButton);
 
-                const forwardButton = document.createElement('button');
-                forwardButton.className = 'dropdown-item';
-                forwardButton.textContent = 'Переслать';
-                dropdownContent.appendChild(forwardButton);
+                // Создание и добавление кнопки "Переслать"
+    const forwardButton = document.createElement('button');
+forwardButton.className = 'dropdown-item';
+forwardButton.textContent = 'Переслать';
+forwardButton.onclick = function () {
+    // Установка данных для формы отправки сообщения
+    const form = document.getElementById('message-form');
+    form.dataset.isForwarded = 'true';
+    form.dataset.originalMessageId = messageData.message.message_id;
+
+    // Опционально: добавьте логику для ввода текста пересылаемого сообщения пользователем
+
+    // Инициируем отправку формы
+    form.dispatchEvent(new Event('submit'));
+};
+
 
                 dropdown.appendChild(dropdownIcon);
                 dropdown.appendChild(dropdownContent);
@@ -1725,7 +1786,7 @@
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
