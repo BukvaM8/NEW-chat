@@ -580,6 +580,150 @@
         }
     });
 
+
+// Функция для пересылки сообщения
+window.forwardMessage = function (messageId) {
+    // Получение HTML кода левой панели, содержащего диалоги и чаты
+    const dialogsHtml = document.querySelector('.scrollable-content .dialogs-list').innerHTML;
+    const chatsHtml = document.querySelector('.scrollable-content .chat-list').innerHTML;
+
+    // Вставка HTML кода в модальное окно
+    document.querySelector('#forwardModal .dialogs-list').innerHTML = dialogsHtml;
+    document.querySelector('#forwardModal .chat-list').innerHTML = chatsHtml;
+
+    // Установка обработчиков событий для элементов списка в модальном окне
+    setupDialogAndChatClickHandlers(messageId);
+
+    // Сохранение идентификатора пересылаемого сообщения
+    const form = document.getElementById('message-form');
+    form.dataset.isForwarded = 'true';
+    form.dataset.originalMessageId = messageId;
+
+    // Найти исходное сообщение по messageId и скопировать его текст
+    const originalMessageContent = document.querySelector(`[data-message-id="${messageId}"] .message-content`);
+    if (originalMessageContent) {
+        // Клонируем элемент, чтобы исключить дочерние элементы, не являющиеся текстом
+        const clonedContent = originalMessageContent.cloneNode(true);
+        // Удаляем все дочерние элементы, кроме текста
+        while (clonedContent.children.length) {
+            clonedContent.removeChild(clonedContent.children[0]);
+        }
+        const originalText = clonedContent.textContent.trim();
+
+        form.querySelector('textarea[name="message"]').value = `Пересланное сообщение: ${originalText}`;
+        console.log("Пересылаемое сообщение:", originalText);
+    } else {
+        console.log("Исходное сообщение не найдено");
+    }
+
+    // Отображение модального окна
+    $('#forwardModal').modal('show');
+};
+
+            // Функция для установки обработчиков событий при нажатии на диалоги и чаты в модальном окне
+            function setupDialogAndChatClickHandlers(messageId) {
+    // Обработчик для диалогов
+    document.querySelectorAll('#forwardModal .clickable-dialog').forEach(dialog => {
+        dialog.addEventListener('click', function () {
+            // Установка данных для формы отправки сообщения
+            const form = document.getElementById('message-form');
+            form.dataset.isForwarded = 'true';
+            form.dataset.originalMessageId = messageId;
+            form.dataset.recipientId = this.dataset.dialogId;
+
+            // Инициировать отправку формы
+            form.dispatchEvent(new Event('submit'));
+
+            // Закрыть модальное окно
+            $('#forwardModal').modal('hide');
+        });
+    });
+
+ document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
+        chat.addEventListener('click', function () {
+            console.log('Клик по чату:', this.dataset.chatId);
+
+            const originalMessageContent = document.querySelector(`[data-message-id="${messageId}"] .message-content`);
+            if (originalMessageContent) {
+                let originalText = getTextFromNode(originalMessageContent);
+                console.log('Отправляемое сообщение:', originalText);
+
+                sendChatMessageJson(`/chats/${this.dataset.chatId}/send_message`, {
+                    message_text: `Пересланное сообщение: ${originalText}`,
+                    sender_phone_number: "{{ current_user.phone_number }}"
+                });
+                $('#forwardModal').modal('hide');
+            }
+        });
+    });
+
+function getTextFromNode(node) {
+    let clonedNode = node.cloneNode(true);
+
+    // Удаляем все элементы, кроме текста
+    removeNonTextElements(clonedNode);
+
+    // Возвращаем только текстовое содержимое
+    return clonedNode.textContent.trim();
+}
+
+function removeNonTextElements(node) {
+    let childNodes = node.childNodes;
+    for (let i = childNodes.length - 1; i >= 0; i--) {
+        let child = childNodes[i];
+        if (child.nodeType === Node.ELEMENT_NODE) {
+            // Удаляем элементы, которые не несут текстовой информации
+            child.remove();
+        }
+    }
+}
+
+
+
+function sendChatMessageJson(url, data) {
+    console.log('Функция sendChatMessageJson вызвана с данными:', data);
+
+    if (isSendingMessage) {
+        console.log('Сообщение уже отправляется...');
+        return;
+    }
+
+    isSendingMessage = true;
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        console.log('Ответ сервера:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Ответ на отправку сообщения:', data);
+    })
+    .catch(error => {
+        console.error('Ошибка при отправке формы:', error);
+    })
+    .finally(() => {
+        isSendingMessage = false;
+    });
+}
+
+function handleSendMessageResponse(data) {
+    if (data.success) {
+        console.log('Сообщение успешно отправлено. Message ID:', data.message.id);
+    } else {
+        console.log('Ошибка при отправке сообщения:', data.error);
+    }
+}
+
+}
+
+
+
     // Глобальная переменная для хранения ID собеседника в диалоге
     var globalInterlocutorId;
 
@@ -665,92 +809,7 @@
                 }
             };
 
-// Функция для пересылки сообщения
-window.forwardMessage = function (messageId) {
-    // Получение HTML кода левой панели, содержащего диалоги и чаты
-    const dialogsHtml = document.querySelector('.scrollable-content .dialogs-list').innerHTML;
-    const chatsHtml = document.querySelector('.scrollable-content .chat-list').innerHTML;
 
-    // Вставка HTML кода в модальное окно
-    document.querySelector('#forwardModal .dialogs-list').innerHTML = dialogsHtml;
-    document.querySelector('#forwardModal .chat-list').innerHTML = chatsHtml;
-
-    // Установка обработчиков событий для элементов списка в модальном окне
-    setupDialogAndChatClickHandlers(messageId);
-
-    // Сохранение идентификатора пересылаемого сообщения
-    const form = document.getElementById('message-form');
-    form.dataset.isForwarded = 'true';
-    form.dataset.originalMessageId = messageId;
-
-    // Найти исходное сообщение по messageId и скопировать его текст
-    const originalMessageContent = document.querySelector(`[data-message-id="${messageId}"] .message-content`);
-    if (originalMessageContent) {
-        // Клонируем элемент, чтобы исключить дочерние элементы, не являющиеся текстом
-        const clonedContent = originalMessageContent.cloneNode(true);
-        // Удаляем все дочерние элементы, кроме текста
-        while (clonedContent.children.length) {
-            clonedContent.removeChild(clonedContent.children[0]);
-        }
-        const originalText = clonedContent.textContent.trim();
-
-        form.querySelector('textarea[name="message"]').value = `Пересланное сообщение: ${originalText}`;
-        console.log("Пересылаемое сообщение:", originalText);
-    } else {
-        console.log("Исходное сообщение не найдено");
-    }
-
-    // Отображение модального окна
-    $('#forwardModal').modal('show');
-};
-
-            // Функция для установки обработчиков событий при нажатии на диалоги и чаты в модальном окне
-            function setupDialogAndChatClickHandlers(messageId) {
-    // Обработчик для диалогов
-    document.querySelectorAll('#forwardModal .clickable-dialog').forEach(dialog => {
-        dialog.addEventListener('click', function () {
-            // Установка данных для формы отправки сообщения
-            const form = document.getElementById('message-form');
-            form.dataset.isForwarded = 'true';
-            form.dataset.originalMessageId = messageId;
-            form.dataset.recipientId = this.dataset.dialogId;
-
-            // Инициировать отправку формы
-            form.dispatchEvent(new Event('submit'));
-
-            // Закрыть модальное окно
-            $('#forwardModal').modal('hide');
-        });
-    });
-
-    // Аналогично для чатов
-    document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
-        chat.addEventListener('click', function () {
-            // То же самое, что и для диалогов
-            const form = document.getElementById('message-form');
-            form.dataset.isForwarded = 'true';
-            form.dataset.originalMessageId = messageId;
-            form.dataset.recipientId = this.dataset.chatId;
-            form.dispatchEvent(new Event('submit'));
-
-            // Закрыть модальное окно
-            $('#forwardModal').modal('hide');
-        });
-    });
-
-
-    // Аналогично для чатов
-    document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
-        chat.addEventListener('click', function () {
-            // То же самое, что и для диалогов
-            const form = document.getElementById('message-form');
-            form.dataset.isForwarded = 'true';
-            form.dataset.originalMessageId = messageId;
-            form.dataset.recipientId = this.dataset.chatId;
-            form.dispatchEvent(new Event('submit'));
-        });
-    });
-}
 
             // Функция для добавления нового чата в список
             function addNewChatToList(chatId) {
@@ -2053,14 +2112,12 @@ forwardButton.onclick = function () {
         // });
 
 
-        // Отключение предыдущего обработчика события submit, если он существует
-        if (currentSubmitHandler) {
-            document.removeEventListener('submit', currentSubmitHandler);
-        }
+
 
         // Создание нового обработчика события submit
         currentSubmitHandler = function (event) {
             const form = event.target;
+    console.log('Submit handler triggered for form:', form);
             if (form && form.action && form.action.endsWith(`/chats/${chatId}/send_message`)) {
                 event.preventDefault();
                 if (isSendingMessage) {
@@ -2114,8 +2171,6 @@ forwardButton.onclick = function () {
         document.addEventListener('submit', currentSubmitHandler);
 
 
-        // Добавление нового обработчика события submit
-        document.addEventListener('submit', currentSubmitHandler);
 
 
         document.getElementById('file').addEventListener('click', function () {

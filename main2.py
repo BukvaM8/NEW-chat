@@ -3792,6 +3792,33 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
     return result
 
 
+async def forward_message(source_id: int, destination_id: int, message_id: int, is_source_chat: bool, current_user: User):
+    logging.info(f"Начало пересылки сообщения. Источник: {source_id}, Назначение: {destination_id}, Сообщение: {message_id}, Источник - чат: {is_source_chat}")
+
+    # Получение текста исходного сообщения
+    if is_source_chat:
+        source_message = await get_message_by_id(message_id)
+        message_content = source_message['message']
+        logging.info(f"Текст исходного сообщения из чата: {message_content}")
+    else:
+        source_message = await get_dialog_messages(source_id)
+        message_content = next((msg for msg in source_message if msg['id'] == message_id), None)['message']
+        logging.info(f"Текст исходного сообщения из диалога: {message_content}")
+
+    # Добавляем пометку "Пересланное сообщение"
+    forwarded_message = f"Пересланное сообщение: {message_content}"
+    logging.info(f"Содержимое пересланного сообщения: {forwarded_message}")
+
+    # Определяем, куда отправляется сообщение - в диалог или чат
+    if is_source_chat:  # Если источник - чат, отправляем в диалог
+        await handle_dialog_message(destination_id, forwarded_message, current_user)
+        logging.info(f"Сообщение отправлено в диалог {destination_id}")
+    else:  # Если источник - диалог, отправляем в чат
+        await handle_chat_message(destination_id, forwarded_message, current_user)
+        logging.info(f"Сообщение отправлено в чат {destination_id}")
+
+
+
 # Добавляет новое сообщение в базу данных и отправляет уведомление через WebSocket
 async def send_message(dialog_id: int, sender_id: int, message: str):
     # Устанавливаем соединение с базой данных
