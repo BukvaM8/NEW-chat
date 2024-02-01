@@ -604,8 +604,26 @@
             {% endfor %}
         </ul>
     </div>
-
-
+</div>
+<div id="forwardModal" class="modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Переслать сообщение</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="dialogs-list">
+                    <!-- Здесь будут отображаться диалоги -->
+                </div>
+                <div class="chat-list">
+                    <!-- Здесь будут отображаться чаты -->
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 <!-- Форма для отправки сообщения -->
 <div class="mt-4 border-top"

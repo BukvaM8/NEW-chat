@@ -620,8 +620,18 @@ window.forwardMessage = function (messageId) {
     $('#forwardModal').modal('show');
 };
 
+// Функция для форматирования пересылаемого сообщения
+function formatForwardedMessage(originalText) {
+    const forwardPrefix = "Пересланное сообщение: ";
+    if (originalText.startsWith(forwardPrefix)) {
+        return originalText; // Не добавляем префикс, если он уже есть
+    } else {
+        return forwardPrefix + originalText; // Добавляем префикс
+    }
+}
+
             // Функция для установки обработчиков событий при нажатии на диалоги и чаты в модальном окне
-            function setupDialogAndChatClickHandlers(messageId) {
+function setupDialogAndChatClickHandlers(messageId) {
     // Обработчик для диалогов
     document.querySelectorAll('#forwardModal .clickable-dialog').forEach(dialog => {
         dialog.addEventListener('click', function () {
@@ -631,6 +641,16 @@ window.forwardMessage = function (messageId) {
             form.dataset.originalMessageId = messageId;
             form.dataset.recipientId = this.dataset.dialogId;
 
+            const originalMessageContent = document.querySelector(`[data-message-id="${messageId}"] .message-content`);
+            if (originalMessageContent) {
+                let originalText = getTextFromNode(originalMessageContent);
+                let formattedMessage = formatForwardedMessage(originalText); // Форматируем сообщение
+
+                // Установка текста сообщения в форму
+                form.querySelector('textarea[name="message"]').value = formattedMessage;
+                console.log("Пересылаемое сообщение:", formattedMessage);
+            }
+
             // Инициировать отправку формы
             form.dispatchEvent(new Event('submit'));
 
@@ -639,23 +659,24 @@ window.forwardMessage = function (messageId) {
         });
     });
 
- document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
-        chat.addEventListener('click', function () {
-            console.log('Клик по чату:', this.dataset.chatId);
+document.querySelectorAll('#forwardModal .clickable-chat').forEach(chat => {
+    chat.addEventListener('click', function () {
+        console.log('Клик по чату:', this.dataset.chatId);
 
-            const originalMessageContent = document.querySelector(`[data-message-id="${messageId}"] .message-content`);
-            if (originalMessageContent) {
-                let originalText = getTextFromNode(originalMessageContent);
-                console.log('Отправляемое сообщение:', originalText);
+        const originalMessageContent = document.querySelector(`[data-message-id="${messageId}"] .message-content`);
+        if (originalMessageContent) {
+            let originalText = getTextFromNode(originalMessageContent);
+            let formattedMessage = formatForwardedMessage(originalText); // Форматируем сообщение
+            console.log('Отправляемое сообщение:', formattedMessage);
 
-                sendChatMessageJson(`/chats/${this.dataset.chatId}/send_message`, {
-                    message_text: `Пересланное сообщение: ${originalText}`,
-                    sender_phone_number: "{{ current_user.phone_number }}"
-                });
-                $('#forwardModal').modal('hide');
-            }
-        });
+            sendChatMessageJson(`/chats/${this.dataset.chatId}/send_message`, {
+                message_text: formattedMessage,
+                sender_phone_number: "{{ current_user.phone_number }}"
+            });
+            $('#forwardModal').modal('hide');
+        }
     });
+});
 
 function getTextFromNode(node) {
     let clonedNode = node.cloneNode(true);
@@ -690,26 +711,35 @@ function sendChatMessageJson(url, data) {
 
     isSendingMessage = true;
 
-    fetch(url, {
+    let formData = new FormData();
+    formData.append('message_text', data.message_text);
+
+    const response = fetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => {
-        console.log('Ответ сервера:', response.status);
-        return response.json();
-    })
-    .then(data => {
-        console.log('Ответ на отправку сообщения:', data);
-    })
-    .catch(error => {
-        console.error('Ошибка при отправке формы:', error);
-    })
-    .finally(() => {
-        isSendingMessage = false;
+        body: formData,
     });
+
+    // fetch(url, {
+    //     method: 'POST',
+    //     headers: {
+    //         'Content-Type': 'application/json'
+    //     },
+    //     body: JSON.stringify({message_text: '123'})
+    //     // body: JSON.stringify(data)
+    // })
+    // .then(response => {
+    //     console.log('Ответ сервера:', response.status);
+    //     return response.json();
+    // })
+    // .then(data => {
+    //     console.log('Ответ на отправку сообщения:', data);
+    // })
+    // .catch(error => {
+    //     console.error('Ошибка при отправке формы:', error);
+    // })
+    // .finally(() => {
+    //     isSendingMessage = false;
+    // });
 }
 
 function handleSendMessageResponse(data) {
@@ -731,7 +761,7 @@ function handleSendMessageResponse(data) {
             const currentUserId = "{{ current_user.id }}";
 
             // Глобальное соединение WebSocket
-            const globalSocket = new WebSocket(`ws://127.0.0.1:8080/ws/global/${currentUserId}/`);
+            const globalSocket = new WebSocket(`ws://127.0.0.1:8000/ws/global/${currentUserId}/`);
 
             globalSocket.onopen = () => {
                 console.log("Global WebSocket connection opened");
@@ -779,7 +809,7 @@ function handleSendMessageResponse(data) {
             }
 
             // Локальное соединение WebSocket для левой панели
-            const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
+            const socket = new WebSocket(`ws://127.0.0.1:8000/ws/main_page/${currentUserId}/`);
 
             socket.onopen = () => {
                 console.log("WebSocket connection opened for left panel");
@@ -1145,7 +1175,7 @@ function handleSendMessageResponse(data) {
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        ws = new WebSocket(`ws://127.0.0.1:8080/ws/dialogs/${dialogId}/`);
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/dialogs/${dialogId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);
@@ -1845,7 +1875,7 @@ forwardButton.onclick = function () {
 
         const cookie = document.cookie.split('; ').find(row => row.startsWith('access_token='));
         const access_token = cookie ? cookie.split('=')[1] : null;
-        var ws = new WebSocket(`ws://127.0.0.1:8080/ws/chats/${chatId}/`);
+        var ws = new WebSocket(`ws://127.0.0.1:8000/ws/chats/${chatId}/`);
 
         ws.onopen = function (event) {
             console.log("WebSocket connection opened.", event);

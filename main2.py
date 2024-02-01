@@ -1419,6 +1419,7 @@ async def delete_file(file_id: int) -> bool:
 async def get_message_by_id(message_id: int):
     query = chatmessages.select().where(chatmessages.c.id == message_id)
     result = await database.fetch_one(query)
+    logging.info(f"Сообщение из чата по ID {message_id}: {result}")
     return result
 
 
@@ -3810,12 +3811,13 @@ async def forward_message(source_id: int, destination_id: int, message_id: int, 
     logging.info(f"Содержимое пересланного сообщения: {forwarded_message}")
 
     # Определяем, куда отправляется сообщение - в диалог или чат
-    if is_source_chat:  # Если источник - чат, отправляем в диалог
+    if is_source_chat:
         await handle_dialog_message(destination_id, forwarded_message, current_user)
         logging.info(f"Сообщение отправлено в диалог {destination_id}")
-    else:  # Если источник - диалог, отправляем в чат
+    else:
         await handle_chat_message(destination_id, forwarded_message, current_user)
         logging.info(f"Сообщение отправлено в чат {destination_id}")
+
 
 
 
@@ -4165,7 +4167,7 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
     messages = []
     async for row in cur:
         formatted_time = row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None
-        messages.append({
+        message = {
             "id": row[0],
             "dialog_id": row[1],
             "sender_id": row[2],
@@ -4174,11 +4176,14 @@ async def get_dialog_messages(dialog_id: int) -> List[dict]:
             "delete_timestamp": row[5].strftime('%Y-%m-%d %H:%M:%S') if row[5] else None,
             "edit_timestamp": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,
             "sender_nickname": row[7],
-            "formatted_timestamp": formatted_time  # Добавлено форматированное время
-        })
+            "formatted_timestamp": formatted_time
+        }
+        logging.info(f"Сообщение из диалога {dialog_id}: {message}")
+        messages.append(message)
     await cur.close()
     conn.close()
     return messages
+
 
 
 async def get_dialog_history(dialog_id: int, user_id: int) -> dict:
@@ -4615,8 +4620,7 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
         message_id = await database.execute(query)
         logging.info(f"Message saved to database with ID: {message_id}")
 
-        # Отправка сообщения через WebSocket
-        room = f"chat_{chat_id}"
+        # Подготовка данных для отправки через WebSocket
         message_data = {
             "action": "new_message",
             "message_id": message_id,
@@ -4626,10 +4630,16 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
             "sender_nickname": nickname,
             "timestamp": formatted_time
         }
+
+        # Логирование перед отправкой через WebSocket
+        logging.info(f"Preparing to send message data to WebSocket: {message_data}")
+
+        # Отправка сообщения через WebSocket
+        room = f"chat_{chat_id}"
         await manager.send_message_to_room(room, json.dumps(message_data))
         logging.info(f"Sent message to room {room}")
 
-        # Отправка данных о последнем сообщении в левую панель
+        # Подготовка данных для обновления последнего сообщения
         last_message_data = {
             "action": "update_last_message",
             "chat_id": chat_id,
@@ -4637,6 +4647,11 @@ async def handle_chat_message(chat_id: int, message_content: str, current_user: 
             "last_message_time": formatted_time,
             "sender_phone": current_user.phone_number
         }
+
+        # Логирование перед отправкой обновления последнего сообщения
+        logging.info(f"Preparing to send last message update: {last_message_data}")
+
+        # Отправка обновления последнего сообщения
         await manager.broadcast(last_message_data, room=f"chat_{chat_id}")
         logging.info(f"Sent last message update to room {room}")
 
