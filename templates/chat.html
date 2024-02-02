@@ -529,11 +529,109 @@
     </div>
     <hr style="width: 891px; margin-right: 50px; height: 1px">
 
+    {#    <div class="messages-container">#}
+    {#        <!-- Список сообщений -->#}
+    {#        <ul class="messages-list" id="chat-history">#}
+    {#            {% for message in messages %}#}
+    {#                <div class="all_message" data-message-id="{{ message.id }}">#}
+    {#                <div class="message-nickname" data-message-id="{{ message.id }}" style="margin-bottom: 0">#}
+    {#                    {% if message.sender_phone_number != current_user.phone_number %}#}
+    {#                        <a href="/profile/{{ message.sender_nickname }}"#}
+    {#                           style="text-decoration: none; color: black">#}
+    {#                            <h4 class="user-nickname">{{ message.sender_nickname }}</h4>#}
+    {#                        </a>#}
+    {#                    {% endif %}#}
+    {#                </div>#}
+    {#                <div class="message-item {% if message.sender_phone_number == current_user.phone_number %}user{% endif %}"#}
+    {#                     data-message-id="{{ message.id }}" style="padding-top: 0; margin-bottom: 0">#}
+    {#                    <div class="message-content" style="margin-bottom: 0">#}
+    {#                        <div class="message-header">#}
+    {#                            <div class="message-dropdown">#}
+    {#                                <img src="/static/downarrow.png" alt="Options" class="message-options-icon">#}
+    {#                                <div class="message-options">#}
+    {#                                    <button class="delete-message-button">Удалить сообщение</button>#}
+    {#                                    <button class="forward-message">Переслать</button>#}
+    {#                                    <button class="dropdown-item edit-message-button">Редактировать</button>#}
+    {#                                </div>#}
+    {#                            </div>#}
+    {#                        </div>#}
+    {#                    </div>#}
+    {#                </div>#}
+    {#                {% if message.sender_phone_number == current_user.phone_number %}#}
+    {#                    <div class="message-time" style="text-align: right" data-message-id="{{ message.id }}">#}
+    {#                {% else %}#}
+    {#                    <div class="message-time" style="text-align: left" data-message-id="{{ message.id }}">#}
+    {#                {% endif %}#}
+    {#            <small class="time">123</small>#}
+    {#            <div style="height: 12px"></div>#}
+    {#            </div>#}
+    {#            </div>#}
+    {#            {% endfor %}#}
+    {#        </ul>#}
+    {#    </div>#}
+
     <!-- Контейнер для сообщений -->
     <div class="messages-container">
         <!-- Список сообщений -->
         <ul class="messages-list" id="chat-history">
+            {% set today = "2024-02-01" %}
+            {% set yesterday = "2024-01-31" %}
+            {% set current_day = "2023-12-07" %}
+            {% set current_year = "2024" %}
             {% for message in messages %}
+                <div style="text-align: center; color: #928F8F;">
+                    {% if messages[loop.index - 1] %}
+                        {% if messages[loop.index - 2].timestamp.strftime('%Y-%m-%d') != messages[loop.index - 1].timestamp.strftime('%Y-%m-%d') %}
+                            {% if messages[loop.index - 1].timestamp.strftime('%Y-%m-%d') == today %}
+                                Сегодня
+                            {% elif messages[loop.index - 1].timestamp.strftime('%Y-%m-%d') == yesterday %}
+                                Вчера
+                            {% else %}
+                                {{ messages[loop.index - 1].timestamp.strftime('%Y-%m-%d')[8:10] }}
+                                {% with month_number=message.timestamp.strftime('%Y-%m-%d')[5:7] %}
+                                    {% if month_number == '01' %}
+                                        января
+                                    {% elif month_number == '02' %}
+                                        февраля
+                                    {% elif month_number == '03' %}
+                                        марта
+                                    {% elif month_number == '04' %}
+                                        апреля
+                                    {% elif month_number == '05' %}
+                                        мая
+                                    {% elif month_number == '06' %}
+                                        июня
+                                    {% elif month_number == '07' %}
+                                        июля
+                                    {% elif month_number == '08' %}
+                                        августа
+                                    {% elif month_number == '09' %}
+                                        сентября
+                                    {% elif month_number == '10' %}
+                                        октября
+                                    {% elif month_number == '11' %}
+                                        ноября
+                                    {% elif month_number == '12' %}
+                                        декабря
+                                    {% endif %}
+                                {% endwith %}
+
+                                {% if message.timestamp.strftime('%Y-%m-%d')[0:4] != current_year %}
+                                    {{ message.timestamp.strftime('%Y-%m-%d')[0:4] }}
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </div>
+                {#                {% if message.timestamp.strftime('%Y-%m-%d') != current_day %}#}
+                {#                    here#}
+                {#                    {% if message.timestamp.strftime('%Y-%m-%d') == today %}#}
+                {#                        <p>Сегодня</p>#}
+                {#                    {% else %}#}
+                {#                        <p>{{ message.timestamp.strftime('%Y-%m-%d') }}</p>#}
+                {#                    {% endif %}#}
+                {#                    {% set current_day = message.timestamp.strftime('%Y-%m-%d') %}#}
+                {#                {% endif %}#}
                 <div class="all_message" data-message-id="{{ message.id }}">
                 <div class="message-nickname" data-message-id="{{ message.id }}" style="margin-bottom: 0">
                     {% if message.sender_phone_number != current_user.phone_number %}
@@ -567,7 +665,7 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <p style="margin-bottom: 0">
+                        <p style="margin-bottom: 0;">
                             {% if '[[FILE]]' in message.message %}
                                 {% set parts = message.message.split('[[FILE]]') %}
                                 {{ parts[0] }}
@@ -576,7 +674,8 @@
                                     {% set file_parts = file_info.split(', ') %}
                                     {% if file_parts|length > 1 %}
                                         <div>
-                                            <a href="/files/{{ file_parts[0].split(': ')[1] }}">{{ file_parts[1].split(': ')[1] }}</a>
+                                            <a href="/files/{{ file_parts[0].split(': ')[1] }}"
+                                               style="text-decoration: none; color: white">{{ file_parts[1].split(': ')[1] }}</a>
                                         </div>
                                     {% endif %}
                                 {% endif %}
@@ -587,15 +686,15 @@
                     </div>
                 </div>
                 {% if message.sender_phone_number == current_user.phone_number %}
-                    <div class="message-time" style="text-align: right" data-message-id="{{ message.id }}">
+                    <div class="message-time" style="text-align: right; margin-right: 5px" data-message-id="{{ message.id }}">
                 {% else %}
                     <div class="message-time" style="text-align: left" data-message-id="{{ message.id }}">
                 {% endif %}
             <small class="time">
                 {% if message.edit_timestamp %}
-                    Изменено: {{ message.edit_timestamp }}
+                    Изменено: {{ message.edit_timestamp.strftime('%H:%M') }}
                 {% else %}
-                    {{ message.timestamp }}
+                    {{ message.timestamp.strftime('%H:%M') }}
                 {% endif %}
             </small>
             <div style="height: 12px"></div>

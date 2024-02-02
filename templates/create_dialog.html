@@ -88,10 +88,12 @@
                     class="new_dialog" style="margin-bottom: 0"><img
                     src="../static/black_back_arrow.png" alt="Картинка" style="vertical-align: middle;"> Новый диалог
             </h5></a>
-            <form action="/home" method="get" class="search-input">
+            <form onsubmit="search_create_dialog(event)" class="search-input-create-dialog"
+                  id="search-input-create-dialog">
                 <input type="text" class="form-control search-input"
                        style="background-color: #EBEBEB; color: #928F8F; border-radius: 8px; font-size: 12px; margin-left: 50px; width: 450px"
-                       placeholder="С кем начать диалог?">
+                       placeholder="С кем начать диалог?"
+                       oninput="search_create_dialog(event)">
             </form>
         </div>
     </div>
@@ -105,27 +107,30 @@
     {#    </form>#}
 
     <!-- Результаты поиска -->
+    <div id="search-results-create-dialog"></div>
 
-    {% for user in users %}
-        <form id="dialogForm" action="/create_dialog/{{ user['nickname'] }}" method="post"
-              class="ms-auto start-dialog-form">
-            <div class="interlocutor-info mb-0 border-bottom" style="padding-top: 12px; padding-bottom: 12px">
-                <button type="submit" class="full-width-button">
-                    <img src="/profile/picture/{{ user['phone_number'] }}" alt="Interlocutor's profile picture"
-                         width="50" height="50">
-                    <div class="interlocutor-details" style="margin-left: 8px">
-                        <h5 class="username" style="margin-bottom: 0"><a
-                                href="/profile/{{ user['phone_number'] }}"
-                                style="text-decoration: none; color: black;"> {{ user['phone_number'] }} </a>
-                        </h5>
-                        <small class="status" style="padding-left: 5px">{{ user['status'] }}</small>
-                    </div>
-                    {#                    <button type="submit" class="btn btn-success" style="margin-left: 700px">Начать диалог</button>#}
-                    <hr class="my-0">
-                </button>
-            </div>
-        </form>
-    {% endfor %}
+    <div id="create-dialog">
+        {% for user in users %}
+            <form id="dialogForm" action="/create_dialog/{{ user['nickname'] }}" method="post"
+                  class="ms-auto start-dialog-form">
+                <div class="interlocutor-info mb-0 border-bottom" style="padding-top: 12px; padding-bottom: 12px">
+                    <button type="submit" class="full-width-button">
+                        <img src="/profile/picture/{{ user['true_nickname'] }}" alt="Interlocutor's profile picture"
+                             width="50" height="50">
+                        <div class="interlocutor-details" style="margin-left: 8px">
+                            <h5 class="username" style="margin-bottom: 0"><a
+                                    href="/profile/{{ user['phone_number'] }}"
+                                    style="text-decoration: none; color: black;"> {{ user['phone_number'] }} </a>
+                            </h5>
+                            <small class="status" style="padding-left: 5px">{{ user['status'] }}</small>
+                        </div>
+                        {#                    <button type="submit" class="btn btn-success" style="margin-left: 700px">Начать диалог</button>#}
+                        <hr class="my-0">
+                    </button>
+                </div>
+            </form>
+        {% endfor %}
+    </div>
 </div>
 
 </body>

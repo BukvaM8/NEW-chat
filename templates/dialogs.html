@@ -274,7 +274,9 @@
     <div class="interlocutor-info mb-0 pb-0" style="padding-left: 15px; position: relative;">
         <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}" alt="Interlocutor's profile picture"
              width="50" height="50">
-
+        <!-- Зеленый индикатор для статуса собеседника -->
+        <div id="online-indicator-interlocutor"
+             style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: none;"></div>
 
         <div class="interlocutor-details" style="margin-left: 8px">
             <!-- Предположим, что у вас есть ID собеседника -->
@@ -291,13 +293,61 @@
     </div>
     <hr style="width: 891px; margin-right: 50px; height: 1px">
 
-    <div class="mt-4 messages-container">
+    <div class="mt-4 messages-container" style="margin-right: 15px">
         <ul class="list-group">
+            {% set today = "2024-02-01" %}
+            {% set yesterday = "2024-01-31" %}
+            {% set current_day = "2020-01-01" %}
+            {% set current_year = "2024" %}
             {% for message in messages %}
+                <div style="text-align: center; color: #928F8F;">
+                    {% if messages[loop.index - 1] %}
+                        {% if messages[loop.index - 2].timestamp[0:10] != messages[loop.index - 1].timestamp[0:10] %}
+                            {% if messages[loop.index - 1].timestamp[0:10] == today %}
+                                Сегодня
+                            {% elif messages[loop.index - 1].timestamp[0:10] == yesterday %}
+                                Вчера
+                            {% else %}
+                                {{ messages[loop.index - 1].timestamp[8:10] }}
+                                {% with month_number=message.timestamp[5:7] %}
+                                    {% if month_number == '01' %}
+                                        января
+                                    {% elif month_number == '02' %}
+                                        февраля
+                                    {% elif month_number == '03' %}
+                                        марта
+                                    {% elif month_number == '04' %}
+                                        апреля
+                                    {% elif month_number == '05' %}
+                                        мая
+                                    {% elif month_number == '06' %}
+                                        июня
+                                    {% elif month_number == '07' %}
+                                        июля
+                                    {% elif month_number == '08' %}
+                                        августа
+                                    {% elif month_number == '09' %}
+                                        сентября
+                                    {% elif month_number == '10' %}
+                                        октября
+                                    {% elif month_number == '11' %}
+                                        ноября
+                                    {% elif month_number == '12' %}
+                                        декабря
+                                    {% endif %}
+                                {% endwith %}
+
+                                {% if message.timestamp[0:4] != current_year %}
+                                    {{ message.timestamp[0:4] }}
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </div>
                 {% if not message.delete_timestamp %}
                     <div class="message-item {% if message.sender_id == current_user.id %}user{% endif %}"
                          data-message-id="{{ message.id }}" style="margin-bottom: 0">
-                        <div class="message-content" style="margin-bottom: 0; margin-left: 15px">
+                        <div class="message-content" style="margin-bottom: 0; margin-left: 50px">
                             {% if message.sender_nickname %}
                                 <strong>{{ message.sender_nickname }}:</strong>
                             {% endif %}
@@ -309,7 +359,9 @@
                                 {% set file_id_info, file_name_info = file_info.split(', ') %}
                                 {% set file_id = file_id_info.split(': ')[1] %}
                                 {% set file_name = file_name_info.split(': ')[1] %}
-                                <a href="/files/{{ file_id }}">{{ file_name }}</a> <!-- Ссылка на файл -->
+                                <a href="/files/{{ file_id }}"
+                                   style="text-decoration: none; color: white">{{ file_name }}</a>
+                                <!-- Ссылка на файл -->
                             {% elif message.message %}
                                 {{ message.message | safe }}
                             {% else %}
@@ -338,15 +390,15 @@
                         </div>
                     </div>
                     {% if message.sender_id == current_user.id %}
-                        <div style="text-align: right; margin-right: 5px">
+                        <div style="text-align: right; margin-right: 20px">
                     {% else %}
-                        <div style="text-align: left; margin-left: 15px">
+                        <div style="text-align: left; margin-left: 50px">
                     {% endif %}
                 <small class="time">
                     {% if message.edit_timestamp %}
-                        Изменено: {{ message.edit_timestamp }}
+                        Изменено: {{ message.edit_timestamp[10:16] }}
                     {% else %}
-                        {{ message.timestamp }}
+                        {{ message.timestamp[10:16] }}
                     {% endif %}
                 </small>
                 </div>

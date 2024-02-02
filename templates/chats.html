@@ -204,23 +204,22 @@
 <div class="container-fluid">
     <div class="row">
         <!-- Left Panel -->
-        <div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding: 0; margin-left: 240px">
-            <!-- Profile Section -->
-            <div class="d-flex align-items-center mb-2"
-                 style="padding-top: 13px; padding-left: 15px; position: relative;">
-                <div class="profile-picture-container" style="position: relative;">
-                    <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture"
-                         class="profile-pic" width="50" height="50" style="cursor:pointer;">
-                    <div class="online-indicator"
-                         style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%;"></div>
-                </div>
-                <div class="ms-3">
-                    <h1 class="my_nickname" style="cursor: pointer">{{ current_user.nickname }}</h1>
-                    {% if current_user.status %}
-                    <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
-                    {% endif %}
-                </div>
+
+    <div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding: 0; margin-left: 240px">
+        <!-- Profile Section -->
+        <div class="d-flex align-items-center mb-2" style="padding-top: 13px; padding-left: 15px; position: relative;">
+            <div class="profile-picture-container" style="position: relative; margin-right: 0">
+                <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic" width="50" height="50" style="cursor:pointer;">
+                <div class="online-indicator" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%;"></div>
             </div>
+            <div class="ms-3">
+                <h1 class="my_nickname" style="cursor: pointer">{{ current_user.nickname }}</h1>
+                {% if current_user.status %}
+                <small id="current-user-nickname" class="status">{{ current_user.status }}</small>
+                {% endif %}
+            </div>
+        </div>
+
 
             <hr style="width: 500px; margin-right: 15px; height: 1px">
 
@@ -237,41 +236,40 @@
 
             <br>
             <div class="search-container" style="padding-left: 15px">
-                <form action="/home" method="get" class="search-input">
+                <form onsubmit="search(event)" class="search-input" id="search-input">
                     <input type="text" class="form-control search-input"
                            style="background-color: #EBEBEB; color: #928F8F; border-radius: 8px; font-size: 12px;"
-                           placeholder="Поиск">
+                           placeholder="Поиск" oninput="search(event)">
                 </form>
+
                 <img src="../static/users.svg" alt="User Icon" id="contactImage" style="cursor: pointer;">
                 <img src="../static/menu.svg" alt="Email Icon" id="menuImage" style="cursor: pointer;">
 
                 <div class="ms-auto">
                     <div class="btn-group">
                         <ul class="dropdown-menu">
-                            {#
-                            <li><a class="dropdown-item" href="/profile" id="profile-link">Личный профиль</a></li>
-                            #}
+<!--                            {#-->
+<!--                            <li><a class="dropdown-item" href="/profile" id="profile-link">Личный профиль</a></li>-->
+<!--                            #}-->
                             <li><a class="dropdown-item create-chat-link" href="#">Создать новую группу</a></li>
-                            {#
-                            <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>
-                            #}
+<!--                            {#-->
+<!--                            <li><a class="dropdown-item" href="/create_channel">Создать новый канал</a></li>-->
+<!--                            #}-->
                             <hr style="margin: 0">
                             <li><a class="dropdown-item create-dialog-link" href="/create_dialog">Создать новый
                                 диалог</a></li>
-                            {#
-                            <li><a class="dropdown-item" href="/favorites">Избранное</a></li>
-                            #}
-                            {#
-                            <li>#}
-                                {#
-                                <hr class="dropdown-divider">
-                                #}
-                                {#
-                            </li>
-                            #}
-                            {#
-                            <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>
-                            #}
+<!--                            <li><a class="dropdown-item" href="/favorites">Избранное</a></li>-->
+<!--                            {#-->
+<!--                            <li>#}-->
+<!--                                {#-->
+<!--                                <hr class="dropdown-divider">-->
+<!--                                #}-->
+<!--                                {#-->
+<!--                            </li>-->
+<!--                            #}-->
+<!--                            {#-->
+<!--                            <li><a class="dropdown-item" href="/logout">Выйти из аккаунта</a></li>-->
+<!--                            #}-->
                         </ul>
                     </div>
                 </div>
@@ -303,20 +301,23 @@
             {% endif %}
 
             <div class="scrollable-content" style="padding-bottom: 55px;">
-                <div class="dialogs-list" style="cursor: pointer">
-                    {% for dialog in dialogs %}
-                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
-                         data-dialog-id="{{ dialog.id }}" data-interlocutor-id="{{ dialog.interlocutor_id }}"
-                         style="position: relative;">
-                        <!-- Фото собеседника -->
-                        <div class="profile-picture-container" style="position: relative;">
-                            <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
-                                 alt="Interlocutor's profile picture" width="50" height="50"
-                                 class="profile-picture">
-                            <!-- Индикатор онлайн-статуса -->
-                            <div class="online-indicator-dialog"
-                                 style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: none;"></div>
-                        </div>
+
+    <div id="search-results">
+    </div>
+
+    <div id="all-users">
+    <div class="dialogs-list" style="cursor: pointer" id="dialogs-list">
+        {% for dialog in dialogs %}
+        <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
+             data-dialog-id="{{ dialog.id }}" data-interlocutor-id="{{ dialog.interlocutor_id }}" style="position: relative;">
+            <!-- Фото собеседника -->
+            <div class="profile-picture-container" style="position: relative;">
+                <img src="/profile/picture/{{ dialog.interlocutor_phone_number }}"
+                     alt="Interlocutor's profile picture" width="50" height="50"
+                     class="profile-picture">
+                <!-- Индикатор онлайн-статуса -->
+                <div class="online-indicator-dialog" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: none;"></div>
+            </div>
 
                         <!-- Информация о диалоге -->
                         <div class="dialogs-item small-title flex-grow"
@@ -432,7 +433,7 @@
                 <!--                {#                        </div>#}-->
                 <!--                {#                    {% endfor %}#}-->
                 <!--                {#                </div>#}-->
-
+                </div>
             </div>
         </div>
         <!-- Правая панель -->
@@ -474,6 +475,449 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
+
+function search_create_dialog(event) {
+    event.preventDefault();
+
+    // Получаем значение введенного текста
+    var query = document.querySelector('.search-input-create-dialog input').value;
+
+    // Отправляем запрос на бэкенд
+    fetch('/search-create-dialog?query=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            // Получаем контейнер для результатов
+            var resultsContainer = document.getElementById('search-results-create-dialog');
+            resultsContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            var dialogContainer = document.getElementById('create-dialog');
+            dialogContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            if (data.results.length > 0) {
+                // Добавляем новые результаты
+                data.results.forEach(result => {
+                    // Создаем форму для начала диалога
+                    var dialogForm = document.createElement('form');
+                    dialogForm.id = `dialogForm_${result.nickname}`;
+                    dialogForm.action = `/create_dialog/${result.nickname}`;
+                    dialogForm.method = "post";
+                    dialogForm.classList.add("ms-auto", "start-dialog-form");
+
+                    // Создаем контейнер для информации о собеседнике
+                    var interlocutorInfo = document.createElement('div');
+                    interlocutorInfo.classList.add("interlocutor-info", "mb-0", "border-bottom");
+                    interlocutorInfo.style.paddingTop = "12px";
+                    interlocutorInfo.style.paddingBottom = "12px";
+
+                    // Создаем кнопку для отправки формы
+                    var submitButton = document.createElement('button');
+                    submitButton.type = "submit";
+                    submitButton.classList.add("full-width-button");
+
+                    // Создаем контейнер для изображения собеседника
+                    var profileImageContainer = document.createElement('div');
+                    profileImageContainer.classList.add("profile-image-container");
+                    var profileImage = document.createElement('img');
+                    profileImage.src = `/profile/picture/${result.true_nickname}`;
+                    profileImage.alt = "Interlocutor's profile picture";
+                    profileImage.width = "50";
+                    profileImage.height = "50";
+                    profileImageContainer.appendChild(profileImage);
+
+                    // Создаем контейнер для деталей собеседника
+                    var interlocutorDetails = document.createElement('div');
+                    interlocutorDetails.classList.add("interlocutor-details");
+                    interlocutorDetails.style.marginLeft = "8px";
+
+                    // Создаем заголовок и статус собеседника
+                    var username = document.createElement('h5');
+                    username.classList.add("username");
+                    var usernameLink = document.createElement('a');
+                    usernameLink.href = `/profile/${result.phone_number}`;
+                    usernameLink.style.textDecoration = "none";
+                    usernameLink.style.color = "black";
+                    usernameLink.innerText = result.phone_number;
+                    username.appendChild(usernameLink);
+
+                    // Добавляем элементы в контейнер деталей собеседника
+                    interlocutorDetails.appendChild(username);
+
+                    // Добавляем элементы в контейнер для отправки формы
+                    submitButton.appendChild(profileImageContainer);
+                    submitButton.appendChild(interlocutorDetails);
+                    submitButton.appendChild(document.createElement('hr'));
+
+                    // Добавляем кнопку в контейнер информации о собеседнике
+                    interlocutorInfo.appendChild(submitButton);
+
+                    // Добавляем контейнер информации о собеседнике в форму
+                    dialogForm.appendChild(interlocutorInfo);
+
+                    // Добавляем форму в контейнер результатов
+                    resultsContainer.appendChild(dialogForm);
+                });
+            } else {
+                // Добавляем надпись "Ничего не найдено"
+                var noResultsMessage = document.createElement('p');
+                noResultsMessage.innerText = "Ничего не найдено";
+                resultsContainer.appendChild(noResultsMessage);
+            }
+
+            // Добавим <br> в конце
+            var lineBreak = document.createElement('br');
+            resultsContainer.appendChild(lineBreak);
+        })
+        .catch(error => console.error('Ошибка при отправке запроса на бэкенд', error));
+}
+
+function search_create_chat(event) {
+    event.preventDefault();
+
+    // Получаем значение введенного текста
+    var query = document.getElementById('search-input-create-chat').value;
+
+    // Отправляем запрос на бэкенд
+    fetch('/search-create-chat?query=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            // Получаем контейнер для результатов
+            var resultsContainer = document.getElementById('search-results-create-chat');
+            resultsContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            var groupContainer = document.getElementById('create-chat-form-group');
+            groupContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            if (data.results.length > 0) {
+                // Добавляем новые результаты
+                data.results.forEach(function(user) {
+                    // Создаем div с классом "form-check"
+                    var formCheckDiv = document.createElement("div");
+                    formCheckDiv.className = "form-check";
+
+                    // Создаем внутренний div с отступом
+                    var innerDiv = document.createElement("div");
+                    innerDiv.style.margin = "2px";
+
+                    // Создаем div с display: inline-block
+                    var inlineDiv = document.createElement("div");
+                    inlineDiv.style.display = "inline-block";
+
+                    // Создаем чекбокс
+                    var checkbox = document.createElement("input");
+                    checkbox.className = "custom-checkbox";
+                    checkbox.type = "checkbox";
+                    checkbox.value = user.nickname;
+                    checkbox.id = user.nickname;
+                    checkbox.name = "user_nicknames";
+
+                    // Создаем метку для чекбокса
+                    var label = document.createElement("label");
+                    label.htmlFor = user.nickname;
+
+                    // Добавляем чекбокс и метку внутрь внутреннего div
+                    inlineDiv.appendChild(checkbox);
+                    inlineDiv.appendChild(label);
+
+                    // Создаем div для информации о собеседнике
+                    var infoDiv = document.createElement("div");
+                    infoDiv.className = "interlocutor-info mb-0";
+                    infoDiv.style.paddingTop = "12px";
+                    infoDiv.style.paddingBottom = "12px";
+                    infoDiv.style.display = "inline-block";
+                    infoDiv.style.paddingLeft = "0";
+
+                    // Добавляем изображение профиля
+                    var profileImg = document.createElement("img");
+                    profileImg.src = "/profile/picture/" + user.phone_number;
+                    profileImg.alt = "Interlocutor's profile picture";
+                    profileImg.width = "50";
+                    profileImg.height = "50";
+
+                    // Создаем div для деталей собеседника
+                    var detailsDiv = document.createElement("div");
+                    detailsDiv.className = "interlocutor-details";
+                    detailsDiv.style.marginLeft = "8px";
+                    detailsDiv.style.display = "inline-block";
+
+                    // Создаем заголовок и статус
+                    var usernameHeader = document.createElement("h5");
+                    usernameHeader.className = "username";
+                    usernameHeader.style.marginBottom = "0";
+
+                    var usernameLink = document.createElement("a");
+                    usernameLink.href = "/profile/" + user.phone_number;
+                    usernameLink.style.textDecoration = "none";
+                    usernameLink.style.color = "black";
+                    usernameLink.textContent = user.phone_number;
+
+                    var smallStatus = document.createElement("small");
+                    smallStatus.className = "status";
+                    smallStatus.textContent = user.status;
+
+                    // Собираем структуру деталей собеседника
+                    usernameHeader.appendChild(usernameLink);
+                    detailsDiv.appendChild(usernameHeader);
+                    detailsDiv.appendChild(smallStatus);
+
+                    // Добавляем изображение и детали собеседника в div информации
+                    infoDiv.appendChild(profileImg);
+                    infoDiv.appendChild(detailsDiv);
+
+                    // Добавляем внутренний div в основной div
+                    innerDiv.appendChild(inlineDiv);
+                    innerDiv.appendChild(infoDiv);
+
+                    // Добавляем в основной div внутренний div и горизонтальную линию
+                    formCheckDiv.appendChild(innerDiv);
+                    formCheckDiv.appendChild(document.createElement("hr"));
+
+                    // Добавляем formCheckDiv в основной formGroupDiv
+                    resultsContainer.appendChild(formCheckDiv);
+                });
+            } else {
+
+            }
+
+            // Добавим <br> в конце
+            var lineBreak = document.createElement('br');
+            resultsContainer.appendChild(lineBreak);
+        })
+        .catch(error => console.error('Ошибка при отправке запроса на бэкенд', error));
+}
+
+function search(event) {
+    event.preventDefault();
+
+    // Получаем значение введенного текста
+    var query = document.querySelector('.search-input input').value;
+
+    // Отправляем запрос на бэкенд
+    fetch('/search?query=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            // Создаем список результатов на стороне клиента
+            var resultsList = document.getElementById('search-results');
+            resultsList.innerHTML = ""; // Очищаем предыдущие результаты
+
+            var usersContainer = document.getElementById('all-users');
+            usersContainer.innerHTML = ""
+
+            if (data.dialogs.length > 0) {
+                // Добавляем новые результаты
+                data.dialogs.forEach(result => {
+                    // Создаем элемент для каждого результата
+                    var resultItem = document.createElement('div');
+                    resultItem.classList.add("container", "border-bottom", "mb-2", "pb-2", "mt-1", "clickable-result", "flex-container");
+                    resultItem.innerHTML = `
+                        <!-- Фото собеседника -->
+                        <div class="profile-picture-container" style="position: relative;">
+                            <img src="/profile/picture/${result.interlocutor_phone_number}"
+                                 alt="Interlocutor's profile picture" width="50" height="50"
+                                 class="profile-picture">
+                            <!-- Индикатор онлайн-статуса -->
+                            <div class="online-indicator-dialog" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: none;"></div>
+                        </div>
+
+                        <!-- Информация о результате поиска -->
+                        <div class="dialogs-item small-title flex-grow"
+                             style="display: flex; flex-direction: column; align-items: start;">
+                            <div>
+                                <strong class="username">${result.user_fio}</strong>
+                                <!-- Последнее сообщение -->
+                                <div class="last_message"
+                                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                    <strong>${result.interlocutor_phone_number}:</strong>
+                                    <!-- Предполагается, что у вас есть last_message и вы можете обрабатывать его как и раньше -->
+                                    ${result.last_message}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    resultsList.appendChild(resultItem);
+                });
+            }
+            if (data.chats.length > 0) {
+                data.chats.forEach(chat => {
+                    // Создаем элемент для каждого чата
+                    var chatItem = document.createElement('div');
+                    chatItem.classList.add("container", "border-bottom", "mb-2", "pb-2", "mt-1", "clickable-result", "flex-container");
+
+                    chatItem.innerHTML = `
+                        <!-- Фото чата -->
+                        <div class="profile-picture-container">
+                            <img src="/chat/picture/${chat.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
+                        </div>
+
+                        <!-- Информация о чате -->
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong class="username">${chat.chat_name}</strong>
+                                <!-- Название группы -->
+                            </div>
+
+                        </div>
+                    `;
+
+                    resultsList.appendChild(chatItem);
+                });
+            }
+            else {
+
+            }
+
+            // Добавим <br> в конце
+            var lineBreak = document.createElement('br');
+            resultsList.appendChild(lineBreak);
+        })
+        .catch(error => console.error('Ошибка при отправке запроса на бэкенд', error));
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const currentUserId = "{{ current_user.id }}";
+    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/main_page/${currentUserId}/`);
+
+    socket.onopen = () => console.log("WebSocket connection opened for left panel");
+    socket.onclose = () => console.log("WebSocket connection closed for left panel");
+    socket.onerror = (error) => console.error(`WebSocket error in left panel: ${error.message}`);
+
+    socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        if (data.action === 'user_online_status') {
+            updateInterlocutorOnlineStatus(data.user_id, data.is_online);
+        } else if (data.action === 'update_last_dialog_message') {
+            updateLastDialogMessage(data.dialog_id, data.timestamp);
+        } else if (data.action === 'new_chat') {
+            // Вызов функции для обновления списка групп
+            addNewChatToList(data.chat_id);
+        }
+    };
+
+     // Функция для добавления нового чата в список
+    function addNewChatToList(chatId) {
+        // Отправьте запрос на сервер для получения информации о новом чате
+        fetch(`/chat/info/${chatId}`)
+            .then(response => response.json())
+            .then(chatData => {
+                // Построение HTML элемента на основе полученных данных и добавление его в список
+                const chatList = document.querySelector('.chat-list');
+                const newChatHtml = `
+                    <div class="container border-bottom mb-2 pb-2 mt-1 clickable-chat flex-container" data-chat-id="${chatData.id}" style="cursor: pointer">
+                        <div class="profile-picture-container">
+                            <img src="/chat/picture/${chatData.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
+                        </div>
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong class="username">${chatData['chat_name']}</strong>
+                                <div class="last_message_time" style="font-size: 0.8em;">${chatData['last_message_time_formatted']}</div>
+                            </div>
+                            <div class="last_message" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <strong>${chatData['last_message_sender_phone']}:</strong> ${chatData['last_message']}
+                            </div>
+                        </div>
+                    </div>`;
+                chatList.innerHTML += newChatHtml;
+            })
+            .catch(error => console.error('Ошибка при получении данных о чате:', error));
+    }
+
+    function updateInterlocutorOnlineStatus(interlocutorId, isOnline) {
+        const dialogElements = document.querySelectorAll('.clickable-dialog');
+        dialogElements.forEach(element => {
+            if (element.dataset.interlocutorId === interlocutorId.toString()) {
+                const onlineIndicator = element.querySelector('.online-indicator-dialog');
+                if (onlineIndicator) {
+                    onlineIndicator.style.display = isOnline ? 'block' : 'none';
+                }
+            }
+        });
+    }
+
+    function updateLastDialogMessage(dialogId, timestamp) {
+        const dialogElement = document.querySelector(`.clickable-dialog[data-dialog-id="${dialogId}"]`);
+        if (dialogElement) {
+            const lastMessageTimeElement = dialogElement.querySelector('.last_message_time');
+            const formattedTime = formatMessageTime(timestamp);
+            if (lastMessageTimeElement) {
+                lastMessageTimeElement.textContent = formattedTime;
+            }
+        }
+    }
+
+    function formatMessageTime(timestamp) {
+        if (!timestamp) {
+            return "Invalid Date";
+        }
+        const messageDate = new Date(timestamp);
+        const now = new Date();
+        if (messageDate.toDateString() === now.toDateString()) {
+            return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+        } else {
+            return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+        }
+    }
+
+    const allChatsButton = document.getElementById('all-chats-button');
+    const dialogsButton = document.getElementById('dialogs-button');
+    const groupsButton = document.getElementById('groups-button');
+
+    allChatsButton.addEventListener('click', showAllChatsAndDialogs);
+    dialogsButton.addEventListener('click', showDialogs);
+    groupsButton.addEventListener('click', showGroupsOnly);
+
+    function showAllChatsAndDialogs() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'block';
+        chatList.style.display = 'block';
+
+        chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+            chat.style.display = 'flex';
+        });
+    }
+
+    function showDialogs() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'block';
+        chatList.style.display = 'none';
+    }
+
+    function showGroupsOnly() {
+        const dialogsList = document.querySelector('.dialogs-list');
+        const chatList = document.querySelector('.chat-list');
+
+        dialogsList.style.display = 'none';
+        chatList.style.display = 'block';
+
+        chatList.querySelectorAll('.clickable-chat').forEach(chat => {
+            chat.style.display = 'flex';
+        });
+    }
+});
+
+
+
+function formatMessageTime(timestamp) {
+    if (!timestamp) {
+        return "Invalid Date";
+    }
+
+    const messageDate = new Date(timestamp);
+    const now = new Date();
+
+    // Проверяем, было ли сообщение отправлено сегодня
+    if (messageDate.toDateString() === now.toDateString()) {
+        // Если да, форматируем как ЧЧ:ММ
+        return messageDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+    } else {
+        // Если нет, форматируем как ДД-ММ
+        return messageDate.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+    }
+}
+
     function submitForm(event) {
         event.preventDefault();
         document.getElementById('dialogForm').submit();
@@ -1460,11 +1904,10 @@ form.addEventListener('submit', function (e) {
 
                 const timeElement = document.createElement('div');
                 if (messageData.message.timestamp) {
-                    timeElement.appendChild(document.createTextNode("Отправлено: " + messageData.message.timestamp));
+                    timeElement.appendChild(document.createTextNode(messageData.message.timestamp.toString().slice(11, 16)));
                 } else {
                     timeElement.appendChild(document.createTextNode("Время отправки не указано"));
                 }
-                messageContent.appendChild(timeElement);
 
                 const dropdown = document.createElement('div');
                 dropdown.className = 'message-dropdown';
@@ -1519,6 +1962,7 @@ forwardButton.onclick = function () {
                 messageContent.appendChild(dropdown);
 
                 newMessage.appendChild(messageContent);
+                newMessage.appendChild(timeElement);
                 const messagesList = document.querySelector('.list-group');
                 messagesList.appendChild(newMessage);
 
@@ -2358,6 +2802,222 @@ forwardButton.onclick = function () {
 
             });
 
+        // Обработчик клика в списке сообщений для обработки удаления сообщений
+        document.querySelector('.messages-list').addEventListener('click', function (event) {
+            if (event.target.className === 'dropdown-item' && event.target.textContent === 'Удалить сообщение') {
+                const messageElement = event.target.closest('.message-item');
+                const messageId = messageElement ? messageElement.dataset.messageId : null;
+                if (messageId) {
+                    const messageIdNumber = parseInt(messageId, 10);
+                    ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdNumber}));
+                }
+            }
+        });
+
+        ws.onmessage = function (event) {
+            console.log("Получено сообщение через WebSocket:", event.data);
+
+            let messageData;
+            try {
+                messageData = JSON.parse(event.data);
+            } catch (e) {
+                console.error("Invalid JSON", e);
+                return;
+            }
+
+            const action = messageData.action;
+
+            if (action === 'new_token') {
+                document.cookie = "access_token=" + messageData.token;
+            } else if (action === 'message_deleted') {
+                const messageId = messageData.message_id;
+                const messageElement = document.querySelector(`.message-item[data-message-id="${String(messageId)}"]`);
+                const timeElement = document.querySelector(`.message-time[data-message-id="${String(messageId)}"]`);
+                const nicknameElement = document.querySelector(`.message-nickname[data-message-id="${String(messageId)}"]`);
+
+                if (messageElement) {
+                    if (timeElement) {
+                        timeElement.remove();
+                    }
+                    if (messageElement) {
+                        messageElement.remove();
+                    }
+                    if (nicknameElement) {
+                        nicknameElement.remove();
+                    }
+                    console.log(`Сообщение с ID: ${messageId} удалено`);
+                } else {
+                    console.warn(`Message with id: ${messageId} not found for deletion`);
+                }
+            } else if (action === 'message_updated') {
+                const messageId = messageData.message_id;
+                const newMessageText = messageData.new_text;
+                const newFileId = messageData.file_id;
+                const newFileName = messageData.file_name;
+                const editTimestamp = messageData.edit_timestamp;
+
+                const allMessage = document.querySelector(`.all_message[data-message-id="${messageId}"]`);
+                const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    const messageContentElement = messageElement.querySelector('.message-content');
+
+                    // Очищаем текущее содержимое, но сохраняем выпадающее меню, если оно есть
+                    const dropdownMenu = messageElement.querySelector('.message-dropdown');
+                    messageContentElement.innerHTML = '';
+
+                    // Добавляем новый текст сообщения
+                    const newTextElement = document.createElement('div');
+                    newTextElement.textContent = newMessageText;
+                    messageContentElement.appendChild(newTextElement);
+
+                    // Если есть файл, добавляем ссылку на него
+                    if (newFileId && newFileName) {
+                        const fileLink = document.createElement('a');
+                        fileLink.href = `/files/${newFileId}`;
+                        fileLink.textContent = newFileName;
+                        messageContentElement.appendChild(fileLink);
+                    }
+
+                    // Добавляем метку об изменении
+                    const timeElement = document.querySelector(`.message-time[data-message-id="${String(messageId)}"]`);
+                    timeElement.textContent = `Изменено: ${new Date(editTimestamp).toLocaleString()}`;
+                    messageContentElement.appendChild(timeElement);
+
+                    // Возвращаем выпадающее меню обратно в messageContentElement
+                    if (dropdownMenu) {
+                        messageContentElement.appendChild(dropdownMenu);
+                    }
+                }
+            } else if (action === 'update_last_message') {
+    const chatElement = document.querySelector(`.clickable-chat[data-chat-id="${messageData.chat_id}"]`);
+    if (chatElement) {
+        let lastMessageText = messageData.last_message;
+        let lastMessageTime = formatMessageTime(messageData.timestamp); // Форматирование времени сообщения
+
+        // Обработка специального формата сообщения, например, для файлов
+        if (lastMessageText.includes('[[FILE]]')) {
+            const fileParts = lastMessageText.split('[[FILE]]')[1].split('[[/FILE]]')[0].split(', ');
+            const fileName = fileParts.find(part => part.startsWith('File Name')).split(': ')[1];
+            lastMessageText = fileName; // Использование только имени файла для отображения
+        }
+
+        // Получение или создание элемента для текста последнего сообщения
+        let lastMessageElement = chatElement.querySelector('.last_message');
+        if (!lastMessageElement) {
+            lastMessageElement = document.createElement('div');
+            lastMessageElement.classList.add('last_message');
+            chatElement.appendChild(lastMessageElement);
+        }
+        lastMessageElement.textContent = `${messageData.sender_phone}: ${lastMessageText}`;
+
+        // Получение или создание элемента для времени последнего сообщения
+        let lastMessageTimeElement = chatElement.querySelector('.last_message_time');
+        if (!lastMessageTimeElement) {
+            lastMessageTimeElement = document.createElement('div');
+            lastMessageTimeElement.classList.add('last_message_time');
+            chatElement.appendChild(lastMessageTimeElement);
+        }
+        lastMessageTimeElement.textContent = lastMessageTime;
+
+                }
+            } else if (messageData.message && messageData.sender_phone_number) {
+                const messagesList = document.getElementById('chat-history');
+                const newMessageItem = document.createElement('div');
+                newMessageItem.className = "message-item";
+                newMessageItem.dataset.messageId = messageData.message.id;
+
+                if (messageData.sender_nickname === "{{ current_user.nickname }}") {
+                    newMessageItem.className += " user";
+                }
+
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                const rawMessage = messageData.message;
+
+                if (rawMessage.includes('[[FILE]]') && rawMessage.includes('[[/FILE]]')) {
+                    const [text, fileInfo] = rawMessage.split('[[FILE]]');
+                    const cleanedFileInfo = fileInfo.replace('[[/FILE]]', '');
+                    const [fileIdInfo, fileNameInfo] = cleanedFileInfo.split(', ');
+                    const fileId = fileIdInfo.split(': ')[1];
+                    const fileName = fileNameInfo.split(': ')[1];
+
+                    const messageTextElement = document.createElement('div');
+                    messageTextElement.innerText = text;
+                    messageContent.appendChild(messageTextElement);
+
+                    const fileLink = document.createElement('div');
+                    const fileAnchor = document.createElement('a');
+                    fileAnchor.href = `/files/${fileId}`;
+                    fileAnchor.innerText = fileName;
+                    fileLink.appendChild(fileAnchor);
+                    messageContent.appendChild(fileLink);
+                } else {
+                    const messageTextElement = document.createElement('div');
+                    messageTextElement.innerText = rawMessage;
+                    messageContent.appendChild(messageTextElement);
+                }
+
+                const timeElement = document.createElement('div');
+                timeElement.innerText = (messageData.timestamp.toString().slice(11, 16) || "undefined");
+                messageContent.appendChild(timeElement);
+
+                const dropdown = document.createElement('div');
+                dropdown.className = 'message-dropdown';
+                const dropdownIcon = document.createElement('img');
+                dropdownIcon.src = '/static/downarrow.png';
+                dropdownIcon.alt = 'Options';
+                dropdownIcon.className = 'message-options-icon';
+
+                const currentUserPhoneNumber = "{{ current_user.phone_number }}";
+                const isAdmin = chatOwnerId === currentUserPhoneNumber; // Предполагается, что chatOwnerId уже определен
+
+                // Создание выпадающего меню
+                const dropdownContent = document.createElement('div');
+                dropdownContent.className = 'message-options';
+                dropdownContent.style.display = 'none';
+
+                // Показывать кнопку "Удалить сообщение" только если пользователь является администратором или автором сообщения
+                if (isAdmin || messageData.sender_phone_number === currentUserPhoneNumber) {
+                    const deleteButton = document.createElement('button');
+                    deleteButton.className = 'dropdown-item';
+                    deleteButton.textContent = 'Удалить сообщение';
+                    deleteButton.onclick = function () {
+                        const messageIdToDelete = newMessageItem.dataset.messageId;
+                        ws.send(JSON.stringify({"action": "delete_message", "message_id": messageIdToDelete}));
+                    };
+                    dropdownContent.appendChild(deleteButton);
+                }
+
+                // Проверка на авторство сообщения для отображения кнопки "Редактировать"
+                if (messageData.sender_phone_number === "{{ current_user.phone_number }}") {
+                    const editButton = document.createElement('button');
+                    editButton.className = 'dropdown-item edit-message-button';
+                    editButton.textContent = 'Редактировать';
+                    editButton.onclick = function () {
+                        const messageIdToEdit = newMessageItem.dataset.messageId;
+                        editChatMessage(messageIdToEdit);
+                    };
+                    dropdownContent.appendChild(editButton);
+                }
+
+                const forwardButton = document.createElement('button');
+                forwardButton.className = 'dropdown-item';
+                forwardButton.textContent = 'Переслать';
+                dropdownContent.appendChild(forwardButton);
+
+                const br = document.createElement('div');
+                br.style = 'display: absolute'
+
+                dropdown.appendChild(dropdownIcon);
+                dropdown.appendChild(dropdownContent);
+                messageContent.appendChild(dropdown);
+                newMessageItem.appendChild(messageContent);
+                newMessageItem.appendChild(timeElement);
+                messagesList.appendChild(newMessageItem);
+            } else {
+                console.warn('Неожиданный формат сообщения: ', messageData);
+            }
+        };
 
         let chatOwnerId;
 

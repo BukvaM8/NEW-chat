@@ -1,38 +1,31 @@
-def replace_spaces_and_tabs(file_path):
-    try:
-        with open(file_path, 'r') as file:
-            # Читаем содержимое файла
-            content = file.read()
+import requests
+import time
 
-            # Ищем индексы первого вхождения "HTML" и первого вхождения "CSS"
-            # start_index = content.find('HTML')
-            # end_index = content.find('CSS')
+api_url = "https://www.virustotal.com/api/v3/files"
+headers = {"x-apikey": "fdd6dfc0214034eb4d84a2a5659435804e8b85057a95e818a8ff8f4c7accfb6d"}
+file_path = "processed_all_reviews_1.json"
 
-            start_index = content.find('CSS')
-            end_index = content[start_index + len('HTML'):].find('Styleguide')
+start_time = time.perf_counter()
+with open(file_path, "rb") as file:
+    files = {"file": (file_path, file)}
+    response = requests.post(api_url, headers=headers, files=files)
+    print(response)
+    if response.status_code == 200:
+        result = response.json()
+        file_id = result.get("data").get("id")
 
+        print(file_id)
 
-            if start_index != -1 and end_index != -1:
-                # Извлекаем блок между "HTML" и "CSS"
-                block_to_replace = content[start_index + len('HTML'):end_index]
+        analysis_url = "https://www.virustotal.com/api/v3/" + "analyses/" + file_id
+        res = requests.get(analysis_url, headers=headers)
+        print(res)
+        if res.status_code == 200:
+            result = res.json()
+            print(result)
+            if result.get("data").get("attributes").get("last_analysis_results"):
+                stats = result.get("data").get("attributes").get("last_analysis_stats")
+                results = result.get("data").get("attributes").get("last_analysis_results")
+                print(stats)
+                print(results)
 
-                # Заменяем пробелы и отступы внутри блока на пустое место
-                block_without_spaces_and_tabs = block_to_replace.replace('\t', ' ').replace('\n', ' ')
-
-                block_without_spaces_and_tabs = block_without_spaces_and_tabs.replace(' <', '<').replace('< ', '<')
-                block_without_spaces_and_tabs = block_without_spaces_and_tabs.replace(' >', '>').replace('> ', '>')
-
-                print(block_without_spaces_and_tabs)
-
-                print(f"Пробелы и отступы в блоке между HTML и CSS в файле {file_path} успешно заменены.")
-            else:
-                print("Блок между HTML и CSS не найден.")
-    except FileNotFoundError:
-        print(f"Файл {file_path} не найден.")
-    except Exception as e:
-        print(f"Произошла ошибка: {e}")
-
-
-# Пример использования
-file_path = 'C:\\Users\\Артем\\Downloads\\content.txt'  # Замените на путь к вашему файлу
-replace_spaces_and_tabs(file_path)
+print(time.perf_counter() - start_time)
