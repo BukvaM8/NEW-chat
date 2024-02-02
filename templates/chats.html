@@ -189,7 +189,7 @@
 <div class="col-md-3 left-panel pb-0" style="min-width: 429px; padding: 0; margin-left: 240px">
     <!-- Profile Section -->
     <div class="d-flex align-items-center mb-2" style="padding-top: 13px; padding-left: 15px; position: relative;">
-        <div class="profile-picture-container" style="position: relative;">
+        <div class="profile-picture-container" style="position: relative; margin-right: 0">
             <img src="/profile/picture/{{ current_user.phone_number }}" alt="Profile picture" class="profile-pic" width="50" height="50" style="cursor:pointer;">
             <div class="online-indicator" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%;"></div>
         </div>
@@ -212,11 +212,12 @@
             </div>
             <br>
             <div class="search-container" style="padding-left: 15px">
-                <form action="/home" method="get" class="search-input">
+                <form onsubmit="search(event)" class="search-input" id="search-input">
                     <input type="text" class="form-control search-input"
                            style="background-color: #EBEBEB; color: #928F8F; border-radius: 8px; font-size: 12px;"
-                           placeholder="Поиск">
+                           placeholder="Поиск" oninput="search(event)">
                 </form>
+
                 <img src="../static/users.svg" alt="User Icon" id="contactImage" style="cursor: pointer;">
                 <img src="../static/menu.svg" alt="Email Icon" id="menuImage" style="cursor: pointer;">
 
@@ -278,7 +279,12 @@
             {% endif %}
 
             <div class="scrollable-content" style="padding-bottom: 55px;">
-    <div class="dialogs-list" style="cursor: pointer">
+
+    <div id="search-results">
+    </div>
+
+    <div id="all-users">
+    <div class="dialogs-list" style="cursor: pointer" id="dialogs-list">
         {% for dialog in dialogs %}
         <div class="container border-bottom mb-2 pb-2 mt-1 clickable-dialog flex-container"
              data-dialog-id="{{ dialog.id }}" data-interlocutor-id="{{ dialog.interlocutor_id }}" style="position: relative;">
@@ -405,7 +411,7 @@
                 <!--                {#                        </div>#}-->
                 <!--                {#                    {% endfor %}#}-->
                 <!--                {#                </div>#}-->
-
+                </div>
             </div>
         </div>
         <!-- Правая панель -->
@@ -447,6 +453,308 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
+function search_create_dialog(event) {
+    event.preventDefault();
+
+    // Получаем значение введенного текста
+    var query = document.querySelector('.search-input-create-dialog input').value;
+
+    // Отправляем запрос на бэкенд
+    fetch('/search-create-dialog?query=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            // Получаем контейнер для результатов
+            var resultsContainer = document.getElementById('search-results-create-dialog');
+            resultsContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            var dialogContainer = document.getElementById('create-dialog');
+            dialogContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            if (data.results.length > 0) {
+                // Добавляем новые результаты
+                data.results.forEach(result => {
+                    // Создаем форму для начала диалога
+                    var dialogForm = document.createElement('form');
+                    dialogForm.id = `dialogForm_${result.nickname}`;
+                    dialogForm.action = `/create_dialog/${result.nickname}`;
+                    dialogForm.method = "post";
+                    dialogForm.classList.add("ms-auto", "start-dialog-form");
+
+                    // Создаем контейнер для информации о собеседнике
+                    var interlocutorInfo = document.createElement('div');
+                    interlocutorInfo.classList.add("interlocutor-info", "mb-0", "border-bottom");
+                    interlocutorInfo.style.paddingTop = "12px";
+                    interlocutorInfo.style.paddingBottom = "12px";
+
+                    // Создаем кнопку для отправки формы
+                    var submitButton = document.createElement('button');
+                    submitButton.type = "submit";
+                    submitButton.classList.add("full-width-button");
+
+                    // Создаем контейнер для изображения собеседника
+                    var profileImageContainer = document.createElement('div');
+                    profileImageContainer.classList.add("profile-image-container");
+                    var profileImage = document.createElement('img');
+                    profileImage.src = `/profile/picture/${result.true_nickname}`;
+                    profileImage.alt = "Interlocutor's profile picture";
+                    profileImage.width = "50";
+                    profileImage.height = "50";
+                    profileImageContainer.appendChild(profileImage);
+
+                    // Создаем контейнер для деталей собеседника
+                    var interlocutorDetails = document.createElement('div');
+                    interlocutorDetails.classList.add("interlocutor-details");
+                    interlocutorDetails.style.marginLeft = "8px";
+
+                    // Создаем заголовок и статус собеседника
+                    var username = document.createElement('h5');
+                    username.classList.add("username");
+                    var usernameLink = document.createElement('a');
+                    usernameLink.href = `/profile/${result.phone_number}`;
+                    usernameLink.style.textDecoration = "none";
+                    usernameLink.style.color = "black";
+                    usernameLink.innerText = result.phone_number;
+                    username.appendChild(usernameLink);
+
+                    {#var status = document.createElement('small');#}
+                    {#status.classList.add("status");#}
+                    {#status.style.paddingLeft = "5px";#}
+                    {#status.innerText = result.status;#}
+
+                    // Добавляем элементы в контейнер деталей собеседника
+                    interlocutorDetails.appendChild(username);
+                    {#interlocutorDetails.appendChild(status);#}
+
+                    // Добавляем элементы в контейнер для отправки формы
+                    submitButton.appendChild(profileImageContainer);
+                    submitButton.appendChild(interlocutorDetails);
+                    submitButton.appendChild(document.createElement('hr'));
+
+                    // Добавляем кнопку в контейнер информации о собеседнике
+                    interlocutorInfo.appendChild(submitButton);
+
+                    // Добавляем контейнер информации о собеседнике в форму
+                    dialogForm.appendChild(interlocutorInfo);
+
+                    // Добавляем форму в контейнер результатов
+                    resultsContainer.appendChild(dialogForm);
+                });
+            } else {
+                // Добавляем надпись "Ничего не найдено"
+                var noResultsMessage = document.createElement('p');
+                noResultsMessage.innerText = "Ничего не найдено";
+                resultsContainer.appendChild(noResultsMessage);
+            }
+
+            // Добавим <br> в конце
+            var lineBreak = document.createElement('br');
+            resultsContainer.appendChild(lineBreak);
+        })
+        .catch(error => console.error('Ошибка при отправке запроса на бэкенд', error));
+}
+
+function search_create_chat(event) {
+    event.preventDefault();
+
+    // Получаем значение введенного текста
+    var query = document.getElementById('search-input-create-chat').value;
+
+    // Отправляем запрос на бэкенд
+    fetch('/search-create-chat?query=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            // Получаем контейнер для результатов
+            var resultsContainer = document.getElementById('search-results-create-chat');
+            resultsContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            var groupContainer = document.getElementById('create-chat-form-group');
+            groupContainer.innerHTML = ""; // Очищаем предыдущие результаты
+
+            if (data.results.length > 0) {
+                // Добавляем новые результаты
+                data.results.forEach(function(user) {
+                    // Создаем div с классом "form-check"
+                    var formCheckDiv = document.createElement("div");
+                    formCheckDiv.className = "form-check";
+
+                    // Создаем внутренний div с отступом
+                    var innerDiv = document.createElement("div");
+                    innerDiv.style.margin = "2px";
+
+                    // Создаем div с display: inline-block
+                    var inlineDiv = document.createElement("div");
+                    inlineDiv.style.display = "inline-block";
+
+                    // Создаем чекбокс
+                    var checkbox = document.createElement("input");
+                    checkbox.className = "custom-checkbox";
+                    checkbox.type = "checkbox";
+                    checkbox.value = user.nickname;
+                    checkbox.id = user.nickname;
+                    checkbox.name = "user_nicknames";
+
+                    // Создаем метку для чекбокса
+                    var label = document.createElement("label");
+                    label.htmlFor = user.nickname;
+
+                    // Добавляем чекбокс и метку внутрь внутреннего div
+                    inlineDiv.appendChild(checkbox);
+                    inlineDiv.appendChild(label);
+
+                    // Создаем div для информации о собеседнике
+                    var infoDiv = document.createElement("div");
+                    infoDiv.className = "interlocutor-info mb-0";
+                    infoDiv.style.paddingTop = "12px";
+                    infoDiv.style.paddingBottom = "12px";
+                    infoDiv.style.display = "inline-block";
+                    infoDiv.style.paddingLeft = "0";
+
+                    // Добавляем изображение профиля
+                    var profileImg = document.createElement("img");
+                    profileImg.src = "/profile/picture/" + user.phone_number;
+                    profileImg.alt = "Interlocutor's profile picture";
+                    profileImg.width = "50";
+                    profileImg.height = "50";
+
+                    // Создаем div для деталей собеседника
+                    var detailsDiv = document.createElement("div");
+                    detailsDiv.className = "interlocutor-details";
+                    detailsDiv.style.marginLeft = "8px";
+                    detailsDiv.style.display = "inline-block";
+
+                    // Создаем заголовок и статус
+                    var usernameHeader = document.createElement("h5");
+                    usernameHeader.className = "username";
+                    usernameHeader.style.marginBottom = "0";
+
+                    var usernameLink = document.createElement("a");
+                    usernameLink.href = "/profile/" + user.phone_number;
+                    usernameLink.style.textDecoration = "none";
+                    usernameLink.style.color = "black";
+                    usernameLink.textContent = user.phone_number;
+
+                    var smallStatus = document.createElement("small");
+                    smallStatus.className = "status";
+                    smallStatus.textContent = user.status;
+
+                    // Собираем структуру деталей собеседника
+                    usernameHeader.appendChild(usernameLink);
+                    detailsDiv.appendChild(usernameHeader);
+                    detailsDiv.appendChild(smallStatus);
+
+                    // Добавляем изображение и детали собеседника в div информации
+                    infoDiv.appendChild(profileImg);
+                    infoDiv.appendChild(detailsDiv);
+
+                    // Добавляем внутренний div в основной div
+                    innerDiv.appendChild(inlineDiv);
+                    innerDiv.appendChild(infoDiv);
+
+                    // Добавляем в основной div внутренний div и горизонтальную линию
+                    formCheckDiv.appendChild(innerDiv);
+                    formCheckDiv.appendChild(document.createElement("hr"));
+
+                    // Добавляем formCheckDiv в основной formGroupDiv
+                    resultsContainer.appendChild(formCheckDiv);
+                });
+            } else {
+
+            }
+
+            // Добавим <br> в конце
+            var lineBreak = document.createElement('br');
+            resultsContainer.appendChild(lineBreak);
+        })
+        .catch(error => console.error('Ошибка при отправке запроса на бэкенд', error));
+}
+
+function search(event) {
+    event.preventDefault();
+
+    // Получаем значение введенного текста
+    var query = document.querySelector('.search-input input').value;
+
+    // Отправляем запрос на бэкенд
+    fetch('/search?query=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            // Создаем список результатов на стороне клиента
+            var resultsList = document.getElementById('search-results');
+            resultsList.innerHTML = ""; // Очищаем предыдущие результаты
+
+            var usersContainer = document.getElementById('all-users');
+            usersContainer.innerHTML = ""
+
+            if (data.dialogs.length > 0) {
+                // Добавляем новые результаты
+                data.dialogs.forEach(result => {
+                    // Создаем элемент для каждого результата
+                    var resultItem = document.createElement('div');
+                    resultItem.classList.add("container", "border-bottom", "mb-2", "pb-2", "mt-1", "clickable-result", "flex-container");
+                    resultItem.innerHTML = `
+                        <!-- Фото собеседника -->
+                        <div class="profile-picture-container" style="position: relative;">
+                            <img src="/profile/picture/${result.interlocutor_phone_number}"
+                                 alt="Interlocutor's profile picture" width="50" height="50"
+                                 class="profile-picture">
+                            <!-- Индикатор онлайн-статуса -->
+                            <div class="online-indicator-dialog" style="position: absolute; bottom: 0; right: 0; height: 10px; width: 10px; background-color: green; border-radius: 50%; display: none;"></div>
+                        </div>
+
+                        <!-- Информация о результате поиска -->
+                        <div class="dialogs-item small-title flex-grow"
+                             style="display: flex; flex-direction: column; align-items: start;">
+                            <div>
+                                <strong class="username">${result.user_fio}</strong>
+                                <!-- Последнее сообщение -->
+                                <div class="last_message"
+                                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                    <strong>${result.interlocutor_phone_number}:</strong>
+                                    <!-- Предполагается, что у вас есть last_message и вы можете обрабатывать его как и раньше -->
+                                    ${result.last_message}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    resultsList.appendChild(resultItem);
+                });
+            }
+            if (data.chats.length > 0) {
+                data.chats.forEach(chat => {
+                    // Создаем элемент для каждого чата
+                    var chatItem = document.createElement('div');
+                    chatItem.classList.add("container", "border-bottom", "mb-2", "pb-2", "mt-1", "clickable-result", "flex-container");
+
+                    chatItem.innerHTML = `
+                        <!-- Фото чата -->
+                        <div class="profile-picture-container">
+                            <img src="/chat/picture/${chat.id}" alt="Chat picture" width="50" height="50" class="profile-picture">
+                        </div>
+
+                        <!-- Информация о чате -->
+                        <div class="chat-item small-title flex-grow" style="display: flex; flex-direction: column; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong class="username">${chat.chat_name}</strong>
+                                <!-- Название группы -->
+                            </div>
+
+                        </div>
+                    `;
+
+                    resultsList.appendChild(chatItem);
+                });
+            }
+            else {
+
+            }
+
+            // Добавим <br> в конце
+            var lineBreak = document.createElement('br');
+            resultsList.appendChild(lineBreak);
+        })
+        .catch(error => console.error('Ошибка при отправке запроса на бэкенд', error));
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const currentUserId = "{{ current_user.id }}";
     const socket = new WebSocket(`ws://127.0.0.1:8080/ws/main_page/${currentUserId}/`);
@@ -1203,11 +1511,11 @@ function initializeDialogJS(dialogId, currentUserId) {
 
                 const timeElement = document.createElement('div');
                 if (messageData.message.timestamp) {
-                    timeElement.appendChild(document.createTextNode("Отправлено: " + messageData.message.timestamp));
+                    timeElement.appendChild(document.createTextNode(messageData.message.timestamp.toString().slice(11, 16)));
                 } else {
                     timeElement.appendChild(document.createTextNode("Время отправки не указано"));
                 }
-                messageContent.appendChild(timeElement);
+                {#messageContent.appendChild(timeElement);#}
 
                 const dropdown = document.createElement('div');
                 dropdown.className = 'message-dropdown';
@@ -1250,6 +1558,7 @@ function initializeDialogJS(dialogId, currentUserId) {
                 messageContent.appendChild(dropdown);
 
                 newMessage.appendChild(messageContent);
+                newMessage.appendChild(timeElement);
                 const messagesList = document.querySelector('.list-group');
                 messagesList.appendChild(newMessage);
 
@@ -2002,7 +2311,7 @@ function initializeDialogJS(dialogId, currentUserId) {
                 }
 
                 const timeElement = document.createElement('div');
-                timeElement.innerText = "Отправлено: " + (messageData.timestamp || "undefined");
+                timeElement.innerText = (messageData.timestamp.toString().slice(11, 16) || "undefined");
                 messageContent.appendChild(timeElement);
 
                 const dropdown = document.createElement('div');
@@ -2049,10 +2358,15 @@ function initializeDialogJS(dialogId, currentUserId) {
                 forwardButton.textContent = 'Переслать';
                 dropdownContent.appendChild(forwardButton);
 
+                const br = document.createElement('div');
+                br.style = 'display: absolute'
+
                 dropdown.appendChild(dropdownIcon);
                 dropdown.appendChild(dropdownContent);
                 messageContent.appendChild(dropdown);
                 newMessageItem.appendChild(messageContent);
+                {#newMessageItem.appendChild(br);#}
+                newMessageItem.appendChild(timeElement);
                 messagesList.appendChild(newMessageItem);
             } else {
                 console.warn('Неожиданный формат сообщения: ', messageData);

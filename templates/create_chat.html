@@ -145,18 +145,23 @@
                         src="../static/black_back_arrow.png" alt="Картинка" style="vertical-align: middle;"> Новая
                     группа
                 </h5></a>
-                <form action="/home" method="get" class="search-input">
+                <form onsubmit="search_create_chat(event)" class="search-input-create-chat">
                     <input type="text" class="form-control search-input"
                            style="background-color: #EBEBEB; color: #928F8F; border-radius: 8px; font-size: 12px; margin-left: 40px; margin-right: 40px; width: 400px"
-                           placeholder="Кого добавить в группу?">
+                           placeholder="Кого добавить в группу?" oninput="search_create_chat(event)"
+                           id="search-input-create-chat">
                 </form>
                 <button type="submit" class="btn btn-primary button_ful">Далее</button>
             </div>
         </div>
         <hr class="my-0">
 
+
+        <div id="search-results-create-chat"></div>
+
         <!-- Поле для выбора участников чата с использованием чекбоксов -->
-        <div class="form-group" style="margin-left: 15px">
+        <div class="form-group" style="margin-left: 15px" id="create-chat-form-group">
+
             {% for user in users %}
                 <div class="form-check">
                     <div style="margin: 2px">

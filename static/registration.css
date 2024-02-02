@@ -32,6 +32,7 @@
 }
 
 .button {
+    font-family: Roboto, serif;
     display: flex;
     height: 53px;
     width: 540px;
@@ -45,6 +46,7 @@
 }
 
 .button_register {
+    font-family: Roboto, serif;
     display: flex;
     height: 53px;
     width: 540px;

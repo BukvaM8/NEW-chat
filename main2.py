@@ -10,6 +10,7 @@ import os
 import smtplib
 import tempfile
 import time
+import base64
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -3584,6 +3585,9 @@ async def create_dialog_route(request: Request,
     for i in range(len(all_users)):
         results = db.query(users).filter_by(id=all_users[i]['nickname']).first()
         all_users[i]['status'] = results['status'] if (results['status_visibility'] == 1 and results['status']) else ''
+        user = db.execute(select(User).where(User.id == all_users[0]['nickname'])).first()[0]
+        all_users[i]['true_nickname'] = user.nickname
+
     return templates.TemplateResponse("create_dialog.html", {
         "request": request,
         "current_user": current_user,
@@ -3719,7 +3723,7 @@ async def get_messages_from_dialog(dialog_id: int, message_id: int = None) -> Li
             "dialog_id": row[1],
             "sender_id": row[2],
             "message": row[3],
-            "timestamp": row[5].strftime("%Y-%m-%d %H:%M:%S") if row[5] else None,
+            "timestamp": row[4].strftime("%Y-%m-%d %H:%M:%S") if row[4] else None,
             "delete_timestamp": row[6].strftime("%Y-%m-%d %H:%M:%S") if row[6] else None,
             "edit_timestamp": row[7].strftime("%Y-%m-%d %H:%M:%S") if row[7] else None  # Обработка edit_timestamp
         })
@@ -4169,7 +4173,6 @@ class ConnectionManager:
                 if websocket.client_state == WebSocketState.CONNECTED:
                     await websocket.send_text(status_message)
         logging.info(f"Notified about user {user_id} online status: {is_online}")
-
 
     async def send_message(self, message: str, user_id: int, room: str):
         logging.info(f"Function send_message called for user {user_id} in room {room}")
@@ -4638,6 +4641,106 @@ async def http_exception_handler(request, exc):
     if exc.status_code == 401:
         return RedirectResponse(url="/login_register", status_code=303)
     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
+
+
+@app.get("/search")
+async def search(query: str, current_user: User = Depends(get_current_user_from_request),
+                 db: Session = Depends(get_db)):
+    needed_user_dialogs = []
+    user_dialogs = await get_user_dialogs(current_user.id)
+
+    for i in range(len(user_dialogs)):
+        user_dialogs[i]['last_online'] = '2023-11-30-10-59'
+        user_dialogs[i]['last_message_timestamp'] = '2023-11-30-10-59'
+        fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=user_dialogs[i]["user_id"]).first()
+        if fio:
+            user_dialogs[i]["user_fio"] = fio.FIO
+        else:
+            user_dialogs[i]["user_fio"] = user_dialogs[i]["interlocutor_phone_number"]
+
+        if query in user_dialogs[i]["user_fio"]:
+            needed_user_dialogs.append(user_dialogs[i])
+
+    needed_user_chats = []
+    user_chats = await get_user_chats(current_user.phone_number)
+
+    for i in range(len(user_chats)):
+        if query in user_chats[i]["chat_name"]:
+            needed_user_chats.append({
+                "id": user_chats[i]['id'],
+                "chat_name": user_chats[i]["chat_name"],
+                "owner_phone_number": user_chats[i]["owner_phone_number"],
+                "chat_image": base64.b64encode(user_chats[i]["chat_image"]).decode('utf-8') if user_chats[i]["chat_image"] else None,
+                "last_message": user_chats[i]["last_message"],
+                "last_message_sender_phone": user_chats[i]["last_message_sender_phone"],
+                "last_message_timestamp": '2023-11-30-10-59'
+            })
+
+    return JSONResponse(content={"dialogs": needed_user_dialogs, "chats": needed_user_chats})
+
+
+@app.get("/search-contacts")
+async def search(query: str, current_user: User = Depends(get_current_user_from_request),
+                 db: Session = Depends(get_db)):
+    contacts = await get_all_users_from_contacts(current_user.id)
+    users_in_contacts = []
+    for contact in contacts:
+        user = db.execute(select(User).where(User.id == contact.get("nickname"))).first()[0]
+        fio = db.query(Contact).filter_by(my_username_id=current_user.id, user_id=user.id).first().FIO
+        if query in fio:
+            users_in_contacts.append({
+                "current_user_nickname": current_user.nickname,
+                "id": user.id,
+                "photo": base64.b64encode(user.profile_picture).decode('utf-8') if user.profile_picture else None,
+                "fio": fio,
+                "nickname": user.nickname,
+                "status": user.status,
+                "status_visibility": user.status_visibility
+            })
+
+    return JSONResponse(content={"results": users_in_contacts})
+
+
+@app.get("/search-create-chat")
+async def search(query: str, current_user: User = Depends(get_current_user_from_request),
+                 db: Session = Depends(get_db)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    needed_users = []
+    all_users = await get_all_users_from_contacts(current_user.id)
+    for i in range(len(all_users)):
+        results = db.query(users).filter_by(id=all_users[i]['nickname']).first()
+        all_users[i]['status'] = results['status'] if (results['status_visibility'] == 1 and results['status']) else ''
+        all_users = await get_all_users_from_contacts(current_user.id)
+        user = db.execute(select(User).where(User.id == all_users[0]['nickname'])).first()[0]
+        all_users[i]['true_nickname'] = user.nickname
+
+        if query in all_users[i]['phone_number']:
+            needed_users.append(all_users[i])
+
+    return JSONResponse(content={"results": needed_users})
+
+
+@app.get("/search-create-dialog")
+async def search(query: str, current_user: User = Depends(get_current_user_from_request),
+                 db: Session = Depends(get_db)):
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    needed_users = []
+    all_users = await get_all_users_from_contacts(current_user.id)
+    for i in range(len(all_users)):
+        results = db.query(users).filter_by(id=all_users[i]['nickname']).first()
+        all_users[i]['status'] = results['status'] if (results['status_visibility'] == 1 and results['status']) else ''
+        all_users = await get_all_users_from_contacts(current_user.id)
+        user = db.execute(select(User).where(User.id == all_users[0]['nickname'])).first()[0]
+        all_users[i]['true_nickname'] = user.nickname
+
+        if query in all_users[i]['phone_number']:
+            needed_users.append(all_users[i])
+
+    return JSONResponse(content={"results": needed_users})
 
 
 if __name__ == "__main__":
